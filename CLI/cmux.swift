@@ -5116,6 +5116,8 @@ struct CMUXCLI {
         if command == "docs" { try runDocsCommand(commandArgs: commandArgs, jsonOutput: jsonOutput); return }
         if command == "welcome" { printWelcome(); return }
         if command == "sessions" || command == "session-debug" { try runSessionsCommand(commandArgs: command == "session-debug" ? ["debug"] + commandArgs : commandArgs, jsonOutput: jsonOutput, processEnv: processEnv); return }
+        if command == "artifact" { try await runArtifactCommand(commandArgs: commandArgs, jsonOutput: jsonOutput, processEnvironment: processEnv); return }
+        if command == "note" { try await runNoteCommand(commandArgs: commandArgs, jsonOutput: jsonOutput, processEnvironment: processEnv); return }
         if command == "__sigpipe-probe" { try runSIGPIPEProbe(commandArgs: commandArgs); return }
         if command == "__sigpipe-stdin-pipe-probe" { try runSIGPIPEStdinPipeProbe(); return }
         if command == "__sigpipe-inspect" { try runSIGPIPEInspect(commandArgs: commandArgs); return }
@@ -18327,6 +18329,8 @@ struct CMUXCLI {
 
             Check connectivity to the cmux socket server.
             """
+        case "artifact": return artifactUsage()
+        case "note": return noteUsage()
         case "iroh-diag":
             return String(
                 localized: "cli.help.irohDiag",
@@ -20315,7 +20319,7 @@ struct CMUXCLI {
                                              ~/.config/cmux/sidebars as a right panel;
                                              the optional name picks which one.
               mode                           Print {"visible":bool,"mode":string}
-              files|find|vault|sessions|feed|dock|cloud|custom
+              files|find|vault|sessions|artifacts|feed|dock|cloud|custom
                                              Alias for show + set + focus
 
             Flags:
@@ -21051,7 +21055,7 @@ struct CMUXCLI {
 
         case "set":
             guard parsed.positional.count == 2 || parsed.positional.count == 3 else {
-                throw CLIError(message: String(localized: "cli.rightSidebar.error.setRequiresMode", defaultValue: "right-sidebar set requires a mode: files, find, vault, sessions, feed, dock, cloud, or custom [sidebar-name]"))
+                throw CLIError(message: String(localized: "cli.rightSidebar.error.setRequiresMode", defaultValue: "right-sidebar set requires a mode: files, find, vault, sessions, artifacts, feed, dock, cloud, or custom [sidebar-name]"))
             }
             let mode = parsed.positional[1].trimmingCharacters(in: .whitespacesAndNewlines)
             guard isRightSidebarCLIMode(mode) else {
@@ -21071,7 +21075,7 @@ struct CMUXCLI {
             }
             return args
 
-        case "files", "find", "vault", "sessions", "feed", "dock", "cloud", "machines", "custom", "custom-sidebar":
+        case "files", "find", "vault", "sessions", "artifacts", "feed", "dock", "cloud", "machines", "custom", "custom-sidebar":
             guard parsed.positional.count == 1 else {
                 throw CLIError(message: String(localized: "cli.rightSidebar.error.unexpectedArguments", defaultValue: "right-sidebar \(action) received unexpected arguments"))
             }
@@ -40961,6 +40965,8 @@ export default CMUXSessionRestore;
 
         Commands:
           welcome
+          \(String(localized: "cli.artifact.helpLine", defaultValue: "artifact <list|path|open|add|search> [--project <path>]"))
+          \(String(localized: "cli.note.helpLine", defaultValue: "note <list|path|read|write|append|search|open|rm> [--project <path>] (rm requires --yes|-y)"))
           docs [settings|shortcuts|api|browser|agents|dock|sidebars]
           settings [open [target]|path|docs|<target>]
           config <doctor|check|validate|path|paths|docs|documentation|reload>
@@ -41073,7 +41079,7 @@ export default CMUXSessionRestore;
           open-notification --id <uuid>
           jump-to-unread
           clear-notifications [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>]
-          right-sidebar <toggle|show|hide|focus|set|mode|files|find|vault|sessions|feed|dock|cloud> [--workspace <id|ref|index>] [--window <id|ref|index>] [--no-focus]
+          right-sidebar <toggle|show|hide|focus|set|mode|files|find|vault|sessions|artifacts|feed|dock|cloud> [--workspace <id|ref|index>] [--window <id|ref|index>] [--no-focus]
           sidebar <validate|reload|select|open> [name]
           set-status <key> <value> [--workspace <id|ref|index>] [--window <id|ref|index>] [--icon <name>] [--color <#hex>] [--priority <n>]
           clear-status <key> [--workspace <id|ref|index>] [--window <id|ref|index>]

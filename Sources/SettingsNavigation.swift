@@ -456,6 +456,15 @@ enum SettingsSearchIndex {
         setting(.sidebarAppearance, "right-sidebar-tabs", String(localized: "settings.sidebar.rightTabs", defaultValue: "Right Sidebar Tabs"), "right sidebar tabs show hide reorder order files find vault feed dock cloud mode switcher customize"),
         setting(.customSidebars, "enabled", String(localized: "settings.customSidebars.enabled", defaultValue: "Show Custom Sidebars"), "custom sidebars enable show vibe swift json interpreted picker"),
         setting(.customSidebars, "renderer", String(localized: "settings.customSidebars.renderer", defaultValue: "Renderer"), "renderer in-process in app remote worker isolated process hover focus typing input"),
+        setting(
+            .betaFeatures,
+            "artifacts",
+            String(
+                localized: "settings.betaFeatures.artifacts",
+                defaultValue: "Artifacts & Notes"
+            ),
+            "artifacts notes capture files project local right sidebar agent output"
+        ),
         setting(.betaFeatures, "feed", String(localized: "settings.betaFeatures.feed", defaultValue: "Feed"), "feed right sidebar agent decisions permissions questions"),
         setting(.betaFeatures, "dock", String(localized: "settings.betaFeatures.dock", defaultValue: "Dock"), "dock right sidebar terminal controls tui"),
         setting(.betaFeatures, "cloudMachines", String(localized: "settings.betaFeatures.cloudMachines", defaultValue: "Cloud Machines"), "cloud machines vm right sidebar beta virtual machine persistent computer"),
@@ -524,6 +533,7 @@ enum SettingsSearchIndex {
     )
 
     private static let settingsPathAnchorIDs: [String: String] = [
+        "rightSidebar.beta.artifacts.enabled": settingID(for: .betaFeatures, idSuffix: "artifacts"),
         "rightSidebar.beta.feed.enabled": settingID(for: .betaFeatures, idSuffix: "feed"),
         "rightSidebar.beta.dock.enabled": settingID(for: .betaFeatures, idSuffix: "dock"),
         "app.language": settingID(for: .app, idSuffix: "language"),

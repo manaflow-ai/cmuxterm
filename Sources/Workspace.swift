@@ -2602,6 +2602,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
     enum BrowserPanelCreationPolicy {
         case userInitiated
         case automationPreload
+        case artifactPreview
         case restoration
         /// Config-driven layout application (`cmux.json` layouts, saved
         /// layouts, `cmux layout`). Unlike `.restoration`, applying a layout
@@ -2614,11 +2615,16 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         /// (it re-materializes pre-existing panes); an MDM-managed disable is
         /// checked separately and refuses every path.
         var permitsCreationWhenBrowserDisabled: Bool {
-            self == .restoration
+            self == .restoration || self == .artifactPreview
         }
 
         var preloadsInitialNavigationInBackground: Bool {
             self == .automationPreload
+        }
+
+        func contentMode(initialURL: URL?) -> BrowserPanelContentMode {
+            guard self == .artifactPreview, let initialURL else { return .standard }
+            return .artifactHTMLPreview(documentURL: initialURL)
         }
     }
 
@@ -9759,6 +9765,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             bypassRemoteProxy: bypassRemoteProxy,
             isRemoteWorkspace: isRemoteWorkspace,
             remoteWebsiteDataStoreIdentifier: isRemoteWorkspace && !bypassRemoteProxy ? id : nil,
+            contentMode: creationPolicy.contentMode(initialURL: url),
             websiteDataStore: websiteDataStore
         )
         configureBrowserPanel(browserPanel)
@@ -9880,6 +9887,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             bypassRemoteProxy: bypassRemoteProxy,
             isRemoteWorkspace: isRemoteWorkspace,
             remoteWebsiteDataStoreIdentifier: isRemoteWorkspace && !bypassRemoteProxy ? id : nil,
+            contentMode: creationPolicy.contentMode(initialURL: url),
             websiteDataStore: websiteDataStore
         )
         configureBrowserPanel(browserPanel)
@@ -10102,7 +10110,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         inPane paneId: PaneID,
         filePath: String,
         focus: Bool? = nil,
-        targetIndex: Int? = nil
+        targetIndex: Int? = nil,
+        artifactFile: ArtifactSidebarFileAccess.OpenedFile? = nil
     ) -> MarkdownPanel? {
         guard !isRetiredFromOwningTabManager else { return nil }
         let shouldFocusNewTab = focus ?? (bonsplitController.focusedPaneId == paneId)
@@ -10112,6 +10121,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         let markdownPanel = MarkdownPanel(
             workspaceId: id,
             filePath: filePath,
+            artifactFile: artifactFile,
             fileContentChangeCoordinator: fileContentChangeCoordinator
         )
         panels[markdownPanel.id] = markdownPanel
@@ -10358,7 +10368,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         inPane paneId: PaneID,
         filePath: String,
         focus: Bool? = nil,
-        targetIndex: Int? = nil
+        targetIndex: Int? = nil,
+        artifactFile: ArtifactSidebarFileAccess.OpenedFile? = nil
     ) -> FilePreviewPanel? {
         guard !isRetiredFromOwningTabManager else { return nil }
         let shouldFocusNewTab = focus ?? (bonsplitController.focusedPaneId == paneId)
@@ -10368,6 +10379,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         let filePreviewPanel = FilePreviewPanel(
             workspaceId: id,
             filePath: filePath,
+            artifactFile: artifactFile,
             fileContentChangeCoordinator: fileContentChangeCoordinator
         )
         panels[filePreviewPanel.id] = filePreviewPanel
@@ -10850,6 +10862,10 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
               let browserPanel = browserPanel(for: panelId),
               browserPanel.shouldPersistSessionSnapshot(),
               let tabIndex = bonsplitController.tabs(inPane: pane).firstIndex(where: { $0.id == tab.id }) else {
+            pendingClosedBrowserRestoreSnapshots.removeValue(forKey: tab.id)
+            return
+        }
+        guard browserPanel.contentMode.allowsSessionPersistence else {
             pendingClosedBrowserRestoreSnapshots.removeValue(forKey: tab.id)
             return
         }

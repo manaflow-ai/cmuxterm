@@ -1990,6 +1990,7 @@ final class BrowserPanel: Panel, ObservableObject {
 
     @Published private(set) var profileID: UUID
     @Published private(set) var historyStore: BrowserHistoryStore
+    let contentMode: BrowserPanelContentMode
 
     /// The underlying web view
     private(set) var webView: WKWebView
@@ -3063,8 +3064,17 @@ final class BrowserPanel: Panel, ObservableObject {
         webView.onScreenshotCopied = { [weak self] in
             self?.screenshotCopiedToken &+= 1
         }
-        webView.onContextMenuOpenLinkInNewTab = { [weak self] url in
-            self?.openContextMenuLinkInNewTab(url: url)
+        if contentMode.artifactDocumentURL == nil {
+            webView.onContextMenuOpenLinkInNewTab = { [weak self] url in
+                self?.openContextMenuLinkInNewTab(url: url)
+            }
+            webView.contextMenuDefaultBrowserOpener = nil
+        } else {
+            // Artifact previews are isolated documents. Their context-menu
+            // links must not escape into a normal browser surface or the
+            // system browser, which would bypass the preview navigation policy.
+            webView.onContextMenuOpenLinkInNewTab = nil
+            webView.contextMenuDefaultBrowserOpener = { _ in false }
         }
         configureMoveTabToNewWorkspaceContextMenu(for: webView)
         navigationDelegate?.resetTrustedInternalNavigationState()
@@ -3073,7 +3083,7 @@ final class BrowserPanel: Panel, ObservableObject {
         automationNavigationCoordinator.bind(to: webViewInstanceID)
         webView.cmuxDownloadDelegate = downloadDelegate
         webView.navigationDelegate = navigationDelegate
-        webView.uiDelegate = uiDelegate
+        webView.uiDelegate = contentMode.artifactDocumentURL == nil ? uiDelegate : nil
         setupObservers(for: webView)
         setupSameDocumentNavigationMessageHandler(for: webView)
         setupReactGrabMessageHandler(for: webView)
@@ -3165,8 +3175,10 @@ final class BrowserPanel: Panel, ObservableObject {
                 self.applyMuteState(to: webView, reason: "navigationFinish")
                 if self.navigationDelegate?.activeErrorPageDisplayURL == nil {
                     self.realignRestoredSessionHistoryToLiveCurrentIfPossible()
-                    boundHistoryStore.recordVisit(url: webView.url, title: webView.title)
-                    self.refreshFavicon(from: webView)
+                    if self.contentMode.artifactDocumentURL == nil {
+                        boundHistoryStore.recordVisit(url: webView.url, title: webView.title)
+                        self.refreshFavicon(from: webView)
+                    }
                 }
                 self.applyCurrentAppWebTheme(to: webView)
                 // Keep find-in-page open through load completion and refresh matches for the new DOM.
@@ -3436,6 +3448,7 @@ final class BrowserPanel: Panel, ObservableObject {
         bypassRemoteProxy: Bool = false,
         isRemoteWorkspace: Bool = false,
         remoteWebsiteDataStoreIdentifier: UUID? = nil,
+        contentMode: BrowserPanelContentMode = .standard,
         websiteDataStore explicitWebsiteDataStore: WKWebsiteDataStore? = nil
     ) {
         // Register fallback defaults and normalize legacy/out-of-range settings once
@@ -3447,6 +3460,7 @@ final class BrowserPanel: Panel, ObservableObject {
         self.externalNavigationHandler = BrowserExternalNavigationHandler()
         let resolvedProfileID = Self.resolvedProfileID(requested: profileID)
         self.profileID = resolvedProfileID
+        self.contentMode = contentMode
         self.insecureHTTPBypassHostOnce = BrowserInsecureHTTPSettings.normalizeHost(bypassInsecureHTTPHostOnce ?? "")
         self.bypassesRemoteWorkspaceProxy = bypassRemoteProxy
         self.remoteProxyEndpoint = bypassRemoteProxy ? nil : proxyEndpoint
@@ -3455,15 +3469,19 @@ final class BrowserPanel: Panel, ObservableObject {
         self.shouldPreloadInitialNavigationInBackground = preloadInitialNavigationInBackground
         self.chromeState = BrowserChromeState(visibility: chromeVisibility)
         self.usesTransparentBackground = transparentBackground
-        let websiteDataStore = explicitWebsiteDataStore ?? (
-            isRemoteWorkspace
+        let isArtifactPreview = contentMode.artifactDocumentURL != nil
+        let websiteDataStore = isArtifactPreview
+            ? WKWebsiteDataStore.nonPersistent()
+            : explicitWebsiteDataStore ?? (
+                isRemoteWorkspace
                 ? WKWebsiteDataStore(forIdentifier: remoteWebsiteDataStoreIdentifier ?? workspaceId)
                 : BrowserProfileStore.shared.websiteDataStore(for: resolvedProfileID)
-        )
+            )
         let preservesExplicitEphemeralWebsiteDataStore =
-            explicitWebsiteDataStore != nil
-            && websiteDataStore !== WKWebsiteDataStore.default()
-            && websiteDataStore.identifier == nil
+            isArtifactPreview
+            || (explicitWebsiteDataStore != nil
+                && websiteDataStore !== WKWebsiteDataStore.default()
+                && websiteDataStore.identifier == nil)
         self.historyStore = preservesExplicitEphemeralWebsiteDataStore
             ? BrowserHistoryStore(fileURL: nil)
             : BrowserProfileStore.shared.historyStore(for: resolvedProfileID)
@@ -3472,7 +3490,11 @@ final class BrowserPanel: Panel, ObservableObject {
             preservesExplicitEphemeralWebsiteDataStore
         let webView: CmuxWebView
         var adoptedPrewarmedWebView = false
-        if let prewarmed = Self.claimedPrewarmedWebView(
+        if contentMode.artifactDocumentURL != nil {
+            webView = ArtifactHTMLPreviewWebViewFactory(
+                websiteDataStore: websiteDataStore
+            ).makeWebView()
+        } else if let prewarmed = Self.claimedPrewarmedWebView(
             isRemoteWorkspace: isRemoteWorkspace,
             initialRequest: initialRequest,
             renderInitialNavigation: renderInitialNavigation,
@@ -3507,13 +3529,20 @@ final class BrowserPanel: Panel, ObservableObject {
         }
         hiddenWebViewDiscardManager.delegate = self
         applyProxyConfigurationIfAvailable()
-        BrowserProfileStore.shared.noteUsed(resolvedProfileID)
+        if contentMode.artifactDocumentURL == nil {
+            BrowserProfileStore.shared.noteUsed(resolvedProfileID)
+        }
 
         // Set up navigation delegate
         let navDelegate = BrowserNavigationDelegate(
             externalNavigationHandler: externalNavigationHandler
         )
         navDelegate.owner = self
+        if let documentURL = contentMode.artifactDocumentURL {
+            navDelegate.artifactHTMLPreviewPolicy = ArtifactHTMLPreviewNavigationPolicy(
+                documentURL: documentURL
+            )
+        }
         navDelegate.openInNewTab = { [weak self] url in
             self?.openLinkInNewTab(url: url)
         }
@@ -3751,7 +3780,7 @@ final class BrowserPanel: Panel, ObservableObject {
             refreshWebViewLifecycleState()
             guard renderInitialNavigation else { return }
             if let url = initialRequest.url,
-               !BrowserURLAllowlistPolicy(defaults: .standard).allows(url) {
+               !allowsNavigationURL(url) {
                 navigationDelegate?.blockURLAllowlistNavigation(url, in: webView)
             } else if let url = initialRequest.url,
                insecureHTTPBypassHostOnce == nil,
@@ -4186,7 +4215,8 @@ final class BrowserPanel: Panel, ObservableObject {
 
     @discardableResult
     func switchToProfile(_ requestedProfileID: UUID) -> Bool {
-        guard !preservesExplicitEphemeralWebsiteDataStore else {
+        guard contentMode.artifactDocumentURL == nil,
+              !preservesExplicitEphemeralWebsiteDataStore else {
             return false
         }
         let resolvedProfileID = BrowserProfileStore.shared.profileDefinition(id: requestedProfileID) != nil
@@ -4420,6 +4450,7 @@ final class BrowserPanel: Panel, ObservableObject {
     }
 
     func shouldPersistSessionSnapshot() -> Bool {
+        guard contentMode.allowsSessionPersistence else { return false }
         // A non-persistent WebKit store cannot be reconstructed with the same
         // account or cookies. Persisting only its URL and profile would reopen
         // it inside a shared profile, which is unsafe for authenticated native
@@ -5421,7 +5452,7 @@ final class BrowserPanel: Panel, ObservableObject {
         let request = URLRequest(url: url)
         let policy = BrowserURLAllowlistPolicy(defaults: .standard)
         (webView as? CmuxWebView)?.clearTrustedInternalNavigationGrants()
-        if !policy.allowsTrustedInternalURL(url) {
+        if !policy.allowsTrustedInternalURL(url) && !allowsNavigationURL(url) {
             navigationDelegate?.blockURLAllowlistNavigation(url, in: webView)
             onNavigationStarted?(nil)
             return nil
@@ -5479,7 +5510,7 @@ final class BrowserPanel: Panel, ObservableObject {
         let policyAllowsURL = trustedInternalNavigation
             ? policy.allowsTrustedInternalURL(url)
             : policy.allows(url)
-        guard policyAllowsURL else {
+        guard policyAllowsURL || allowsNavigationURL(url) else {
             onNavigationStarted?(nil)
             navigationDelegate?.blockURLAllowlistNavigation(url, in: webView)
             return nil
@@ -5513,6 +5544,17 @@ final class BrowserPanel: Panel, ObservableObject {
             preserveRestoredSessionHistory: preserveRestoredSessionHistory,
             onNavigationStarted: onNavigationStarted
         )
+    }
+
+    /// App-owned artifact documents use the trusted-internal scheme policy;
+    /// page-initiated navigations still pass through the delegate's ordinary
+    /// allowlist and artifact-document policy.
+    private func allowsNavigationURL(_ url: URL) -> Bool {
+        let policy = BrowserURLAllowlistPolicy(defaults: .standard)
+        guard contentMode.artifactDocumentURL != nil else {
+            return policy.allows(url)
+        }
+        return policy.allowsTrustedInternalURL(url)
     }
 
     private func resumePendingRemoteNavigationIfNeeded() {
@@ -5961,6 +6003,7 @@ extension BrowserPanel {
         reason: String,
         forceWebViewReplacement: Bool = false
     ) {
+        guard contentMode.artifactDocumentURL == nil else { return }
         guard forceWebViewReplacement || needsWorkspaceContextReset else {
             resetWebViewLifecycleMetadata()
 #if DEBUG

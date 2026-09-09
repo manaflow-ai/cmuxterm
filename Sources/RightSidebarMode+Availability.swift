@@ -10,6 +10,8 @@ extension RightSidebarMode {
             return .find
         case "vault", "sessions":
             return .sessions
+        case "artifacts":
+            return .artifacts
         case "feed":
             return .feed
         case "dock":
@@ -25,15 +27,22 @@ extension RightSidebarMode {
 
     static func availableModes(defaults: UserDefaults = .standard) -> [RightSidebarMode] {
         availableModes(
+            artifactsEnabled: RightSidebarBetaFeatureSettings.isArtifactsEnabled(defaults: defaults),
             feedEnabled: RightSidebarBetaFeatureSettings.isFeedEnabled(defaults: defaults),
             dockEnabled: RightSidebarBetaFeatureSettings.isDockEnabled(defaults: defaults),
             machinesEnabled: CloudMachinesFeature.offMainIsEnabled(defaults: defaults)
         )
     }
 
-    static func availableModes(feedEnabled: Bool, dockEnabled: Bool, machinesEnabled: Bool) -> [RightSidebarMode] {
+    static func availableModes(
+        artifactsEnabled: Bool,
+        feedEnabled: Bool,
+        dockEnabled: Bool,
+        machinesEnabled: Bool
+    ) -> [RightSidebarMode] {
         allCases.filter {
             $0.isAvailable(
+                artifactsEnabled: artifactsEnabled,
                 feedEnabled: feedEnabled,
                 dockEnabled: dockEnabled,
                 machinesEnabled: machinesEnabled
@@ -41,8 +50,24 @@ extension RightSidebarMode {
         }
     }
 
+    /// Preserves the Cloud sidebar availability API for callers that do not
+    /// participate in the Artifacts beta gate.
+    static func availableModes(
+        feedEnabled: Bool,
+        dockEnabled: Bool,
+        machinesEnabled: Bool
+    ) -> [RightSidebarMode] {
+        availableModes(
+            artifactsEnabled: false,
+            feedEnabled: feedEnabled,
+            dockEnabled: dockEnabled,
+            machinesEnabled: machinesEnabled
+        )
+    }
+
     func isAvailable(defaults: UserDefaults = .standard) -> Bool {
         isAvailable(
+            artifactsEnabled: RightSidebarBetaFeatureSettings.isArtifactsEnabled(defaults: defaults),
             feedEnabled: RightSidebarBetaFeatureSettings.isFeedEnabled(defaults: defaults),
             dockEnabled: RightSidebarBetaFeatureSettings.isDockEnabled(defaults: defaults),
             machinesEnabled: CloudMachinesFeature.offMainIsEnabled(defaults: defaults)
@@ -75,10 +100,17 @@ extension RightSidebarMode {
         return index + 1
     }
 
-    func isAvailable(feedEnabled: Bool, dockEnabled: Bool, machinesEnabled: Bool) -> Bool {
+    func isAvailable(
+        artifactsEnabled: Bool,
+        feedEnabled: Bool,
+        dockEnabled: Bool,
+        machinesEnabled: Bool
+    ) -> Bool {
         switch self {
         case .files, .find, .sessions:
             return true
+        case .artifacts:
+            return artifactsEnabled
         case .feed:
             return feedEnabled
         case .dock:
@@ -92,6 +124,21 @@ extension RightSidebarMode {
             return CmuxExtensionSidebarSelection.customSidebarsEnabled
                 && FileExplorerState.persistedCustomSidebarName() != nil
         }
+    }
+
+    /// Preserves the Cloud sidebar availability API for callers that do not
+    /// participate in the Artifacts beta gate.
+    func isAvailable(
+        feedEnabled: Bool,
+        dockEnabled: Bool,
+        machinesEnabled: Bool
+    ) -> Bool {
+        isAvailable(
+            artifactsEnabled: false,
+            feedEnabled: feedEnabled,
+            dockEnabled: dockEnabled,
+            machinesEnabled: machinesEnabled
+        )
     }
 }
 

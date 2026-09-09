@@ -17,8 +17,12 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         let pluginURL = repoRoot.appendingPathComponent("Resources/opencode-plugin.js", isDirectory: false)
         XCTAssertTrue(fileManager.fileExists(atPath: pluginURL.path))
 
+        // AF_UNIX socket paths are capped at 104 bytes on macOS. Keep the
+        // generated directory name short because CI temporary-directory roots
+        // can already consume most of that budget.
+        let shortID = String(UUID().uuidString.prefix(8))
         let root = fileManager.temporaryDirectory.appendingPathComponent(
-            "cmux-opencode-feed-\(UUID().uuidString)", isDirectory: true
+            "cmux-opencode-\(shortID)", isDirectory: true
         )
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? fileManager.removeItem(at: root) }

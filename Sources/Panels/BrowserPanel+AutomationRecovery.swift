@@ -119,6 +119,7 @@ extension BrowserPanel {
     }
 
     func registerBrowserAutomationInitScript(_ userScript: WKUserScript) -> Int {
+        guard contentMode.artifactDocumentURL == nil else { return 0 }
         browserAutomationUserScripts.append(userScript)
         browserAutomationInitScriptCount += 1
         webView.configuration.userContentController.addUserScript(userScript)
@@ -126,6 +127,7 @@ extension BrowserPanel {
     }
 
     func registerBrowserAutomationStyleScript(_ userScript: WKUserScript) -> Int {
+        guard contentMode.artifactDocumentURL == nil else { return 0 }
         browserAutomationUserScripts.append(userScript)
         browserAutomationStyleScriptCount += 1
         webView.configuration.userContentController.addUserScript(userScript)
@@ -142,6 +144,11 @@ extension BrowserPanel {
         profileID: UUID,
         websiteDataStore: WKWebsiteDataStore
     ) -> CmuxWebView {
+        if contentMode.artifactDocumentURL != nil {
+            return ArtifactHTMLPreviewWebViewFactory(
+                websiteDataStore: websiteDataStore
+            ).makeWebView()
+        }
         let replacement = Self.makeWebView(
             profileID: profileID,
             websiteDataStore: websiteDataStore

@@ -8,6 +8,7 @@ import SwiftUI
 @MainActor
 protocol FilePreviewTextEditingPanel: AnyObject {
     var textContent: String { get }
+    var isReadOnly: Bool { get }
     var textContentRevision: Int { get }
 
     func attachTextView(_ textView: NSTextView)
@@ -68,6 +69,7 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         }
         textView.drawsBackground = drawsBackground
         textView.string = panel.textContent
+        textView.isEditable = !panel.isReadOnly
         context.coordinator.lastAppliedContentRevision = panel.textContentRevision
         context.coordinator.isHighlightingVisible = isVisibleInUI
         panel.attachTextView(textView)
@@ -119,6 +121,7 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         context.coordinator.panel = panel
         context.coordinator.panelIdentity = panelIdentity
         textView.panel = panel
+        textView.isEditable = !panel.isReadOnly
         textView.applyFilePreviewTextEditorInsets()
         textView.applyFilePreviewWordWrap(wordWrap, scrollView: scrollView)
         panel.attachTextView(textView)
