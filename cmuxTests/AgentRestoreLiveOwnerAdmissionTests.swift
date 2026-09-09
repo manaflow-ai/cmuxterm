@@ -302,6 +302,69 @@ struct AgentRestoreLiveOwnerAdmissionTests {
         )
     }
 
+    @Test("A fresh Antigravity launch without --conversation still owns the session its hooks recorded")
+    func antigravityFreshLaunchOwnsHookRecordedSession() {
+        let sessionID = "58057d57-0ce6-4008-99ec-77f1b7e2c470"
+        let snapshot = SessionRestorableAgentSnapshot(
+            kind: .antigravity,
+            sessionId: sessionID,
+            workingDirectory: nil,
+            launchCommand: AgentLaunchCommandSnapshot(
+                launcher: "antigravity",
+                executablePath: "agy",
+                arguments: ["agy", "--dangerously-skip-permissions"],
+                workingDirectory: nil,
+                capturedAt: nil,
+                source: "process"
+            ),
+            registration: .builtInAntigravity
+        )
+        let validator = CachedAgentProcessIdentityValidator()
+        let freshLaunch = CmuxTopProcessArguments(
+            arguments: ["agy", "--dangerously-skip-permissions"],
+            environment: [:]
+        )
+
+        // agy mints the conversation id in-process and reports it through its
+        // hooks, so the current hook record behind this snapshot came from this
+        // very process. Rejecting the bare argv retired every fresh binding on
+        // the next autosave (https://github.com/manaflow-ai/cmux/issues/5473).
+        #expect(validator.currentProcess(
+            freshLaunch,
+            matches: snapshot,
+            hermesSessionValidation: .currentHookRecord
+        ))
+        // A cached snapshot cannot rule out an in-process conversation switch.
+        #expect(!validator.currentProcess(
+            freshLaunch,
+            matches: snapshot,
+            hermesSessionValidation: .cachedSnapshot
+        ))
+        #expect(!validator.currentProcess(freshLaunch, matches: snapshot))
+        // An explicit selector still has to name this session.
+        #expect(validator.currentProcess(
+            CmuxTopProcessArguments(arguments: ["agy", "--conversation", sessionID], environment: [:]),
+            matches: snapshot
+        ))
+        #expect(!validator.currentProcess(
+            CmuxTopProcessArguments(
+                arguments: ["agy", "--conversation", "11111111-2222-3333-4444-555555555555"],
+                environment: [:]
+            ),
+            matches: snapshot,
+            hermesSessionValidation: .currentHookRecord
+        ))
+        // So does an exported process identity.
+        #expect(!validator.currentProcess(
+            CmuxTopProcessArguments(
+                arguments: ["agy"],
+                environment: ["CMUX_AGENT_SESSION_ID": "11111111-2222-3333-4444-555555555555"]
+            ),
+            matches: snapshot,
+            hermesSessionValidation: .currentHookRecord
+        ))
+    }
+
     @Test("A reused Claude PID with another session id is not an owner")
     func claudeSessionArgumentMustMatch() {
         let expectedSessionID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"

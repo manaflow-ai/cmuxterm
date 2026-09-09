@@ -1133,6 +1133,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// The in-flight sign-out teardown of that tunnel, so a second sign-out
     /// replaces rather than stacks it.
     var cloudTunnelTeardownTask: Task<Void, Never>?
+    /// Brings the tunnel down when Cloud Machines is turned off at runtime.
+    var cloudTunnelActivationObserver: CloudTunnelActivationObserver?
     private var mainWindowControllers: [MainWindowController] = []
 
     /// Tracks the cascade point for new windows, matching Ghostty's upstream algorithm.
@@ -2464,7 +2466,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
         let cloudTunnel = makeCloudTunnelCoordinator()
         cloudTunnelCoordinator = cloudTunnel
-        VMClient.bootstrap(auth: auth.coordinator, privateNetwork: cloudTunnel)
+        VMClient.bootstrap(auth: auth.coordinator)
         TerminalController.shared.cloudTunnel = cloudTunnel
         RemotesClient.bootstrap(auth: auth.coordinator)
         AIAccountsClient.bootstrap(auth: auth.coordinator)
@@ -9077,7 +9079,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
         }
         // The sidebar's headless link to that machine has nothing left to talk to.
-        CmuxTuiSurfaceProviderRegistry.shared.machineWasDeleted(vmID.trimmingCharacters(in: .whitespacesAndNewlines))
+        CmuxTuiSurfaceProviderRegistry.shared.machineWasDeleted(target)
     }
 
     /// The local workspace attached to a cloud machine, through either transport: the
@@ -19933,8 +19935,7 @@ private extension NSWindow {
         guard let contentView = window.contentView else {
             return nil
         }
-        let pointInContent = contentView.convert(event.locationInWindow, from: nil)
-        return contentView.hitTest(pointInContent)
+        return contentView.cmuxHitTest(windowPoint: event.locationInWindow)
     }
 
     private static func cmuxTopHitViewForEvent(in window: NSWindow, event: NSEvent) -> NSView? {
