@@ -57,9 +57,9 @@ public struct AgentLaunchEnvironmentPolicy: Sendable {
     /// - Parameters:
     ///   - key: Environment variable name.
     ///   - value: Captured value.
-    /// - Returns: The exact value, a sanitized `NODE_OPTIONS`, or `nil` when rejected.
+    /// - Returns: The exact value, a sanitized `NODE_OPTIONS`, or `nil` when rejected or empty.
     func registrationEnvironmentValue(key: String, value: String?) -> String? {
-        guard isReplaySafeKey(key), let value else { return nil }
+        guard isReplaySafeKey(key), let value, !value.isEmpty else { return nil }
         return key == "NODE_OPTIONS" ? sanitizedNodeOptions(value) : value
     }
 
