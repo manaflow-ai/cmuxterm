@@ -45,7 +45,7 @@ final class OpenCodeHookRegressionTests: XCTestCase {
                   event["hook_event_name"] as? String == "Stop" else { return nil }
             return event
         }
-        XCTAssertEqual(stopEvents.count, 2, "Expected both OpenCode idle forms to emit Stop: \(frames)")
+        XCTAssertEqual(stopEvents.count, 3, "Expected all OpenCode idle forms to emit Stop: \(frames)")
         XCTAssertTrue(stopEvents.allSatisfy { $0["session_id"] as? String == "opencode-ses-feed-shape" })
         let requestIDs = frames.compactMap { $0["id"] as? String }
         XCTAssertEqual(requestIDs.count, Set(requestIDs).count, "OpenCode telemetry request IDs must not collide: \(frames)")
@@ -158,6 +158,10 @@ const fs = require("node:fs");
   await hooks.event({ event: {
     type: "session.status",
     properties: { info: { id: "ses-feed-shape" }, status: { type: "idle" } }
+  } });
+  await hooks.event({ event: {
+    type: "session.status",
+    properties: { session_id: "ses-feed-shape", status: "idle" }
   } });
   await new Promise((resolve) => setTimeout(resolve, 100));
   for (const socket of sockets) socket.destroy();
