@@ -34775,7 +34775,7 @@ export default CMUXSessionRestore;
                 telemetry.breadcrumb("\(def.name)-hook.shell-resolution.missing-session")
                 return
             }
-            if let verifiedPID = processBindingResolution().verifiedPID { concludeCursorNativeApprovalObservation(rawObject: input.rawObject ?? [:], agentPID: verifiedPID, sessionId: sessionId, socketPath: client.socketPath, socketPassword: socketPassword) }
+            if let verifiedPID = processBindingResolution().verifiedPID, verifiedPID == inferredPID { concludeCursorNativeApprovalObservation(rawObject: input.rawObject ?? [:], agentPID: verifiedPID, sessionId: sessionId, socketPath: client.socketPath, socketPassword: socketPassword) }
             if failed {
                 guard let toolName = input.rawObject.flatMap({
                     firstString(in: $0, keys: ["tool_name", "toolName"])
@@ -36521,7 +36521,7 @@ export default CMUXSessionRestore;
                     return
                 }
                 cursorApprovalNotificationCorrelationKey = rememberResult.notificationCorrelationKey
-                if let verifiedPID = processBindingResolution().verifiedPID { startCursorNativeApprovalObservation(rawObject: input.rawObject ?? [:], agentPID: verifiedPID, sessionId: sessionId, workspaceId: workspaceId, surfaceId: surfaceId, socketPath: client.socketPath) }
+                if let verifiedPID = processBindingResolution().verifiedPID, verifiedPID == inferredPID { startCursorNativeApprovalObservation(rawObject: input.rawObject ?? [:], agentPID: verifiedPID, sessionId: sessionId, workspaceId: workspaceId, surfaceId: surfaceId, socketPath: client.socketPath) }
             }
             var summary = summarizeAgentHookNotification(
                 def: def,
