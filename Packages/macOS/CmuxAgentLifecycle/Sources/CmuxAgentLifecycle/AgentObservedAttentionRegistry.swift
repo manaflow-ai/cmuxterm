@@ -8,7 +8,7 @@ public nonisolated struct AgentObservedAttentionRegistry<Target: Sendable>:
 {
     private struct StoredRecord: Sendable {
         var insertionSequence: UInt64
-        let record: AgentObservedAttentionRecord<Target>
+        var record: AgentObservedAttentionRecord<Target>
     }
 
     private let maximumCount: Int
@@ -35,6 +35,38 @@ public nonisolated struct AgentObservedAttentionRegistry<Target: Sendable>:
         for key: AgentObservedAttentionKey
     ) -> AgentObservedAttentionRecord<Target>? {
         recordsByKey[key]?.record
+    }
+
+    /// Returns the first active record matching an owner-defined condition.
+    ///
+    /// This is intentionally read-only: callers use it to recover shared
+    /// baseline state while multiple observations contribute to one visible
+    /// surface, without exposing the registry's insertion bookkeeping.
+    public func first(
+        where predicate: (AgentObservedAttentionRecord<Target>) -> Bool
+    ) -> AgentObservedAttentionRecord<Target>? {
+        recordsByKey.values
+            .filter { predicate($0.record) }
+            .min { $0.insertionSequence < $1.insertionSequence }?
+            .record
+    }
+
+    /// Updates matching records without changing their insertion order.
+    ///
+    /// Owners use this when a live target moves between containers. Keeping
+    /// the original sequence preserves the registry's oldest-first semantics
+    /// for baseline restoration and eviction.
+    public mutating func update(
+        where shouldUpdate: (AgentObservedAttentionRecord<Target>) -> Bool,
+        transform: (AgentObservedAttentionRecord<Target>) -> AgentObservedAttentionRecord<Target>
+    ) {
+        for key in Array(recordsByKey.keys) {
+            guard var stored = recordsByKey[key], shouldUpdate(stored.record) else {
+                continue
+            }
+            stored.record = transform(stored.record)
+            recordsByKey[key] = stored
+        }
     }
 
     /// Inserts a new active observation and evicts the oldest excess record.

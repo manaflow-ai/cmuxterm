@@ -1,4 +1,5 @@
 import AppKit
+import Bonsplit
 import CmuxSidebar
 import Foundation
 
@@ -47,9 +48,9 @@ extension FeedCoordinator {
         }
         if observedAttentionRegistry.record(for: key) != nil { return true }
 
-        guard let tabManager = AppDelegate.shared?.tabManagerFor(tabId: workspaceId),
-              let tab = tabManager.tabs.first(where: { $0.id == workspaceId }) else {
-            return false
+        let appDelegate = AppDelegate.shared
+        let tab = appDelegate?.tabManagerFor(tabId: workspaceId)?.tabs.first {
+            $0.id == workspaceId
         }
         let directOwner = surfaceId.flatMap {
             TerminalController.shared.controlSidebarResolvePanelOwner(
@@ -58,22 +59,34 @@ extension FeedCoordinator {
             )
         }
         let panelId: UUID?
-        if directOwner != nil {
+        let owner: ControlSidebarPanelOwner
+        if let directOwner {
             panelId = surfaceId
-        } else if let surfaceId {
-            panelId = Self.resolveAgentPanelId(surfaceId: surfaceId, tab: tab)
-        } else {
-            panelId = tab.focusedPanelId
-        }
-        guard surfaceId == nil || panelId != nil else { return false }
-        let owner = directOwner
-            ?? panelId.flatMap {
+            owner = directOwner
+        } else if let dock = appDelegate?.existingWindowDock(forWindowId: workspaceId) {
+            guard let candidate = surfaceId ?? dock.focusedPanelId,
+                  dock.containsPanel(candidate) else { return false }
+            panelId = candidate
+            owner = .dock(dock)
+        } else if let tab {
+            if let surfaceId {
+                panelId = Self.resolveAgentPanelId(surfaceId: surfaceId, tab: tab)
+            } else {
+                panelId = tab.focusedPanelId
+            }
+            guard surfaceId == nil || panelId != nil else { return false }
+            owner = panelId.flatMap {
                 TerminalController.shared.controlSidebarResolvePanelOwner(
                     target: .workspace(workspaceId),
                     panelID: $0
                 )
-            }
-            ?? .workspace(tab)
+            } ?? .workspace(tab)
+        } else {
+            // A panel-scoped observation must never invent a workspace owner
+            // when the addressed workspace is no longer live.
+            return false
+        }
+        guard surfaceId == nil || panelId != nil else { return false }
         let usesRemoteProcessNamespace = owner.usesRemoteAgentProcessNamespace(panelId: panelId)
         if let panelId, !usesRemoteProcessNamespace,
            AgentPIDProcessIdentity(pid: processGeneration.pid) != processGeneration {
@@ -100,7 +113,17 @@ extension FeedCoordinator {
         } else {
             .workspace(id: owner.id, statusKey: statusKey)
         }
-        let previousStatusEntry = owner.statusEntry(key: statusKey, panelId: panelId)
+        let previousStatusEntry: SidebarStatusEntry?
+        if let existing = observedAttentionRegistry.first(where: {
+            $0.target.target == target
+        }) {
+            // All overlapping observations restore the baseline captured by
+            // the first observer, never the Needs Input entry written by an
+            // earlier observer in the same stack.
+            previousStatusEntry = existing.target.previousStatusEntry
+        } else {
+            previousStatusEntry = owner.statusEntry(key: statusKey, panelId: panelId)
+        }
         let statusEntry = SidebarStatusEntry(
             key: statusKey,
             value: Self.needsInputStatusValue,
@@ -252,6 +275,23 @@ extension FeedCoordinator {
         for target in pendingAttentionStates.keys where target.panelId == panelId {
             pendingAttentionStates[target]?.fallbackOwner = owner
         }
+        observedAttentionRegistry.update(
+            where: { $0.target.target.panelId == panelId },
+            transform: { record in
+                let surface = record.target
+                return AgentObservedAttentionRecord(
+                    key: record.key,
+                    scopeId: record.scopeId,
+                    target: ObservedFeedAttentionSurface(
+                        target: surface.target,
+                        token: surface.token,
+                        previousStatusEntry: surface.previousStatusEntry,
+                        statusEntry: surface.statusEntry,
+                        ownerId: owner.id
+                    )
+                )
+            }
+        )
     }
 
     /// Retires native attention after reconciliation accepted an exact exit.

@@ -342,7 +342,7 @@ extension DockSplitStore {
         }
     }
 
-    private func syncAgentNeedsInputAttention(
+    func syncAgentNeedsInputAttention(
         panelId: UUID,
         runtime: Workspace.DetachedAgentRuntimeState?
     ) {

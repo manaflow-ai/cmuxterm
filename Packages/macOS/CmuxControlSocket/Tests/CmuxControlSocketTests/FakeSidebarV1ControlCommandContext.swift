@@ -39,6 +39,10 @@ final class FakeSidebarV1ControlCommandContext: ControlCommandContext {
         processGeneration: ControlSidebarAgentProcessGeneration?,
         panelID: UUID?
     )?
+    nonisolated(unsafe) var shellStateCall: (
+        scope: ControlSidebarPanelScope,
+        stateRawValue: String
+    )?
 
     nonisolated func controlSidebarScheduleStatusClear(
         target: ControlSidebarTabTarget,
@@ -128,6 +132,13 @@ final class FakeSidebarV1ControlCommandContext: ControlCommandContext {
             processGeneration,
             panelID
         )
+    }
+
+    nonisolated func controlSidebarScheduleScopedShellState(
+        scope: ControlSidebarPanelScope,
+        stateRawValue: String
+    ) {
+        shellStateCall = (scope, stateRawValue)
     }
 
     func controlSidebarSetWorkspaceLoading(

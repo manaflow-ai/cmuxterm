@@ -36271,6 +36271,16 @@ export default CMUXSessionRestore;
                 sendAgentFeedTelemetry(workspaceId: workspaceId, surfaceId: surfaceId)
             }
 
+            if def.name == "codex", !suppressVisibleMutations, !sessionId.isEmpty {
+                spawnDetachedCodexNativeTitleSync(
+                    sessionId: sessionId,
+                    workspaceId: workspaceId,
+                    surfaceId: surfaceId,
+                    environment: env,
+                    telemetry: telemetry
+                )
+            }
+
             // Opt-in auto-naming for generic-agent sessions: a detached pass so the
             // summarization subprocess never blocks this short sync hook.
             // Gate the fork on the live setting (one cheap socket probe) so a

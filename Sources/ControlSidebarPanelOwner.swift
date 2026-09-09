@@ -66,7 +66,7 @@ enum ControlSidebarPanelOwner {
             }
             return states[key]
         case .dock(let dock):
-            dock.agentRuntimeLifecycleState(key: key, panelId: panelId)
+            return dock.agentRuntimeLifecycleState(key: key, panelId: panelId)
         }
     }
 
@@ -98,7 +98,7 @@ enum ControlSidebarPanelOwner {
         let acceptedProcessIdentity = usesRemoteAgentProcessNamespace(
             panelId: panelId
         ) ? nil : AgentPIDProcessIdentity(pid: pid)
-        recordAgentPID(
+        return recordAgentPID(
             key: key,
             pid: pid,
             panelId: panelId,

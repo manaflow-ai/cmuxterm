@@ -47,11 +47,31 @@ extension AgentPIDProcessIdentity {
         processTableEntry(pid: pid)?.hasExited ?? false
     }
 
+    /// Reads identity and ancestry from one kernel snapshot so callers do not
+    /// accidentally combine a reused PID with metadata from different process
+    /// generations.
+    static func processSnapshot(
+        pid: pid_t
+    ) -> (identity: AgentPIDProcessIdentity, parentPID: pid_t)? {
+        guard let entry = processTableEntry(pid: pid), !entry.hasExited else {
+            return nil
+        }
+        return (
+            identity: AgentPIDProcessIdentity(
+                pid: pid,
+                startSeconds: entry.startSeconds,
+                startMicroseconds: entry.startMicroseconds
+            ),
+            parentPID: entry.parentPID
+        )
+    }
+
     private static func processTableEntry(
         pid: pid_t
     ) -> (
         startSeconds: Int64,
         startMicroseconds: Int64,
+        parentPID: pid_t,
         hasExited: Bool
     )? {
         guard pid > 0 else { return nil }
@@ -67,6 +87,7 @@ extension AgentPIDProcessIdentity {
         return (
             Int64(started.tv_sec),
             Int64(started.tv_usec),
+            pid_t(info.kp_eproc.e_ppid),
             info.kp_proc.p_stat == Int8(SZOMB)
         )
     }
