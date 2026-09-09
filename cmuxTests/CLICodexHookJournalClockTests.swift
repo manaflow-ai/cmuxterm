@@ -124,4 +124,131 @@ extension CLICodexHookTimeoutRegressionTests {
         let ticks = values.map { Int64(($0 * 1_000_000).rounded()) }
         #expect(ticks == [(seed / 1000 + 1) * 1000, (seed / 1000 + 2) * 1000])
     }
+
+    @Test func codexTranscriptMonitorReplayUsesItsFreshEventTime() throws {
+        let cliPath = try bundledCLIPath()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-codex-monitor-replay-time-\(UUID().uuidString)", isDirectory: true)
+        let socketPath = makeCodexHookSocketPath("codex-mon")
+        let listenerFD = try bindCodexHookUnixSocket(at: socketPath)
+        let commands = CodexHookCapturedSocketCommands()
+        let workspaceId = "11111111-1111-1111-1111-111111111111"
+        let surfaceId = "22222222-2222-2222-2222-222222222222"
+        let sessionId = "codex-monitor-replay-session"
+        let turnId = "codex-monitor-replay-turn"
+        let ownerPID = 4242
+        let stateURL = root.appendingPathComponent("codex-hook-sessions.json")
+        let transcriptURL = root.appendingPathComponent("transcript.jsonl")
+        // Keep the persisted fixture deterministic while remaining inside the
+        // production parser's supported epoch range.
+        let inheritedEventTime: TimeInterval = 1_700_000_000
+        let now = Date.now.timeIntervalSince1970
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        try """
+        {"type":"event_msg","payload":{"type":"task_started","turn_id":"\(turnId)"}}
+        {"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}}
+        {"type":"event_msg","payload":{"type":"task_complete","turn_id":"\(turnId)","last_agent_message":"done"}}
+        """.write(to: transcriptURL, atomically: true, encoding: .utf8)
+        try JSONSerialization.data(withJSONObject: [
+            "version": 1,
+            "sessions": [
+                sessionId: [
+                    "sessionId": sessionId,
+                    "workspaceId": workspaceId,
+                    "surfaceId": surfaceId,
+                    "cwd": root.path,
+                    "pid": Int(ProcessInfo.processInfo.processIdentifier),
+                    "agentLifecycle": "running",
+                    "runtimeStatus": "running",
+                    "runtimeStatusEventTime": inheritedEventTime - 1,
+                    "activePromptDepth": 1,
+                    "activePromptTurnId": turnId,
+                    "activePromptTurnIds": [turnId],
+                    "lastPromptTurnId": turnId,
+                    "startedAt": now,
+                    // Keep the record live so transcript replay reaches the
+                    // event-time ordering check instead of age-pruning it.
+                    "updatedAt": now,
+                ],
+            ],
+        ], options: [.prettyPrinted, .sortedKeys]).write(to: stateURL, options: .atomic)
+        let ledgerURL = root.appendingPathComponent("codex-turn-ledger.json")
+        let ledgerRecord: [String: Any] = [
+            "workspaceID": workspaceId, "surfaceID": surfaceId,
+            "owner": ["pid": ownerPID], "activeTurnID": turnId,
+            "activeChildrenByTurn": [:], "unknownChildrenByTurn": [:],
+            "terminalChildrenByTurn": [:], "pendingTurns": [:],
+            "settledTurnIDs": [], "notifiedTurnIDs": [], "updatedAt": now,
+        ]
+        try JSONSerialization.data(withJSONObject: [
+            "records": [sessionId: ledgerRecord], "surfaceOwners": [surfaceId: sessionId],
+        ], options: [.prettyPrinted, .sortedKeys]).write(to: ledgerURL, options: .atomic)
+        startCodexHookMockSocketServerAccepting(
+            listenerFD: listenerFD,
+            commands: commands,
+            surfaceId: surfaceId,
+            connectionLimit: 16
+        )
+
+        let result = runCodexHookProcess(
+            executablePath: cliPath,
+            arguments: [
+                "hooks", "codex", "monitor",
+                "--workspace", workspaceId,
+                "--surface", surfaceId,
+                "--session", sessionId,
+                "--turn", turnId,
+                "--transcript", transcriptURL.path,
+            ],
+            environment: [
+                "HOME": root.path,
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                "PWD": root.path,
+                "TMPDIR": root.path,
+                "CMUX_SOCKET_PATH": socketPath,
+                "CMUX_WORKSPACE_ID": workspaceId,
+                "CMUX_SURFACE_ID": surfaceId,
+                "CMUX_AGENT_HOOK_STATE_DIR": root.path,
+                "CMUX_CODEX_TURN_LEDGER_PATH": ledgerURL.path,
+                "CMUX_AGENT_HOOK_CAPTURED_AT": AgentHookWireFormat.eventTime(inheritedEventTime),
+                "CMUX_CODEX_PID": "\(ownerPID)",
+                "CMUX_CODEX_HOOK_PID": "\(ownerPID)",
+                "SWIFT_BACKTRACE": "enable=yes,interactive=no,timeout=0s,symbolicate=off,color=no",
+                "CMUX_CLI_SENTRY_DISABLED": "1",
+            ],
+            timeout: 10
+        )
+
+        #expect(!result.timedOut, Comment(rawValue: result.stderr))
+        #expect(
+            result.status == 0,
+            Comment(rawValue: "status=\(result.status) terminationReason=\(String(describing: result.terminationReason?.rawValue)) stderr=\(result.stderr)")
+        )
+        #expect(result.stdout == "{}\n")
+        let saved = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: stateURL)) as? [String: Any]
+        )
+        let sessions = try #require(saved["sessions"] as? [String: Any])
+        let session = try #require(sessions[sessionId] as? [String: Any])
+        let replayEventTime = try #require(session["runtimeStatusEventTime"] as? Double)
+        #expect(
+            replayEventTime > inheritedEventTime,
+            "The monitor's completion replay must use its fresh sample, not the monitor's inherited start timestamp"
+        )
+        let journalCapture = try #require(AgentJournalAppendCapture.first(
+            in: commands.snapshot(), kind: "agent.turn.completed", agentKey: "codex", sessionId: sessionId
+        ))
+        #expect(
+            ((journalCapture.draft["occurred_at_ms"] as? NSNumber)?.int64Value ?? 0)
+                > Int64(inheritedEventTime * 1000),
+            "The monitor's journal replay must use its fresh sample, not the inherited start timestamp"
+        )
+        #expect(commands.snapshot().contains { $0.hasPrefix("set_status codex Idle ") })
+    }
 }

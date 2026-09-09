@@ -92,6 +92,15 @@ extension CLICodexHookTimeoutRegressionTests {
             commands.snapshot().contains { $0.hasPrefix("set_status codex Running ") }
         })
 
+        // The old turn has completed in Codex, while its detached Stop is
+        // delayed. Without this real terminal boundary, two prompt submits
+        // describe nested work rather than successive foreground turns.
+        let transcriptURL = root.appendingPathComponent("completed-old-turn.jsonl")
+        try """
+        {"type":"event_msg","payload":{"type":"task_started","turn_id":"old-turn"}}
+        {"type":"event_msg","payload":{"type":"task_complete","turn_id":"old-turn"}}
+        """.write(to: transcriptURL, atomically: true, encoding: .utf8)
+
         // Codex prompt reconciliation publishes its status through the journal
         // path; it does not issue Claude's direct clear_notifications command.
         // Count a fresh Running status to prove the detached current prompt
@@ -103,7 +112,7 @@ extension CLICodexHookTimeoutRegressionTests {
             executablePath: "/bin/sh",
             arguments: ["-c", promptCommand],
             environment: environment,
-            standardInput: #"{"session_id":"\#(sessionId)","turn_id":"current-turn","cwd":"\#(root.path)","hook_event_name":"UserPromptSubmit","prompt":"current"}"#,
+            standardInput: #"{"session_id":"\#(sessionId)","turn_id":"current-turn","cwd":"\#(root.path)","transcript_path":"\#(transcriptURL.path)","hook_event_name":"UserPromptSubmit","prompt":"current"}"#,
             timeout: 3
         )
         #expect(currentPrompt.status == 0, Comment(rawValue: currentPrompt.stderr))
