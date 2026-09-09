@@ -276,7 +276,7 @@ describe("jobs page", () => {
       params: Promise.resolve({ locale: "ja" }),
     });
     expect(japanese.title).toEqual({
-      absolute: "Founding Engineer / Founding Designer — 採用情報",
+      absolute: "創業エンジニア / 創設デザイナー — 採用情報",
     });
     expect(japanese.alternates).toMatchObject({
       canonical: "https://cmux.com/ja/jobs",
@@ -287,7 +287,7 @@ describe("jobs page", () => {
       params: Promise.resolve({ locale: "zh-CN" }),
     });
     expect(chinese.title).toEqual({
-      absolute: "Founding Engineer / Founding Designer — 招聘",
+      absolute: "创始工程师 / 创始设计师 — 招聘",
     });
     expect(chinese.alternates).toMatchObject({
       canonical: "https://cmux.com/zh-CN/jobs",

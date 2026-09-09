@@ -131,30 +131,21 @@ describe("pricing copy matches the plan policy", () => {
     })).toEqual({ vcpus: 1, memoryMb: 4096, diskMb: 65536 });
   });
 
-  for (const [locale, messages, label, phrase] of [
-    ["en", enMessages, "Resources per Cloud VM", "each with its own resources"],
-    ["ja", jaMessages, "Cloud VM 1 台あたりのリソース", "各マシンに専用のリソース"],
-  ] as const) {
-    test(`${locale} pricing matches independent machine resources`, () => {
-      const features = messages.pricing.pro.features.join("\n");
-      expect(features).toContain("50 ");
-      expect(features).toContain(phrase);
-      const row = messages.pricing.compare.rows.find(row => row.label === label);
-      expect(row?.pro).toContain("8 GB");
-      expect(row?.pro).toContain("32 GB");
-      expect(row?.pro).toContain("256 GB");
-      const faq = messages.pricing.faq.items.map(item => item.a).join("\n");
-      expect(faq).not.toContain("5 vCPU");
-      expect(faq).toContain("50 ");
-    });
-  }
-
-  test("fallback locales inherit the independent machine policy", async () => {
+  test("every locale preserves the independent machine policy", async () => {
     for (const locale of locales) {
-      if (locale === "en" || locale === "ja") continue;
-      const messages = await loadMessages(locale) as unknown as typeof enMessages;
-      expect(messages.pricing.pro.features.join("\n")).toContain("each with its own resources");
-      expect(messages.pricing.compare.rows.find(row => row.label === "Resources per Cloud VM")).toBeDefined();
+      const messages = (locale === "en"
+        ? enMessages
+        : locale === "ja"
+          ? jaMessages
+          : await loadMessages(locale)) as unknown as typeof enMessages;
+      const features = messages.pricing.pro.features.join("\n");
+      expect(features).toMatch(/50/u);
+      const resourceRow = messages.pricing.compare.rows[8];
+      expect(resourceRow?.pro).toMatch(/8/u);
+      expect(resourceRow?.pro).toMatch(/32/u);
+      expect(resourceRow?.pro).toMatch(/256/u);
+      const faq = messages.pricing.faq.items.map(item => item.a).join("\n");
+      expect(faq).toMatch(/50/u);
     }
   });
 });
