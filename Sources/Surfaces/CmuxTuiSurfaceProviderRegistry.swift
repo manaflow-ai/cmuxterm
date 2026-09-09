@@ -45,7 +45,7 @@ final class CmuxTuiSurfaceProviderRegistry {
 
     init(
         links: CloudMachineLinkManager,
-        wireGuardHub: CloudWireGuardHub?,
+        wireGuardHub: CloudWireGuardHub? = nil,
         allowsBackgroundWork: @escaping @MainActor () -> Bool = { true }
     ) {
         self.links = links
