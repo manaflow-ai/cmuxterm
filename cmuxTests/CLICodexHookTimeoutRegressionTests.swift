@@ -62,18 +62,26 @@ struct CLICodexHookTimeoutRegressionTests {
             "SubagentStart",
             "SubagentStop",
         ]
-        let persistentOnlyFeedHooks = hooks.filter { hook in
-            hook.body.contains("hooks feed --source codex")
-                && expectedFeedEvents.contains(hook.eventName)
+        let feedHooksByEvent = Dictionary(
+            uniqueKeysWithValues: hooks
+                .filter { expectedFeedEvents.contains($0.eventName) }
+                .map { ($0.eventName, $0) }
+        )
+        #expect(feedHooksByEvent.count == expectedFeedEvents.count)
+        for event in ["PreToolUse", "PostToolUse"] {
+            let hook = try #require(feedHooksByEvent[event])
+            #expect(hook.body.contains("hooks codex \(event == "PreToolUse" ? "pre-tool-use" : "post-tool-use")"))
+            #expect(hook.body.contains("nohup sh -c"))
+            #expect(hook.body.contains(">/dev/null 2>&1 &"))
         }
-        let installedFeedEvents = Set(persistentOnlyFeedHooks.compactMap { hook in
-            expectedFeedEvents.first { hook.body.contains("--event \($0)") }
-        })
-        #expect(persistentOnlyFeedHooks.count == expectedFeedEvents.count)
-        #expect(installedFeedEvents == expectedFeedEvents)
-        #expect(persistentOnlyFeedHooks.allSatisfy {
-            !$0.body.contains("nohup sh -c") && !$0.body.contains(">/dev/null 2>&1 &")
-        })
+        let permissionHook = try #require(feedHooksByEvent["PermissionRequest"])
+        #expect(permissionHook.body.contains("hooks feed --source codex --event PermissionRequest"))
+        #expect(permissionHook.body.contains("CMUX_CODEX_HOOK_PID"))
+        for event in ["PreCompact", "PostCompact", "SubagentStart", "SubagentStop"] {
+            let hook = try #require(feedHooksByEvent[event])
+            #expect(hook.body.contains("hooks feed --source codex --event \(event)"))
+            #expect(!hook.body.contains("nohup sh -c"))
+        }
     }
 
     @Test func codexWrapperPreservesPersistentSettingsAndInjectsOnlyMissingEvents() throws {

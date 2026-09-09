@@ -27610,20 +27610,32 @@ struct CMUXCLI {
         let subcommand = commandArgs.first?.lowercased() ?? "help"
         let hookArgs = Array(commandArgs.dropFirst())
         let hookWsFlag = optionValue(hookArgs, name: "--workspace")
-        let workspaceArg = hookWsFlag ?? env["CMUX_WORKSPACE_ID"]
         let hookSurfaceFlag = optionValue(hookArgs, name: "--surface")
-        let surfaceArg = hookSurfaceFlag ?? (hookWsFlag == nil ? env["CMUX_SURFACE_ID"] : nil)
         let preferCallerTTYRouting = hookWsFlag == nil && hookSurfaceFlag == nil
         let relayOrigin = env[agentHookRelayOriginEnvironmentKey] == "1"
         let routeWasSnapshotted =
             env[Self.agentHookRouteSnapshotEnvironmentKey] == "1"
+        let snapshottedRoute = routeWasSnapshotted
+            ? admittedAgentHookRouteSnapshot(
+                environment: env,
+                client: client
+            )
+            : nil
+        let workspaceArg = hookWsFlag
+            ?? snapshottedRoute?.workspaceId
+            ?? env["CMUX_WORKSPACE_ID"]
+        let surfaceArg = hookSurfaceFlag
+            ?? (hookWsFlag == nil
+                ? snapshottedRoute?.surfaceId ?? env["CMUX_SURFACE_ID"]
+                : nil)
         // Queued replay may run after the admitted process exits and its PID is
         // recycled. The immutable surface snapshot remains valid across that
-        // delay; process/TTY identity does not.
+        // delay; process/TTY identity does not. Keep the observed PID for
+        // persistence and status registration, but never use it for live
+        // routing or process checks during replay.
         let liveProcessIdentityAllowed = !relayOrigin && !routeWasSnapshotted
-        let hookAgentPID = liveProcessIdentityAllowed
-            ? claudeAgentPID(from: env)
-            : nil
+        let observedHookAgentPID = claudeAgentPID(from: env)
+        let liveHookAgentPID = liveProcessIdentityAllowed ? observedHookAgentPID : nil
         var callerTTYBindingCache: CallerTerminalBinding?
         var didResolveCallerTTYBinding = false
         func callerTTYBinding() -> CallerTerminalBinding? {
@@ -27639,7 +27651,7 @@ struct CMUXCLI {
                     callerTTYBindingCache = ttyBinding
                 } else {
                     let processBinding = resolveAgentProcessTerminalBinding(
-                        pid: hookAgentPID,
+                        pid: liveHookAgentPID,
                         socketPath: client.socketPath,
                         socketPassword: socketPassword
                     )
@@ -27665,7 +27677,7 @@ struct CMUXCLI {
             surfaceFlagIsExplicit: hookSurfaceFlag != nil,
             preferCallerTTYRouting: preferCallerTTYRouting,
             callerTerminalBinding: callerTTYBindingProvider,
-            agentPid: hookAgentPID
+            agentPid: liveHookAgentPID
         )
         hookRouting.allowsPidProbe = liveProcessIdentityAllowed
         let rawInput = String(data: FileHandle.standardInput.readDataToEndOfFile(), encoding: .utf8) ?? ""
@@ -27674,7 +27686,11 @@ struct CMUXCLI {
         let hookTranscriptPath = relayOrigin ? nil : parsedInput.transcriptPath
         let sessionStore = ClaudeHookSessionStore()
         func localClaudePID(mapped: ClaudeHookSessionRecord?) -> Int? {
-            liveProcessIdentityAllowed ? (mapped?.pid ?? hookAgentPID) : nil
+            guard !relayOrigin else { return nil }
+            return mapped?.pid ?? observedHookAgentPID
+        }
+        func liveClaudePID(mapped: ClaudeHookSessionRecord?) -> Int? {
+            liveProcessIdentityAllowed ? localClaudePID(mapped: mapped) : nil
         }
         // Record the hook-observed permission mode (shift+tab auto-accept, plan
         // mode, bypass toggle): it is runtime state that never appears in the
@@ -27750,9 +27766,9 @@ struct CMUXCLI {
             let resolvedSurface = resolvedTarget
             let surfaceId = resolvedSurface.surfaceId
             sendClaudeFeedTelemetry(workspaceId: workspaceId, surfaceId: surfaceId)
-            let claudePid = hookAgentPID
+            let claudePid = observedHookAgentPID
             let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
-                currentAgentPID: claudePid,
+                currentAgentPID: liveHookAgentPID,
                 env: ProcessInfo.processInfo.environment
             )
             let launchCommand = agentLaunchCommandFromEnvironment(
@@ -27895,16 +27911,16 @@ struct CMUXCLI {
                 let workspaceId = resolvedTarget.workspaceId
                 let resolvedSurface = resolvedTarget
                 let surfaceId = resolvedSurface.surfaceId
-                let claudePid = mappedSession?.pid ?? claudeAgentPID(from: ProcessInfo.processInfo.environment)
+                let claudePid = localClaudePID(mapped: mappedSession)
                 // Detected once (bounded process-ancestry walk) and reused for
                 // both the suppression gate and the notify payload's subagent
                 // tag, which stays accurate even when suppression is off.
                 let isNestedAgentSession = nestedAgentSessionDetected(
-                    currentAgentPID: claudePid,
+                    currentAgentPID: liveClaudePID(mapped: mappedSession),
                     env: ProcessInfo.processInfo.environment
                 )
                 let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
-                    currentAgentPID: claudePid,
+                    currentAgentPID: liveClaudePID(mapped: mappedSession),
                     precomputedNestedDetection: isNestedAgentSession,
                     env: ProcessInfo.processInfo.environment
                 )
@@ -28124,7 +28140,7 @@ struct CMUXCLI {
             let surfaceId = resolvedSurface.surfaceId
             let claudePid = localClaudePID(mapped: mappedSession)
             let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
-                currentAgentPID: claudePid,
+                currentAgentPID: liveClaudePID(mapped: mappedSession),
                 env: ProcessInfo.processInfo.environment
             )
             sendClaudeFeedTelemetry(workspaceId: workspaceId, surfaceId: surfaceId)
@@ -28324,15 +28340,15 @@ struct CMUXCLI {
                 return
             }
             let workspaceId = resolvedTarget.workspaceId
-            let claudePid = mappedSession?.pid ?? claudeAgentPID(from: ProcessInfo.processInfo.environment)
+            let claudePid = localClaudePID(mapped: mappedSession)
             // One ancestry walk per hook event, shared by the suppression gate
             // and the notify payload's subagent tag.
             let isNestedAgentSession = nestedAgentSessionDetected(
-                currentAgentPID: claudePid,
+                currentAgentPID: liveClaudePID(mapped: mappedSession),
                 env: ProcessInfo.processInfo.environment
             )
             let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
-                currentAgentPID: claudePid,
+                currentAgentPID: liveClaudePID(mapped: mappedSession),
                 precomputedNestedDetection: isNestedAgentSession,
                 env: ProcessInfo.processInfo.environment
             )
@@ -28553,7 +28569,7 @@ struct CMUXCLI {
                let forkParentSessionId = claudeForkSessionParentId(
                    payload: parsedInput.rawObject,
                    env: ProcessInfo.processInfo.environment,
-                   fallbackPID: hookAgentPID
+                   fallbackPID: observedHookAgentPID
                ),
                reportedSessionId == forkParentSessionId {
                 telemetry.breadcrumb("claude-hook.session-end.fork-parent-skipped")
@@ -28668,9 +28684,9 @@ struct CMUXCLI {
                     surfaceId: cleanupSurfaceId,
                     telemetry: telemetry
                 )
-                let claudePid = relayOrigin ? nil : (consumedSession.pid ?? hookAgentPID)
+                let claudePid = relayOrigin ? nil : (consumedSession.pid ?? observedHookAgentPID)
                 let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
-                    currentAgentPID: claudePid,
+                    currentAgentPID: liveProcessIdentityAllowed ? claudePid : nil,
                     env: ProcessInfo.processInfo.environment
                 )
                 if shouldClearVisibleState, !suppressVisibleMutations {
@@ -28727,15 +28743,15 @@ struct CMUXCLI {
             let resolvedSurface = resolvedTarget
             let surfaceId = resolvedSurface.surfaceId
             sendClaudeFeedTelemetry(workspaceId: workspaceId, surfaceId: surfaceId)
-            let claudePid = mappedSession?.pid ?? claudeAgentPID(from: ProcessInfo.processInfo.environment)
+            let claudePid = localClaudePID(mapped: mappedSession)
             // One ancestry walk per hook event, shared by the suppression gate
             // and the notify payload's subagent tag.
             let isNestedAgentSession = nestedAgentSessionDetected(
-                currentAgentPID: claudePid,
+                currentAgentPID: liveClaudePID(mapped: mappedSession),
                 env: ProcessInfo.processInfo.environment
             )
             let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
-                currentAgentPID: claudePid,
+                currentAgentPID: liveClaudePID(mapped: mappedSession),
                 precomputedNestedDetection: isNestedAgentSession,
                 env: ProcessInfo.processInfo.environment
             )
@@ -34057,12 +34073,16 @@ export default CMUXSessionRestore;
             )
             : nil
         // A queued route snapshot can outlive the process that supplied it.
-        // Never promote or persist that stale PID during asynchronous replay.
+        // Preserve an explicitly admitted PID as data for persistence, but
+        // only infer a PID from the live process tree when replay is live.
         let liveProcessIdentityAllowed = !relayOrigin && !routeWasSnapshotted
         let requireLiveProcessForSessionChecks = !relayOrigin
-        let inferredPID = liveProcessIdentityAllowed
-            ? (agentPIDFromHookEnvironment(agentName: def.name, env: env) ?? inferredAgentPID())
-            : nil
+        let observedPID = agentPIDFromHookEnvironment(agentName: def.name, env: env)
+        let inferredPID = observedPID
+            ?? (liveProcessIdentityAllowed ? inferredAgentPID() : nil)
+        func liveAgentPID(_ pid: Int?) -> Int? {
+            liveProcessIdentityAllowed ? pid : nil
+        }
         let processBindingPolicy: AgentProcessBindingResolution = def.name == "omp" ? .controllingTTY : .corroborated
         let hookWsFlag = optionValue(hookArgs, name: "--workspace")
         let directWorkspaceArg = hookWsFlag
@@ -34211,7 +34231,8 @@ export default CMUXSessionRestore;
                 ?? (def.name == "codex" ? normalizedHookValue(FileManager.default.currentDirectoryPath) : nil)
         let hookTranscriptPath = relayOrigin ? nil : input.transcriptPath
         func localAgentPID(mapped: ClaudeHookSessionRecord?) -> Int? {
-            liveProcessIdentityAllowed ? (mapped?.pid ?? inferredPID) : nil
+            guard !relayOrigin else { return nil }
+            return mapped?.pid ?? inferredPID
         }
         func localTranscriptPath(mapped: ClaudeHookSessionRecord?) -> String? {
             relayOrigin ? nil : (hookTranscriptPath ?? mapped?.transcriptPath)
@@ -34522,7 +34543,10 @@ export default CMUXSessionRestore;
             if def.name != "cursor" {
                 sendAgentFeedTelemetry(workspaceId: mapped.workspaceId)
             }
-            let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(currentAgentPID: mapped.pid, env: env)
+            let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
+                currentAgentPID: liveAgentPID(mapped.pid),
+                env: env
+            )
             if suppressVisibleMutations {
                 telemetry.breadcrumb("\(def.name)-hook.session-end.nested-suppressed")
             } else if let consumed = try? store.consume(sessionId: sessionId, workspaceId: nil, surfaceId: nil) {
@@ -35064,7 +35088,7 @@ export default CMUXSessionRestore;
                 currentPID: inferredPID
             )
             let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
-                currentAgentPID: pid,
+                currentAgentPID: liveAgentPID(pid),
                 env: env
             )
             guard !suppressVisibleMutations else {
@@ -35755,7 +35779,7 @@ export default CMUXSessionRestore;
                 nestedPromptSubmit = false
             }
             let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
-                currentAgentPID: pid,
+                currentAgentPID: liveAgentPID(pid),
                 nestedPromptEvent: nestedPromptSubmit,
                 env: env
             )
@@ -36248,12 +36272,12 @@ export default CMUXSessionRestore;
                 suppressVisibleMutations = nestedPromptStop || staleIdleStopHasNewerRunningSession
             } else {
                 isNestedAgentSession = nestedAgentSessionDetected(
-                    currentAgentPID: pid,
+                    currentAgentPID: liveAgentPID(pid),
                     nestedPromptEvent: nestedPromptStop,
                     env: env
                 )
                 suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
-                    currentAgentPID: pid,
+                    currentAgentPID: liveAgentPID(pid),
                     nestedPromptEvent: nestedPromptStop,
                     precomputedNestedDetection: isNestedAgentSession,
                     env: env
@@ -36578,7 +36602,10 @@ export default CMUXSessionRestore;
                 kind: def.name, current: launchCommand, mapped: mapped,
                 transcriptPath: localTranscriptPath(mapped: mapped), currentPID: inferredPID
             )
-            let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(currentAgentPID: pid, env: env)
+            let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
+                currentAgentPID: liveAgentPID(pid),
+                env: env
+            )
             if !sessionId.isEmpty, !suppressVisibleMutations {
                 try? store.markNotificationResolved(
                     sessionId: sessionId,
@@ -36968,7 +36995,7 @@ export default CMUXSessionRestore;
                     inferredPID: inferredPID
                 )
                 let isNestedAgentSession = nestedAgentSessionDetected(
-                    currentAgentPID: notificationEventPID,
+                    currentAgentPID: liveAgentPID(notificationEventPID),
                     env: env
                 )
                 // Tag by the classifier's category so the app's agent notification

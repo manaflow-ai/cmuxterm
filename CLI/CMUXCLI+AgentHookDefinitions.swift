@@ -255,6 +255,30 @@ extension CMUXCLI {
         agentEvent: String,
         materializeCodexScripts: Bool = true
     ) -> String {
+        if def.name == "codex",
+           let injectedEvent = CodexHookInjectionSchema.current.events.first(where: {
+               $0.agentEvent == agentEvent
+           }) {
+            let inline: String
+            switch injectedEvent.delivery {
+            case .queued:
+                inline = codexFireAndForgetAgentHookShellCommand(
+                    "cmux hooks codex \(injectedEvent.cmuxSubcommand)",
+                    for: def
+                )
+            case .direct:
+                inline = codexSynchronousAgentHookShellCommand(
+                    "cmux hooks feed --source codex --event \(agentEvent)",
+                    for: def
+                )
+            }
+            return codexPersistentHookScriptCommand(
+                inline,
+                eventTag: "feed-\(agentEvent)",
+                materialize: materializeCodexScripts
+            )
+        }
+
         let inline: String
         let noOpCommand = feedHookNoOpShellCommand(for: def, agentEvent: agentEvent)
         switch def.format {

@@ -359,12 +359,18 @@ struct CLIClaudeHookTimeoutRegressionTests {
     }
 
     @Test(
-        "Queued replay rehomes its route without consulting or persisting the admitted PID",
-        arguments: [("claude", "CMUX_CLAUDE_PID"), ("cursor", "CMUX_CURSOR_PID")]
+        "Queued replay rehomes its route without probing and preserves the admitted PID",
+        arguments: [
+            ("claude", "CMUX_CLAUDE_PID", "prompt-submit"),
+            ("cursor", "CMUX_CURSOR_PID", "prompt-submit"),
+            ("claude", "CMUX_CLAUDE_PID", "session-start"),
+            ("cursor", "CMUX_CURSOR_PID", "session-start"),
+        ]
     )
     func queuedReplayRehomesRouteWithoutReusingPID(
         agent: String,
-        pidKey: String
+        pidKey: String,
+        subcommand: String
     ) throws {
         let cliPath = try BundledCLITestSupport.bundledCLIPath(
             for: BundledCLILinkageTests.self
@@ -405,7 +411,7 @@ struct CLIClaudeHookTimeoutRegressionTests {
             executablePath: cliPath,
             arguments: [
                 "--socket", socketPath,
-                "hooks", agent, "prompt-submit",
+                "hooks", agent, subcommand,
             ],
             environment: [
                 "HOME": root.path,
@@ -438,8 +444,6 @@ struct CLIClaudeHookTimeoutRegressionTests {
             return params?["pid"] == nil
                 && params?["surface_id"] as? String == surfaceID
         })
-        #expect(!commands.contains { $0.hasPrefix("set_agent_pid ") })
-        #expect(!commands.contains { $0.contains(" --pid=8535") })
         let expectedStatusKey = agent == "claude" ? "claude_code" : agent
         #expect(commands.contains {
             $0.hasPrefix("set_status \(expectedStatusKey) Running ")
@@ -456,7 +460,15 @@ struct CLIClaudeHookTimeoutRegressionTests {
         )
         let sessions = try #require(state["sessions"] as? [String: Any])
         let session = try #require(sessions[sessionID] as? [String: Any])
-        #expect(session["pid"] == nil)
+        #expect(session["pid"] as? Int == 8535)
+        if subcommand == "session-start" {
+            #expect(commands.contains {
+                $0.hasPrefix("set_agent_pid ")
+                    && $0.contains(" 8535 ")
+                    && $0.contains("--tab=\(movedWorkspaceID)")
+                    && $0.contains("--panel=\(surfaceID)")
+            }, Comment(rawValue: commands.joined(separator: "\n")))
+        }
     }
 
     @Test("Claude prompt hook fails open before its declared timeout")
