@@ -87,6 +87,16 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Export Node.js path to XCTest runner
+        if: ${{ !inputs.skip_unit_tests && contains(inputs.unit_test_suites, 'OpenCodeHookRegressionTests') }}
+        run: |
+          set -euo pipefail
+          node_bin="$(command -v node)"
+          # Xcode launches the test bundle with a sanitized PATH and does not
+          # retain setup-node's GITHUB_PATH entry. TEST_RUNNER_ variables are
+          # stripped by Xcode when it constructs the test process environment.
+          echo "TEST_RUNNER_PATH=$(dirname "$node_bin"):$PATH" >> "$GITHUB_ENV"
+
       - name: Download pre-built GhosttyKit.xcframework
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
