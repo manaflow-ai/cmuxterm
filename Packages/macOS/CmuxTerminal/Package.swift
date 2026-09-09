@@ -39,13 +39,22 @@ let package = Package(
                 .enableUpcomingFeature("InternalImportsByDefault"),
             ]
         ),
+        // Test-only stand-in for the @_silgen_name libghostty symbol bound by
+        // CmuxTerminalCore's GhosttyRuntimeCInterop: SwiftPM cannot link the
+        // GhosttyKit macOS archive (its binary lacks the lib prefix), so the
+        // test runner satisfies the link with a stub. The app links the real
+        // GhosttyKit.
+        .target(
+            name: "GhosttyRuntimeTestStubs",
+            path: "Tests/GhosttyRuntimeTestStubs"
+        ),
         .testTarget(
             name: "CmuxTerminalTests",
             dependencies: [
                 "CmuxTerminal",
+                "GhosttyRuntimeTestStubs",
                 .product(name: "CmuxTerminalCore", package: "CmuxTerminalCore"),
                 .product(name: "CmuxGhosttyKit", package: "CmuxTerminalCore"),
-                .product(name: "CmuxTerminalCoreTestSupport", package: "CmuxTerminalCore"),
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),

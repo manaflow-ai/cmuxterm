@@ -25,7 +25,7 @@ let package = Package(
         // this product exists only to keep SwiftPM test runners linkable.
         .library(
             name: "CmuxTerminalCoreTestSupport",
-            targets: ["GhosttyRuntimeTestStubs"]
+            targets: ["CmuxTerminalCoreGhosttyRuntimeTestStubs"]
         ),
     ],
     dependencies: [
@@ -61,14 +61,14 @@ let package = Package(
         // archive (its binary lacks the lib prefix), so the test runner
         // satisfies the link with a stub. The app links the real GhosttyKit.
         .target(
-            name: "GhosttyRuntimeTestStubs",
+            name: "CmuxTerminalCoreGhosttyRuntimeTestStubs",
             path: "Tests/GhosttyRuntimeTestStubs"
         ),
         .testTarget(
             name: "CmuxTerminalCoreTests",
             dependencies: [
                 "CmuxTerminalCore",
-                "GhosttyRuntimeTestStubs",
+                "CmuxTerminalCoreGhosttyRuntimeTestStubs",
                 .product(name: "CmuxFoundation", package: "CmuxFoundation"),
             ],
             swiftSettings: [
