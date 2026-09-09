@@ -1,8 +1,7 @@
 // Mint endpoint-bound access credentials and a signed, server-driven Iroh relay policy.
 // Auth is native-only because both credentials leave the browser boundary.
 
-import type { KeyObject } from "node:crypto";
-import { randomUUID } from "node:crypto";
+import { randomUUID, type KeyObject } from "node:crypto";
 
 import { checkRateLimit } from "@vercel/firewall";
 import * as Effect from "effect/Effect";
@@ -51,9 +50,8 @@ import { rateLimitDeploymentPartition } from "../../../../services/rateLimitPart
 
 
 const MAX_BODY_BYTES = 4 * 1_024;
-// Match the deployed firewall window. The partition itself must remain
-// stable for the whole window; putting the minute number in the key silently
-// creates a fresh bucket every minute and defeats the ten-minute limit.
+// Keep the partition stable for the deployed ten-minute firewall window.
+// Including the minute number here would create a fresh bucket every minute.
 const RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS = 600;
 
 export interface RelayTokenDeps {
@@ -185,8 +183,7 @@ export async function handleRelayTokenRequest(
     }
     // A fresh endpoint must fetch policy before registration, then fetch its
     // bound credential immediately after registration. Keep bootstrap and
-    // credential issuance in stable, separate partitions so duplicate work
-    // cannot create a new firewall bucket every minute.
+    // credential issuance in stable, separate partitions.
     if (clientNamespace === "legacy") {
       await checkTokenQuota(request, deps, user.id, clientNamespace, endpointId,
         isEndpointAuthorized ? "credential" : "bootstrap", nowSeconds);

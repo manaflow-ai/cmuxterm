@@ -510,7 +510,7 @@ describe("POST /api/relay/token", () => {
     expect(await limited.clone().json()).toEqual(
       expect.objectContaining({ error: "rate_limited", source: "device_budget" }),
     );
-    // Partitioned per device, protocol phase, and minute: a storming endpoint
+    // Partitioned per device and protocol phase: a storming endpoint
     // starves only its duplicate work, never bootstrap, renewal, or another
     // phone, simulator, or tagged build.
     expect(key).toBe(

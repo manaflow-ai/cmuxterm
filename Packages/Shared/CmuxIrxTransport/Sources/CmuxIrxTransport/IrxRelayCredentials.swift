@@ -39,9 +39,8 @@ public enum IrxRelayCredentialPolicy {
     }
 
     /// On mint failure, use bounded exponential backoff independent of token
-    /// expiry. The old half-remaining-validity rule reached a one-second loop
-    /// exactly when an Aurora outage was most likely to expire credentials.
-    /// A validated server Retry-After value remains an authoritative floor.
+    /// expiry. A validated server Retry-After value remains an authoritative
+    /// floor.
     public static func retryDelay(
         expiresAt: Date,
         now: Date,

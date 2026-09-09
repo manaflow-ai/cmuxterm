@@ -4,9 +4,8 @@ public import Foundation
 /// Keeps the endpoint's relay credentials perpetually fresh: mints early
 /// (min(refreshAfter, expiry-120s) minus jitter), rotates with insertRelay
 /// alone (make-before-break), and on mint failure uses bounded exponential
-/// backoff independent of token expiry. The relay closes connections at the
-/// signed expiry, so this loop avoids turning an outage into a one-second
-/// request storm.
+/// backoff independent of token expiry. This avoids turning an outage into a
+/// one-second request storm.
 public actor IrxRelayCredentialAutopilot {
     private let broker: IrxBrokerService
     private let endpoint: IrxEndpointSupervisor
