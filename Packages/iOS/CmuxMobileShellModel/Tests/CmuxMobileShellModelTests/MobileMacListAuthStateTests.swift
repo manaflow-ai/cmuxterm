@@ -167,6 +167,12 @@ struct MobileMacListAuthStateTests {
         )
         #expect(!state.entry(deviceID: "device")!.isOutdated)
         #expect(state.entry(deviceID: "device")!.requiredVersionDisplay == nil)
+
+        // The legacy stable-only API must not clear an already-installed
+        // Nightly floor while updating the stable lane.
+        state.applyPolicyMinimumSupportedMacVersion("0.64.24")
+        #expect(state.minimumSupportedNightlyMacVersion == "0.64.22-nightly.3345650013202")
+        #expect(!state.entry(deviceID: "device")!.isOutdated)
     }
 
     @Test

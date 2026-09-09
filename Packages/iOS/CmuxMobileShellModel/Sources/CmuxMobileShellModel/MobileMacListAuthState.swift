@@ -199,9 +199,12 @@ public final class MobileMacListAuthState {
     /// already-projected rows. A `nil` value is an intentional fail-open policy
     /// with no tier for the running iOS version.
     public func applyPolicyMinimumSupportedMacVersion(_ minimum: String?) {
+        let existingNightlyMinimum = hasPolicyMinimumSupportedMacVersion
+            ? policyMinimumSupportedNightlyMacVersion
+            : minimumSupportedNightlyMacVersion
         applyPolicyMinimumSupportedMacVersions(
             stable: minimum,
-            nightly: nil
+            nightly: existingNightlyMinimum
         )
     }
 
