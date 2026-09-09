@@ -1,13 +1,11 @@
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
-import { isStackConfigured } from "@/app/lib/stack";
+import { getRequestScopedStackUser, isStackConfigured } from "@/app/lib/stack";
+import { localizedVaultPath, vaultSignInHref } from "@/app/lib/vault-auth";
 import { isVaultEnabled } from "@/services/vault/config";
+import { withPrioritySpan } from "@/services/telemetry";
 
-// The overview lists products only. It carries no private data, so it is
-// part of the static shell; the layout's session guard still redirects a
-// rejected session to sign-in.
-export const instant = true;
 
 export default async function DashboardIndexPage({
   params,
@@ -18,6 +16,15 @@ export default async function DashboardIndexPage({
 
   if (!isStackConfigured()) {
     redirect("/");
+  }
+  const user = await withPrioritySpan(
+    "cmux-dashboard",
+    "cmux.dashboard.auth",
+    { "http.route": "/dashboard", "cmux.locale": locale },
+    () => getRequestScopedStackUser("dashboard"),
+  );
+  if (!user) {
+    redirect(vaultSignInHref(localizedVaultPath(locale, "/dashboard")));
   }
 
   const t = await getTranslations({ locale, namespace: "dashboard.home" });
