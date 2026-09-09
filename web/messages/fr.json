@@ -707,24 +707,24 @@
       "rows": [
         {
           "label": "Terminal macOS natif, open source",
-          "free": "vrai",
-          "pro": "vrai",
-          "team": "vrai",
-          "enterprise": "vrai"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Agents CLI locaux avec vos propres clés",
-          "free": "vrai",
-          "pro": "vrai",
-          "team": "vrai",
-          "enterprise": "vrai"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Onglets verticaux, divisions, notifications, API socket",
-          "free": "vrai",
-          "pro": "vrai",
-          "team": "vrai",
-          "enterprise": "vrai"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Historique des sessions",
@@ -736,37 +736,37 @@
         },
         {
           "label": "cmux Vault : sauvegarde de session cloud",
-          "free": "faux",
-          "pro": "vrai",
-          "team": "vrai",
-          "enterprise": "vrai",
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true",
           "vault": true
         },
         {
           "label": "Effectuez une recherche dans toutes vos sessions",
-          "free": "faux",
-          "pro": "vrai",
-          "team": "vrai",
-          "enterprise": "vrai",
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true",
           "vault": true
         },
         {
           "label": "Agents cloud sur les VM cloud",
-          "free": "faux",
-          "pro": "vrai",
-          "team": "vrai",
-          "enterprise": "vrai"
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Machines virtuelles cloud simultanées",
-          "free": "faux",
+          "free": "false",
           "pro": "50",
           "team": "50 par utilisateur",
           "enterprise": "Personnalisé"
         },
         {
           "label": "Ressources par VM Cloud",
-          "free": "faux",
+          "free": "false",
           "pro": "Par défaut, 8 Go de RAM et 32 Go de disque ; 4 à 64 Go de RAM, disque jusqu'à 256 Go",
           "team": "Par défaut, 8 Go de RAM et 32 Go de disque ; 4 à 64 Go de RAM, disque jusqu'à 256 Go",
           "enterprise": "Personnalisé"
@@ -780,10 +780,10 @@
         },
         {
           "label": "Application iOS",
-          "free": "faux",
-          "pro": "vrai",
-          "team": "vrai",
-          "enterprise": "vrai"
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Mise en réseau pour atteindre votre Mac",
@@ -795,38 +795,38 @@
         },
         {
           "label": "Connexion SSO et SAML",
-          "free": "faux",
-          "pro": "faux",
-          "team": "faux",
-          "enterprise": "vrai"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "Exécution auto-hébergée et isolée",
-          "free": "faux",
-          "pro": "faux",
-          "team": "faux",
-          "enterprise": "vrai"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "Journaux d'audit : sessions, réseau, navigateur",
-          "free": "faux",
-          "pro": "faux",
-          "team": "faux",
-          "enterprise": "vrai"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "Tarification au volume",
-          "free": "faux",
-          "pro": "faux",
-          "team": "faux",
-          "enterprise": "vrai"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "SOC 2 et un SLA",
-          "free": "faux",
-          "pro": "faux",
-          "team": "faux",
-          "enterprise": "vrai"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "Assistance",
