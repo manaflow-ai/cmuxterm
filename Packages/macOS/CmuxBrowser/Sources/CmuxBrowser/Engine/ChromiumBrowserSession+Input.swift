@@ -35,15 +35,17 @@ extension ChromiumBrowserSession {
             if let stoppedURL {
                 if let pendingIntent {
                     switch pendingIntent {
-                    case .destination where !Self.matches(url: currentURL, target: stoppedURL):
-                        owlHistory?.commitDestination(stoppedURL)
+                    case .destination, .rendererDestination:
+                        if !Self.matches(url: currentURL, target: stoppedURL) {
+                            owlHistory?.commitDestination(stoppedURL)
+                        }
                     case .back(let expectedURL) where Self.matches(url: stoppedURL, target: expectedURL):
                         owlHistory?.commitTraversal(to: stoppedURL, offset: -1)
                     case .forward(let expectedURL) where Self.matches(url: stoppedURL, target: expectedURL):
                         owlHistory?.commitTraversal(to: stoppedURL, offset: 1)
                     case .reload:
                         owlHistory?.commitReload()
-                    case .back, .forward, .destination:
+                    case .back, .forward, .destination, .rendererDestination:
                         break
                     }
                     syncOwlHistorySnapshot()

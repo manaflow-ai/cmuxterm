@@ -22,13 +22,14 @@ enum OwlFreshMouseKind: UInt32, Equatable, Sendable {
 /// A pending native navigation and the URL it should commit, when known.
 enum OwlNavigationIntent: Equatable, Sendable {
     case destination(URL)
+    case rendererDestination(URL)
     case back(URL)
     case forward(URL)
     case reload(URL?)
 
     var expectedURL: URL? {
         switch self {
-        case .destination(let url), .back(let url), .forward(let url): return url
+        case .destination(let url), .rendererDestination(let url), .back(let url), .forward(let url): return url
         case .reload(let url): return url
         }
     }
@@ -95,7 +96,6 @@ struct OwlNavigationHistoryState: Equatable, Sendable {
         let targetIndex = currentIndex + offset
         guard entries.indices.contains(targetIndex),
               Self.matches(entries[targetIndex], url) else {
-            commitTraversal(to: url)
             return
         }
         currentIndex = targetIndex

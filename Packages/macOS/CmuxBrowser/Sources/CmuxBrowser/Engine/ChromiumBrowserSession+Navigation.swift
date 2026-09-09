@@ -278,6 +278,9 @@ extension ChromiumBrowserSession {
             // predicate still requires this operation's loading edge and a
             // newer document epoch before accepting the URL.
             return true
+        case .rendererDestination:
+            guard let expectedURL = intent.expectedURL else { return false }
+            return Self.matches(url: eventURL, target: expectedURL)
         case .back, .forward:
             guard let expectedURL = intent.expectedURL else { return true }
             return Self.matches(url: eventURL, target: expectedURL)
@@ -288,7 +291,7 @@ extension ChromiumBrowserSession {
         let committedURL = eventURL ?? intent.expectedURL
         if let committedURL {
             switch intent {
-            case .destination:
+            case .destination, .rendererDestination:
                 owlHistory?.commitDestination(committedURL)
             case .back:
                 owlHistory?.commitTraversal(to: committedURL, offset: -1)

@@ -417,7 +417,7 @@ public actor ChromiumBrowserSession {
                     // operation's start edge; readiness still verifies the
                     // complete document before committing it.
                     beginOwlNavigation(
-                        .destination(eventURL),
+                        .rendererDestination(eventURL),
                         baselineDocumentEpoch: owlCurrentDocumentEpoch
                     )
                     owlNavigationSawLoadingEvent = true
