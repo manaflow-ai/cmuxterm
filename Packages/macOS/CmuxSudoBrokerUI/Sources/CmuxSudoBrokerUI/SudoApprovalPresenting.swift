@@ -10,7 +10,8 @@ public protocol SudoApprovalPresenting: AnyObject {
     func present(
         _ presentation: SudoApprovalPresentation,
         approve: @MainActor @Sendable @escaping () async -> Void,
-        deny: @MainActor @Sendable @escaping () async -> Void
+        deny: @MainActor @Sendable @escaping () async -> Void,
+        didClose: @MainActor @Sendable @escaping () -> Void
     )
 
     /// Dismisses the review window for a terminal request.

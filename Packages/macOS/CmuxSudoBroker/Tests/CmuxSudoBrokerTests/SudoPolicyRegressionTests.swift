@@ -527,4 +527,45 @@ struct SudoPolicyRegressionTests {
 
         #expect(inspector.directChildQueryCount <= identities.count * 2)
     }
+
+    @Test("Only the recorded launched runner can claim an approved execution")
+    func recordedRunnerOwnsTheExecutionClaim() throws {
+        let fixture = try SudoTestFixture()
+        defer { fixture.remove() }
+        let now = Date(timeIntervalSince1970: 1_786_000_000)
+        let request = try fixture.enqueue(id: "claim-owner", createdAt: now)
+        let pending = try #require(
+            fixture.store.pendingRequests().first(where: { $0.request.id == request.id })
+        )
+        _ = try fixture.store.transitionToApproved(
+            pending: pending,
+            now: now,
+            executionGraceSeconds: 90
+        )
+        let launched = SudoProcessIdentity(
+            processIdentifier: 900,
+            startSeconds: 1,
+            startMicroseconds: 2
+        )
+        let impostor = SudoProcessIdentity(
+            processIdentifier: 900,
+            startSeconds: 3,
+            startMicroseconds: 4
+        )
+
+        #expect(try fixture.store.recordRunnerLaunch(id: request.id, runner: launched, now: now))
+        #expect(
+            try fixture.store.claimApprovedExecution(id: request.id, runner: impostor, now: now)
+                == nil
+        )
+        #expect(fixture.store.state(id: request.id)?.phase == .approved)
+        #expect(
+            try fixture.store.claimApprovedExecution(id: request.id, runner: launched, now: now)
+                != nil
+        )
+        #expect(fixture.store.state(id: request.id)?.phase == .executing)
+        #expect(fixture.store.state(id: request.id)?.runner == launched)
+        // Once claimed, a late launch record is a no-op.
+        #expect(try !fixture.store.recordRunnerLaunch(id: request.id, runner: launched, now: now))
+    }
 }

@@ -17,7 +17,8 @@ public final class SudoApprovalWindowPresenter: SudoApprovalPresenting {
     public func present(
         _ presentation: SudoApprovalPresentation,
         approve: @MainActor @Sendable @escaping () async -> Void,
-        deny: @MainActor @Sendable @escaping () async -> Void
+        deny: @MainActor @Sendable @escaping () async -> Void,
+        didClose: @MainActor @Sendable @escaping () -> Void
     ) {
         let id = presentation.request.id
         if let controller = controllers[id] {
@@ -37,6 +38,7 @@ public final class SudoApprovalWindowPresenter: SudoApprovalPresenting {
             deny: deny,
             didClose: { [weak self] in
                 self?.controllers.removeValue(forKey: id)
+                didClose()
             }
         )
         controllers[id] = controller

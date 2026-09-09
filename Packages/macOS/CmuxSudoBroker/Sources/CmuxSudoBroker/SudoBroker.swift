@@ -467,6 +467,13 @@ public actor SudoBroker {
                     reviewedScript: Data(pending.script.utf8),
                     manifest: manifest
                 )
+                do {
+                    try store.recordRunnerLaunch(id: id, runner: runner.identity, now: now)
+                } catch {
+                    store.appendAudit(
+                        "\(now.ISO8601Format()) \(id) failed runner-launch-record"
+                    )
+                }
                 monitor(runner: runner, requestID: id)
             } catch {
                 settleIfPossible(

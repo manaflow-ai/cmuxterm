@@ -39,7 +39,7 @@ struct SudoExecutionEventWaiter: Sendable {
         if process.standardInput != nil, descriptors.input < 0 { return .failed }
         if collector.authenticationFailed { return .authenticationFailed }
         guard inspector.isRunning(process.identity) else {
-            return collector.privilegedFailure ?? .exited
+            return Self.exitDisposition(&collector, output: descriptors.output)
         }
         guard timeout > 0 else { return .timedOut }
 
@@ -56,7 +56,9 @@ struct SudoExecutionEventWaiter: Sendable {
             udata: nil
         )
         guard Self.register(&processEvent, on: queue) else {
-            return inspector.isRunning(process.identity) ? .failed : .exited
+            return inspector.isRunning(process.identity)
+                ? .failed
+                : Self.exitDisposition(&collector, output: descriptors.output)
         }
 
         var outputEvent = kevent(
@@ -107,14 +109,7 @@ struct SudoExecutionEventWaiter: Sendable {
 
             if collector.authenticationFailed { return .authenticationFailed }
             if !inspector.isRunning(process.identity) {
-                do {
-                    try collector.drain(from: descriptors.output)
-                } catch {
-                    return .failed
-                }
-                return collector.authenticationFailed
-                    ? .authenticationFailed
-                    : collector.privilegedFailure ?? .exited
+                return Self.exitDisposition(&collector, output: descriptors.output)
             }
 
             var triggeredEvent = kevent()
@@ -161,6 +156,21 @@ struct SudoExecutionEventWaiter: Sendable {
                 return collector.privilegedFailure ?? .exited
             }
         }
+    }
+
+    /// Drains whatever the exited process left in the pipe before deciding, so a
+    /// control marker written just before exit is never reported as a normal exit.
+    private static func exitDisposition(
+        _ collector: inout SudoExecutionOutputCollector,
+        output: Int32
+    ) -> SudoExecutionWaitDisposition {
+        do {
+            try collector.drain(from: output)
+        } catch {
+            return .failed
+        }
+        if collector.authenticationFailed { return .authenticationFailed }
+        return collector.privilegedFailure ?? .exited
     }
 
     private static func writeInput(

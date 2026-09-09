@@ -329,7 +329,9 @@ struct SudoSpoolStore {
     ) throws -> SudoExecutionManifest? {
         try withRequestLock(id: id) {
             guard result(id: id) == nil,
-                  state(id: id)?.phase == .approved,
+                  let current = state(id: id),
+                  current.phase == .approved,
+                  current.runner == nil || current.runner == runner,
                   let manifest = manifest(id: id),
                   manifest.id == id else {
                 return nil
@@ -346,6 +348,30 @@ struct SudoSpoolStore {
                 )
             )
             return manifest
+        }
+    }
+
+    /// Records the generation-qualified identity of the hidden runner the app just
+    /// launched for an approved request.
+    ///
+    /// Startup recovery treats an approved request without a live runner as
+    /// interrupted. Recording the identity at launch keeps a runner that has not
+    /// claimed execution yet visible across an app restart.
+    ///
+    /// - Returns: `false` when the request is no longer approved and unclaimed.
+    @discardableResult
+    func recordRunnerLaunch(id: String, runner: SudoProcessIdentity, now: Date) throws -> Bool {
+        try withRequestLock(id: id) {
+            guard result(id: id) == nil,
+                  let current = state(id: id),
+                  current.phase == .approved,
+                  current.runner == nil else {
+                return false
+            }
+            try writeState(
+                SudoRequestState(id: id, phase: .approved, updatedAt: now, runner: runner)
+            )
+            return true
         }
     }
 

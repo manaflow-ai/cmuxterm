@@ -209,6 +209,22 @@ struct SudoApprovalCoordinatorTests {
         #expect(presentation.canDecide)
         await coordinator.stop()
     }
+
+    @Test("A closed pending review window is recreated by the next snapshot")
+    func closedPendingWindowReappears() async throws {
+        let snapshot = Self.snapshot(id: "request-closed")
+        let broker = RecordingSudoBroker(initialSnapshots: [snapshot])
+        let presenter = RecordingSudoApprovalPresenter()
+        let coordinator = SudoApprovalCoordinator(broker: broker, presenter: presenter)
+
+        try await coordinator.start()
+        presenter.close(id: snapshot.request.id)
+        await broker.send(.snapshot([snapshot]))
+        await Task.yield()
+
+        #expect(presenter.presentCallCount == 2)
+        await coordinator.stop()
+    }
 }
 
 private actor RecordingSudoBroker: SudoBrokerServing {
@@ -369,21 +385,32 @@ private final class RecordingSudoApprovalPresenter: SudoApprovalPresenting {
     func present(
         _ presentation: SudoApprovalPresentation,
         approve: @MainActor @Sendable @escaping () async -> Void,
-        deny: @MainActor @Sendable @escaping () async -> Void
+        deny: @MainActor @Sendable @escaping () async -> Void,
+        didClose: @MainActor @Sendable @escaping () -> Void
     ) {
         presentCallCount += 1
         presentations[presentation.request.id] = presentation
+        closeHandlers[presentation.request.id] = didClose
         eventContinuation.yield(.presented(presentation.request.id))
+    }
+
+    private var closeHandlers: [String: @MainActor @Sendable () -> Void] = [:]
+
+    func close(id: String) {
+        presentations.removeValue(forKey: id)
+        closeHandlers.removeValue(forKey: id)?()
     }
 
     func dismiss(id: String) {
         presentations.removeValue(forKey: id)
+        closeHandlers.removeValue(forKey: id)
         eventContinuation.yield(.dismissed(id))
     }
 
     func dismissAll() {
         dismissAllCallCount += 1
         presentations.removeAll()
+        closeHandlers.removeAll()
         eventContinuation.yield(.dismissedAll)
     }
 }

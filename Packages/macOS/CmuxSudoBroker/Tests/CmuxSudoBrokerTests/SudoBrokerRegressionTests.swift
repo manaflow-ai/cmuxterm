@@ -622,6 +622,48 @@ struct SudoBrokerRegressionTests {
         #expect(fixture.store.result(id: request.id)?.status == .denied)
         await broker.stop()
     }
+
+    @Test("Approval records the launched runner before it claims execution")
+    func approvalRecordsLaunchedRunnerIdentity() async throws {
+        let fixture = try SudoTestFixture()
+        defer { fixture.remove() }
+        let now = Date(timeIntervalSince1970: 1_786_000_000)
+        let request = try fixture.enqueue(id: "launched-runner", createdAt: now)
+        let launcher = TestRunnerLauncher()
+        let broker = SudoBroker(
+            paths: fixture.paths,
+            dependencies: SudoBrokerDependencies(
+                clock: TestSudoClock(date: now),
+                pam: TestPAMChecker(enabled: true),
+                runner: launcher,
+                recovery: TestExecutionRecovery(),
+                watcher: nil,
+                requesterInspector: TestSudoProcessInspector()
+            ),
+            messages: messages
+        )
+        _ = try await broker.start()
+
+        await broker.approve(id: request.id)
+
+        #expect(await launcher.launchedRequestIDs == [request.id])
+        let state = try #require(fixture.store.state(id: request.id))
+        #expect(state.phase == .approved)
+        #expect(state.runner == TestRunnerLauncher.defaultRunnerIdentity)
+        // A restart in this window sees a live runner instead of an interrupted run.
+        let recovery = SudoExecutionRecovery(
+            inspector: TestSudoProcessInspector(
+                runningIdentities: [TestRunnerLauncher.defaultRunnerIdentity]
+            ),
+            signaler: TestSudoProcessSignaler()
+        )
+        let dispositions = await recovery.recover(
+            states: [state],
+            approvedDirectory: fixture.paths.approved
+        )
+        #expect(dispositions[request.id] == .runnerActive)
+        await broker.stop()
+    }
 }
 
 private struct ImmediateRequesterExitObserver: SudoProcessExitObserving {

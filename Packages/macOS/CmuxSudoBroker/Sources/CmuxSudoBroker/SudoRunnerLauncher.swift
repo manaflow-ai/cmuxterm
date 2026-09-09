@@ -114,14 +114,14 @@ struct SudoRunnerLauncher: SudoRunnerLaunching {
         }
         try Self.requireSuccess(status)
         guard processIdentifier > 1,
-              inspector.identity(for: processIdentifier) != nil else {
+              let identity = inspector.identity(for: processIdentifier) else {
             if processIdentifier > 1 {
                 Self.terminateAndReap(processIdentifier)
             }
             throw SudoRunnerLaunchError.identityUnavailable
         }
         let termination = reaper.start(processIdentifier: processIdentifier)
-        return SudoLaunchedRunner(termination: termination)
+        return SudoLaunchedRunner(identity: identity, termination: termination)
     }
 
     private static func terminateAndReap(_ processIdentifier: Int32) {

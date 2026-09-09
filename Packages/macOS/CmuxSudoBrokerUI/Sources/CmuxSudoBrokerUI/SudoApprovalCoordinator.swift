@@ -16,6 +16,7 @@ public final class SudoApprovalCoordinator {
         (@MainActor @Sendable (any Error) -> Void)?
     @ObservationIgnored private var isStopping = false
     @ObservationIgnored private var lifecycle = Lifecycle.idle
+    @ObservationIgnored private var closedPendingPresentationIDs: Set<String> = []
 
     /// Creates an approval coordinator with injected lifecycle and presentation seams.
     ///
@@ -141,7 +142,7 @@ public final class SudoApprovalCoordinator {
         guard let presentation = presentations[id], presentation.canDecide else { return }
         presentation.beginDecision()
         let outcome = await broker.approve(id: id)
-        presentation.finishDecision(outcome)
+        finishDecision(outcome, for: presentation)
     }
 
     /// Applies the user's denial through the shared broker mutation path.
@@ -151,7 +152,23 @@ public final class SudoApprovalCoordinator {
         guard let presentation = presentations[id], presentation.canDecide else { return }
         presentation.beginDecision()
         let outcome = await broker.deny(id: id)
+        finishDecision(outcome, for: presentation)
+    }
+
+    private func finishDecision(
+        _ outcome: SudoDecisionOutcome,
+        for presentation: SudoApprovalPresentation
+    ) {
         presentation.finishDecision(outcome)
+        // A decision the broker left pending needs the user again. The window may
+        // have been closed while the decision was in flight, so present it anew.
+        let id = presentation.request.id
+        guard outcome == .stillPending,
+              presentations[id] === presentation,
+              lifecycle == .starting || lifecycle == .running else {
+            return
+        }
+        show(presentation)
     }
 
     private func receive(_ event: SudoBrokerEvent) {
@@ -180,17 +197,35 @@ public final class SudoApprovalCoordinator {
         guard lifecycle == .starting || lifecycle == .running else { return }
         if let existing = presentations[snapshot.request.id] {
             existing.update(phase: snapshot.phase)
+            if existing.phase == .pendingApproval,
+               closedPendingPresentationIDs.remove(snapshot.request.id) != nil {
+                show(existing)
+            }
             return
         }
 
         let presentation = SudoApprovalPresentation(snapshot: snapshot)
         presentations[snapshot.request.id] = presentation
-        let id = snapshot.request.id
+        show(presentation)
+    }
+
+    private func show(_ presentation: SudoApprovalPresentation) {
+        let id = presentation.request.id
         presenter.present(
             presentation,
             approve: { [weak self] in await self?.approve(id: id) },
-            deny: { [weak self] in await self?.deny(id: id) }
+            deny: { [weak self] in await self?.deny(id: id) },
+            didClose: { [weak self, weak presentation] in
+                self?.presentationDidClose(presentation)
+            }
         )
+    }
+
+    private func presentationDidClose(_ presentation: SudoApprovalPresentation?) {
+        guard let presentation,
+              presentations[presentation.request.id] === presentation,
+              presentation.phase == .pendingApproval else { return }
+        closedPendingPresentationIDs.insert(presentation.request.id)
     }
 
     /// Cancels local UI work after AppKit has entered synchronous teardown.
@@ -204,6 +239,7 @@ public final class SudoApprovalCoordinator {
         eventTask = nil
         presenter.dismissAll()
         presentations.removeAll()
+        closedPendingPresentationIDs.removeAll()
     }
 
     private enum Lifecycle {

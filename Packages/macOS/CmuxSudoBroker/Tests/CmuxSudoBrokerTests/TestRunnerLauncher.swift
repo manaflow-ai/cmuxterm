@@ -2,9 +2,20 @@
 import Foundation
 
 actor TestRunnerLauncher: SudoRunnerLaunching {
+    static let defaultRunnerIdentity = SudoProcessIdentity(
+        processIdentifier: 4_242,
+        startSeconds: 7,
+        startMicroseconds: 8
+    )
+
     private(set) var launchedRequestIDs: [String] = []
     private(set) var reviewedScripts: [String: Data] = [:]
     private var terminationContinuations: [String: AsyncStream<Int32>.Continuation] = [:]
+    private let runnerIdentity: SudoProcessIdentity
+
+    init(runnerIdentity: SudoProcessIdentity = TestRunnerLauncher.defaultRunnerIdentity) {
+        self.runnerIdentity = runnerIdentity
+    }
 
     func launch(requestID: String) async -> SudoLaunchedRunner {
         makeRunner(requestID: requestID)
@@ -26,7 +37,7 @@ actor TestRunnerLauncher: SudoRunnerLaunching {
             bufferingPolicy: .bufferingNewest(1)
         )
         terminationContinuations[requestID] = pair.continuation
-        return SudoLaunchedRunner(termination: pair.stream)
+        return SudoLaunchedRunner(identity: runnerIdentity, termination: pair.stream)
     }
 
     func terminate(requestID: String) {
