@@ -99,7 +99,11 @@ extension IrohPeerConnection {
         while true {
             if let reason = connection.closeReason() { return reason }
             guard ContinuousClock.now < deadline else { return nil }
-            try? await Task.sleep(for: .milliseconds(20))
+            do {
+                try await Task.sleep(for: .milliseconds(20))
+            } catch {
+                return nil
+            }
         }
     }
 
