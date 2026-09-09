@@ -2,7 +2,7 @@ public import CMUXMobileCore
 public import CmuxIrohTransport
 public import CmuxMobileShell
 import Foundation
-import CmuxMobileShellModel
+public import CmuxMobileShellModel
 
 /// Failure reasons for an irx-backed forget, surfaced so the shell keeps the
 /// local row instead of claiming a revoke that never reached the server.
