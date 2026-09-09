@@ -8,6 +8,12 @@ import Foundation
 /// Trust boundary: the completed config never crosses the socket. `tunnel_config`
 /// returns only the path of the 0600 file the app wrote, the same boundary every
 /// other `vm.` verb already accepts.
+///
+/// `tunnel_config` and `tunnel_up` are the two verbs that would enroll or
+/// touch NetworkExtension, so both ask the coordinator's start policy first
+/// (``CloudActivationPolicy``: Cloud Machines on, and a machine exists) and
+/// fail closed with the same message the app shows. Status, down, wait, and
+/// revoke never start anything and stay available for cleanup.
 extension TerminalController {
     nonisolated func socketWorkerCloudTunnelResponse(
         method: String,
@@ -19,8 +25,22 @@ extension TerminalController {
             // Enrolls the browser role and writes its WireGuard config. The
             // Network Extension consumes it through `vm.tunnel_up`.
             return v2VmCall(id: id) {
+                // Fail closed before startup finishes wiring the coordinator,
+                // exactly like `vm.tunnel_up`: no admission, no enrollment.
+                guard let coordinator = await Self.cloudTunnelCoordinator() else {
+                    throw CloudTunnelError.backendUnavailable(.entitlementMissing)
+                }
+                if let refusal = await coordinator.startRefusal() {
+                    throw refusal.error
+                }
                 let manager = VMTunnelManager()
                 let state = try await manager.enroll(client: VMClient.shared)
+                // Enrollment is a control-plane round trip; a refusal that
+                // landed meanwhile must not leave the written config behind.
+                if let refusal = await coordinator.knownStartRefusal() {
+                    manager.removeLocalCredentials()
+                    throw refusal.error
+                }
                 var payload = await Self.cloudTunnelStatusPayload(manager: manager)
                 payload["tunnel_id"] = state.endpoint.tunnelId
                 payload["provider"] = state.endpoint.provider
@@ -51,9 +71,16 @@ extension TerminalController {
                         await Self.cloudTunnelCoordinator()?.backend.unavailableReason ?? .entitlementMissing
                     )
                 }
-                await coordinator.beginUp(pin: true)
-                _ = await coordinator.waitForState(timeout: .seconds(60)) { state in
+                if let refusal = await coordinator.beginUp(pin: true) {
+                    throw refusal.error
+                }
+                let settled = await coordinator.waitForState(timeout: .seconds(60)) { state in
                     state == .awaitingApproval || !state.isSettling
+                }
+                // A start the policy refused after scheduling ends off; say
+                // why instead of answering with a bare "off" payload.
+                if settled == .off, let refusal = await coordinator.recordedStartRefusal() {
+                    throw refusal.error
                 }
                 return await Self.cloudTunnelStatusPayload(manager: VMTunnelManager())
             }
@@ -130,6 +157,15 @@ extension TerminalController {
         }
         if let failure = status?.state.failureMessage {
             payload["tunnel_error"] = failure
+        }
+        // Status stays read-only and current: it reports only the refusal
+        // local state knows about right now (a fleet resolution that refused
+        // also refilled the marker, so it shows up here), never resolves an
+        // unknown machine count, and never echoes a past start's refusal
+        // that the user may since have fixed.
+        if backend.isNetworkExtension, let refusal = await coordinator?.knownStartRefusal() {
+            payload["start_refusal"] = refusal.rawValue
+            payload["start_refusal_message"] = refusal.error.description
         }
         let terminalManager = VMTunnelManager(purpose: .terminal)
         let hub = await MainActor.run { CmuxTuiSurfaceProviderRegistry.shared.wireGuardHub }
