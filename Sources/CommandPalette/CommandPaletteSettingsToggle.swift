@@ -320,17 +320,6 @@ enum CommandPaletteSettingsToggleCommands {
                 defaultsKey: IMessageModeSettings.key
             ),
             CommandPaletteSettingToggleDescriptor(
-                commandId: commandIdPrefix + "reorderOnNotification",
-                settingsKey: "app.reorderOnNotification",
-                title: {
-                    String(localized: "settings.app.reorderOnNotification", defaultValue: "Reorder on Notification")
-                },
-                sectionTitle: app,
-                keywords: ["app.reorderOnNotification", "notification", "reorder", "workspace", "unread", "sort"],
-                defaultValue: SettingCatalog().app.reorderOnNotification.defaultValue,
-                defaultsKey: SettingCatalog().app.reorderOnNotification.userDefaultsKey
-            ),
-            CommandPaletteSettingToggleDescriptor(
                 commandId: commandIdPrefix + "dockBadge",
                 settingsKey: "notifications.dockBadge",
                 title: {

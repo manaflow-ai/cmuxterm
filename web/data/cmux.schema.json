@@ -505,7 +505,8 @@
         "reorderOnNotification": {
           "type": "boolean",
           "default": true,
-          "description": "Move workspaces with new notifications toward the top."
+          "deprecated": true,
+          "description": "Legacy workspace-order setting. Use sidebar.workspaceOrder. true maps to notificationRecency and false maps to manual."
         },
         "iMessageMode": {
           "type": "boolean",
@@ -1051,6 +1052,12 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "workspaceOrder": {
+          "type": "string",
+          "enum": ["notificationRecency", "creation", "manual", "custom"],
+          "default": "notificationRecency",
+          "description": "Order left-sidebar workspace rows by notification recency, original creation time, persisted manual position, or ~/.config/cmux/sidebar-order.js. Pinned rows and workspace groups retain their structural constraints."
+        },
         "hideAllDetails": {
           "type": "boolean",
           "default": false,

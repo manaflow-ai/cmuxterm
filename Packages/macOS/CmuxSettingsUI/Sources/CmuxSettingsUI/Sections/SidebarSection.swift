@@ -11,6 +11,7 @@ public struct SidebarSection: View {
     @State private var fontSaveFailed = false
     @State private var tasks = MainActorTaskStore<String>()
     @State private var matchTerminal: DefaultsValueModel<Bool>
+    @State private var workspaceOrder: DefaultsValueModel<SidebarWorkspaceOrder>
     @State var hideAll: DefaultsValueModel<Bool>
     @State private var wrapTitles: DefaultsValueModel<Bool>
     @State private var showDesc: DefaultsValueModel<Bool>
@@ -41,6 +42,7 @@ public struct SidebarSection: View {
         _rightSidebarTabs = State(initialValue: hostActions.rightSidebarTabs())
         _sidebarFont = State(initialValue: hostActions.sidebarFontSize())
         _matchTerminal = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebarAppearance.matchTerminalBackground))
+        _workspaceOrder = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.workspaceOrder))
         _hideAll = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.hideAllDetails))
         _wrapTitles = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.wrapWorkspaceTitles))
         _showDesc = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.showWorkspaceDescription))
@@ -84,6 +86,7 @@ public struct SidebarSection: View {
     private func startObservingSettings() {
         let models: [any SettingObservationStarting] = [
             matchTerminal,
+            workspaceOrder,
             hideAll,
             wrapTitles,
             showDesc,
@@ -184,6 +187,32 @@ public struct SidebarSection: View {
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.small)
+            }
+            SettingsCardDivider()
+
+            SettingsCardRow(
+                configurationReview: .json("sidebar.workspaceOrder"),
+                String(
+                    localized: "settings.sidebar.workspaceOrder",
+                    defaultValue: "Workspace Order"
+                ),
+                subtitle: workspaceOrder.current.sidebarDescription,
+                controlWidth: 190
+            ) {
+                Picker(
+                    "",
+                    selection: Binding(
+                        get: { workspaceOrder.current },
+                        set: { workspaceOrder.set($0) }
+                    )
+                ) {
+                    ForEach(SidebarWorkspaceOrder.uiCases, id: \.self) { order in
+                        Text(order.displayName).tag(order)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("SettingsSidebarWorkspaceOrderPicker")
             }
             SettingsCardDivider()
 

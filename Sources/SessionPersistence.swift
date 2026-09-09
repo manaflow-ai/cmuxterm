@@ -1850,6 +1850,9 @@ struct SessionWorkspaceSnapshot: Codable, Sendable {
     /// Restore reuses this identity when it is present and non-colliding; legacy,
     /// externally-created, or duplicate snapshots can leave it nil or force a fresh ID.
     var workspaceId: UUID? = nil
+    /// Original creation time used by the sidebar's creation-order policy.
+    /// Optional so session manifests from older builds still decode.
+    var createdAt: Date? = nil
     var stableId: UUID? = nil
     var taskCreateOperationID: UUID? = nil
     var processTitle: String

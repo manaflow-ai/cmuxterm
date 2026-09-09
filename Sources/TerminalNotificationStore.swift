@@ -1625,7 +1625,9 @@ final class TerminalNotificationStore: ObservableObject {
         )
 #endif
         if effects.reorderWorkspace,
-           UserDefaultsSettingsClient(defaults: .standard).value(for: SettingCatalog().app.reorderOnNotification) {
+           UserDefaultsSettingsClient(defaults: .standard).value(
+               for: SettingCatalog().sidebar.workspaceOrder
+           ) == .notificationRecency {
             AppDelegate.shared?.tabManagerFor(tabId: notification.tabId)?
                 .moveTabToTopForNotification(notification.tabId)
         }
@@ -1673,7 +1675,9 @@ final class TerminalNotificationStore: ObservableObject {
         }
 
         if effects.reorderWorkspace,
-           UserDefaultsSettingsClient(defaults: .standard).value(for: SettingCatalog().app.reorderOnNotification) {
+           UserDefaultsSettingsClient(defaults: .standard).value(
+               for: SettingCatalog().sidebar.workspaceOrder
+           ) == .notificationRecency {
             AppDelegate.shared?.tabManagerFor(tabId: notification.tabId)?
                 .moveTabToTopForNotification(notification.tabId)
         }

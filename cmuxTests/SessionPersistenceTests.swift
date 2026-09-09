@@ -43,6 +43,19 @@ final class SessionPersistenceTests: XCTestCase {
     }
 
     @MainActor
+    func testWorkspaceCreationTimeSurvivesSessionRestore() {
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_123)
+        let workspace = Workspace(createdAt: createdAt)
+
+        let snapshot = workspace.sessionSnapshot(includeScrollback: false)
+        let restored = Workspace()
+        restored.restoreSessionSnapshot(snapshot)
+
+        XCTAssertEqual(snapshot.createdAt, createdAt)
+        XCTAssertEqual(restored.createdAt, createdAt)
+    }
+
+    @MainActor
     func testWorkspaceSessionSnapshotRestoresMarkdownPanel() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("cmux-session-markdown-\(UUID().uuidString)", isDirectory: true)

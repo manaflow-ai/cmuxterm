@@ -59,6 +59,10 @@ struct SettingCatalogTests {
                 "sidebar.selectionColor",
                 "workspaceColors.selectionColor",
             ],
+            "workspaceAutoReorderOnNotification": [
+                "app.reorderOnNotification",
+                "sidebar.workspaceOrder",
+            ],
         ]
 
         var idsByStorageKey: [String: Set<String>] = [:]
