@@ -150,6 +150,7 @@ jobs:
           set -euo pipefail
           SOURCE_PACKAGES_DIR="$PWD/.ci-source-packages"
           run_unit_suite() {
+            TEST_RUNNER_PATH="${TEST_RUNNER_PATH-$PATH:__CURRENT_VALUE__}" \
             scripts/ci/xcodebuild_noninteractive.py \
               xcodebuild -project cmux.xcodeproj -scheme cmux-unit -configuration Debug \
               -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
