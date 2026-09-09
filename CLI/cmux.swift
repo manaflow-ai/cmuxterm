@@ -1340,13 +1340,16 @@ final class ClaudeHookSessionStore {
                 }
                 return record.promptLifecycleRevision == expectedPromptLifecycleRevision
             }()
-            guard !settleOnlyIfPromptActive || (
-                depthBeforeStop > 0 && promptRevisionMatches
-            ) else {
+            // The lifecycle fence protects against a terminal event captured
+            // before a newer authoritative prompt began. A matching revision
+            // is still authoritative when the prompt is already idle: Stop
+            // and completion Notification are allowed to project their final
+            // status, notification summary, and resume binding in that case.
+            guard !settleOnlyIfPromptActive || promptRevisionMatches else {
                 return .rejectedByLifecycleFence
             }
             let shouldSettleAuthoritativeBoundary = promptDepthPolicy.closesActivePrompt
-                && (!settleOnlyIfPromptActive || (depthBeforeStop > 0 && promptRevisionMatches))
+                && (!settleOnlyIfPromptActive || promptRevisionMatches)
             let depthAfterStop = promptDepthPolicy.closesActivePrompt
                 ? 0
                 : max(0, depthBeforeStop - 1)

@@ -125,6 +125,66 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertEqual(settledRecord["runtimeStatus"] as? String, "running")
     }
 
+    func testAntigravityTerminalEventsProjectWhenPromptIsAlreadyIdle() throws {
+        let context = try makeClaudeHookContext(name: "antigravity-idle-terminal-events")
+        defer { context.cleanup() }
+
+        startAgentHookMockServerAccepting(context: context)
+
+        func run(_ subcommand: String, payload: String) -> ProcessRunResult {
+            runAgentHook(
+                context: context,
+                agent: "antigravity",
+                subcommand: subcommand,
+                standardInput: payload
+            )
+        }
+
+        let stopSessionID = "antigravity-idle-stop-session"
+        _ = run(
+            "session-start",
+            payload: #"{"conversationId":"\#(stopSessionID)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"SessionStart"}"#
+        )
+        let feedCountBeforeStop = context.state.snapshot().filter { $0.contains(#""method":"feed.push"#) }.count
+        let stop = run(
+            "stop",
+            payload: #"{"conversationId":"\#(stopSessionID)","fullyIdle":true,"terminationReason":"model_stop","workspacePaths":["\#(context.root.path)"],"hook_event_name":"Stop"}"#
+        )
+        XCTAssertEqual(stop.status, 0, stop.stderr)
+        let stoppedRecord = try readAntigravityHookSession(stopSessionID, context: context)
+        XCTAssertNil(stoppedRecord["activePromptDepth"])
+        XCTAssertEqual(stoppedRecord["agentLifecycle"] as? String, "idle")
+        XCTAssertEqual(stoppedRecord["runtimeStatus"] as? String, "idle")
+        XCTAssertEqual(stoppedRecord["lastNotificationStatus"] as? String, "idle")
+        XCTAssertGreaterThan(
+            context.state.snapshot().filter { $0.contains(#""method":"feed.push"#) }.count,
+            feedCountBeforeStop,
+            "A valid Stop for an already-idle Antigravity session must still publish completion"
+        )
+
+        let notificationSessionID = "antigravity-idle-notification-session"
+        _ = run(
+            "session-start",
+            payload: #"{"conversationId":"\#(notificationSessionID)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"SessionStart"}"#
+        )
+        let feedCountBeforeNotification = context.state.snapshot().filter { $0.contains(#""method":"feed.push"#) }.count
+        let notification = run(
+            "notification",
+            payload: #"{"conversationId":"\#(notificationSessionID)","message":"Completed","workspacePaths":["\#(context.root.path)"],"hook_event_name":"Notification"}"#
+        )
+        XCTAssertEqual(notification.status, 0, notification.stderr)
+        let notificationRecord = try readAntigravityHookSession(notificationSessionID, context: context)
+        XCTAssertNil(notificationRecord["activePromptDepth"])
+        XCTAssertEqual(notificationRecord["agentLifecycle"] as? String, "idle")
+        XCTAssertEqual(notificationRecord["runtimeStatus"] as? String, "idle")
+        XCTAssertEqual(notificationRecord["lastNotificationStatus"] as? String, "idle")
+        XCTAssertGreaterThan(
+            context.state.snapshot().filter { $0.contains(#""method":"feed.push"#) }.count,
+            feedCountBeforeNotification,
+            "A valid completion Notification for an already-idle Antigravity session must still publish"
+        )
+    }
+
     func testAntigravitySessionEndAndSessionStartRecoverUnbalancedPromptState() throws {
         let context = try makeClaudeHookContext(name: "antigravity-boundaries")
         defer { context.cleanup() }
