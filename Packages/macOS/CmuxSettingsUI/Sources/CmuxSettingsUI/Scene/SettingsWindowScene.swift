@@ -48,8 +48,10 @@ public struct SettingsWindowRoot: View {
         let defaults = UserDefaults.standard
         let restoredSection = defaults.string(forKey: Self.selectedSectionDefaultsKey)
             .flatMap(SettingsSectionID.init(rawValue:)) ?? .account
-        let cloudAvailable = runtime.hostActions.isCloudMachinesAvailable
+        let cloudAvailable = !ManagedDevicePolicy().isEnforced(.disableCloud)
+            && (runtime.hostActions.isCloudMachinesAvailable
             || defaults.bool(forKey: Self.cloudMachinesBetaDefaultsKey)
+            )
         _mountModel = State(initialValue: mountModel ?? SettingsSectionMountModel(
             initial: initialSection ?? restoredSection,
             order: Self.mountOrder(cloudAvailable: cloudAvailable)
@@ -222,6 +224,12 @@ public struct SettingsWindowRoot: View {
     /// Moves a selection that rests on the Cloud section (hidden under
     /// `DisableCloud`) to Account, both at first render and on a transition.
     private func leaveCloudSectionIfDisabledByPolicy() {
+        if cloudDisabledByPolicy {
+            // If the Cloud slot is the outstanding progressive mount, its
+            // intentionally empty content has no onAppear to advance the
+            // queue. Skip it explicitly so later sections still mount.
+            _ = mountModel.skip(.cloudMachines)
+        }
         if cloudDisabledByPolicy && selectedSection == .cloudMachines {
             navigate(to: .account)
         }

@@ -45,9 +45,6 @@ extension TerminalController {
                 return (result.foundationObject as? [String: Any]) ?? [:]
             }
         case "coderouter.claude_upstream.update":
-            guard ManagedAICredentialUploadPolicy.isEnabled else {
-                return v2Error(id: id, code: ManagedAICredentialUploadPolicy.socketErrorCode, message: ManagedAICredentialUploadPolicy.disabledMessage)
-            }
             guard let accountID = Self.coderouterString(params["accountId"]) else {
                 return v2Error(id: id, code: "invalid_params", message: "coderouter.claude_upstream.update requires `accountId`.")
             }

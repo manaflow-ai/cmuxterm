@@ -116,7 +116,6 @@ actor CoderouterClient {
 
     /// Renames or enables/disables one account. Returns `{ teamId, account }`.
     func updateClaudeAccount(id accountID: String, label: String?, state: String?, teamID: String?) async throws -> JSONValue {
-        guard ManagedAICredentialUploadPolicy.isEnabled else { throw ManagedAICredentialUploadPolicy.refusalError() }
         var body: [String: Any] = [:]
         if let label { body["label"] = label }
         if let state { body["state"] = state }
