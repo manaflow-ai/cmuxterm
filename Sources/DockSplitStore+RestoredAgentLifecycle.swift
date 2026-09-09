@@ -6,6 +6,10 @@ import AppKit
 import Foundation
 
 extension DockSplitStore {
+    func agentWaitSubscriptionSurfaceID(panelID: UUID) -> UUID? {
+        panels[panelID] != nil ? panelID : nil
+    }
+
     func agentWaitSurfaceSnapshot(panelID: UUID) -> AgentWaitSurfaceSnapshot? {
         guard panels[panelID] != nil else { return nil }
         let authoritativeRecords = agentRuntimeByPanelId[panelID]?

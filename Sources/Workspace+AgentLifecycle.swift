@@ -1410,6 +1410,10 @@ extension Workspace {
         )
     }
 
+    func agentWaitSubscriptionSurfaceID(surfaceID: UUID) -> UUID? {
+        surfaceOwnershipTarget(for: surfaceID)?.containerPanelID
+    }
+
     private func publishAgentLifecycleTransition(
         _ record: AgentLifecycleRecord,
         state: AgentLifecyclePublicState,

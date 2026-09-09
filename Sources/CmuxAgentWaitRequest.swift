@@ -107,6 +107,23 @@ extension TerminalController {
             return
         }
 
+        guard let subscriptionSurfaceID = v2MainSync({
+            self.agentWaitSubscriptionSurfaceID(surfaceID: surfaceID)
+        }) else {
+            writeAgentWaitResponse(
+                v2Error(
+                    id: id,
+                    code: "not_found",
+                    message: String(
+                        localized: "socket.agentWait.error.surfaceNotFound",
+                        defaultValue: "Surface not found"
+                    )
+                ),
+                socket: socket
+            )
+            return
+        }
+
         var waitPasswordAuthorization = passwordAuthorization
         var revocationSource: (any DispatchSourceRead)?
         let waitCoordinator = AgentWaitCoordinator(
@@ -135,7 +152,7 @@ extension TerminalController {
         let waitResult = waitCoordinator.wait(
             until: until,
             timeoutMilliseconds: timeoutMilliseconds,
-            surfaceID: surfaceID,
+            surfaceID: subscriptionSurfaceID,
             prepare: prepare,
             routingSnapshot: { lifecycleSurfaceID in
                 self.v2MainSync {
@@ -231,9 +248,31 @@ extension TerminalController {
         guard let tabManager = resolveTabManager(routing: routing),
               let workspace = tabManager.tabs.first(where: {
                   $0.surfaceOwnershipTarget(for: surfaceID) != nil
-              }) else {
+        }) else {
             return nil
         }
         return workspace.agentWaitSurfaceSnapshot(surfaceID: surfaceID)
+    }
+
+    func agentWaitSubscriptionSurfaceID(surfaceID: UUID) -> UUID? {
+        if let dock = DockSplitStore.liveStores.first(where: { $0.containsPanel(surfaceID) }) {
+            return dock.agentWaitSubscriptionSurfaceID(panelID: surfaceID)
+        }
+
+        let routing = ControlRoutingSelectors(
+            hasWindowIDParam: false,
+            windowID: nil,
+            groupID: nil,
+            workspaceID: nil,
+            surfaceID: surfaceID,
+            paneID: nil
+        )
+        guard let tabManager = resolveTabManager(routing: routing),
+              let workspace = tabManager.tabs.first(where: {
+                  $0.surfaceOwnershipTarget(for: surfaceID) != nil
+              }) else {
+            return nil
+        }
+        return workspace.agentWaitSubscriptionSurfaceID(surfaceID: surfaceID)
     }
 }
