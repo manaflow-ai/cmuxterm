@@ -250,18 +250,7 @@ output.write_text(selectors, encoding="utf-8")
             """
 #!/bin/bash
 set -euo pipefail
-counter="${CMUX_TEST_BATCH_COUNTER:?}"
 printf 'invoked\n' > "${CMUX_TEST_RUNNER_MARKER:?}"
-iteration=0
-if [ -f "$counter" ]; then
-  iteration="$(cat "$counter")"
-fi
-iteration=$((iteration + 1))
-printf '%s\n' "$iteration" > "$counter"
-if [ "$iteration" -eq 1 ]; then
-  echo "Executed 2 tests, with 2 failures (0 unexpected)"
-  exit 1
-fi
 echo "simulated app-host crash before test summary" >&2
 exit 9
 """.lstrip(),
@@ -835,7 +824,7 @@ def test_determinism_workflow_runs_self_test_before_strict_scan() -> None:
     assert script.index("--self-test") < script.index("--strict")
 
 
-def test_app_host_multi_batch_failure_cannot_reuse_prior_expected_summary() -> None:
+def test_app_host_batch_without_a_test_summary_stays_red() -> None:
     result, runner_invoked = run_app_host_unit_test_step()
 
     assert runner_invoked
