@@ -504,6 +504,25 @@ struct CLICodexHookTimeoutRegressionTests {
                 ],
             ],
         ], options: [.prettyPrinted, .sortedKeys]).write(to: stateURL, options: .atomic)
+        let ledgerURL = root.appendingPathComponent("codex-turn-ledger.json")
+        try JSONSerialization.data(withJSONObject: [
+            "records": [
+                sessionId: [
+                    "workspaceID": workspaceId,
+                    "surfaceID": surfaceId,
+                    "owner": ["pid": Int(ProcessInfo.processInfo.processIdentifier)],
+                    "activeTurnID": turnId,
+                    "activeChildrenByTurn": [:],
+                    "unknownChildrenByTurn": [:],
+                    "terminalChildrenByTurn": [:],
+                    "pendingTurns": [:],
+                    "settledTurnIDs": [],
+                    "notifiedTurnIDs": [],
+                    "updatedAt": now,
+                ],
+            ],
+            "surfaceOwners": [surfaceId: sessionId],
+        ], options: [.prettyPrinted, .sortedKeys]).write(to: ledgerURL, options: .atomic)
         startCodexHookMockSocketServerAccepting(
             listenerFD: listenerFD,
             commands: commands,
@@ -530,6 +549,7 @@ struct CLICodexHookTimeoutRegressionTests {
                 "CMUX_WORKSPACE_ID": workspaceId,
                 "CMUX_SURFACE_ID": surfaceId,
                 "CMUX_AGENT_HOOK_STATE_DIR": root.path,
+                "CMUX_CODEX_TURN_LEDGER_PATH": ledgerURL.path,
                 "CMUX_AGENT_HOOK_CAPTURED_AT": AgentHookWireFormat.eventTime(inheritedEventTime),
                 "CMUX_CODEX_PID": "\(ProcessInfo.processInfo.processIdentifier)",
                 "CMUX_CLI_SENTRY_DISABLED": "1",

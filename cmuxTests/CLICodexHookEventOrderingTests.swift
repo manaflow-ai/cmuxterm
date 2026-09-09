@@ -92,6 +92,13 @@ extension CLICodexHookTimeoutRegressionTests {
             commands.snapshot().contains { $0.hasPrefix("set_status codex Running ") }
         })
 
+        // Codex prompt reconciliation publishes its status through the journal
+        // path; it does not issue Claude's direct clear_notifications command.
+        // Count a fresh Running status to prove the detached current prompt
+        // finished before admitting the stale Stop below.
+        let runningStatusCountBeforeCurrentPrompt = commands.snapshot()
+            .filter { $0.hasPrefix("set_status codex Running ") }
+            .count
         let currentPrompt = runCodexHookProcess(
             executablePath: "/bin/sh",
             arguments: ["-c", promptCommand],
@@ -102,9 +109,9 @@ extension CLICodexHookTimeoutRegressionTests {
         #expect(currentPrompt.status == 0, Comment(rawValue: currentPrompt.stderr))
         #expect(currentPrompt.stdout == "{}\n")
         #expect(waitForConditionBlocking(timeout: 2) {
-            let snapshot = commands.snapshot()
-            return snapshot.contains { $0.hasPrefix("clear_notifications ") }
-                && snapshot.contains { $0.hasPrefix("set_status codex Running ") }
+            commands.snapshot()
+                .filter { $0.hasPrefix("set_status codex Running ") }
+                .count > runningStatusCountBeforeCurrentPrompt
         })
 
         let staleStopStart = commands.snapshot().count
