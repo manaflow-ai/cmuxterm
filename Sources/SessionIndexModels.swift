@@ -346,6 +346,10 @@ struct SessionEntry: Identifiable, Hashable, Sendable {
         return TerminalStartupWorkingDirectoryPrefix.prefix(command, workingDirectory: cwd)
     }
 
+    var vaultResumeCompatibilityCommand: String? {
+        copyResumeCommandWithoutWorkingDirectory
+    }
+
     private var copyResumeCommandWithoutWorkingDirectory: String? {
         switch specifics {
         case let .claude(model, permissionMode, configDirectoryForResume):

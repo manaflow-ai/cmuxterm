@@ -20,7 +20,7 @@ extension SessionEntry {
             sessionID: sessionId,
             workingDirectory: resumeWorkingDirectory,
             profile: vaultResumeAgentProfile,
-            legacyCommand: copyResumeCommand
+            legacyCommand: vaultResumeCompatibilityCommand
         )
     }
 
