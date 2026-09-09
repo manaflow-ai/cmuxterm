@@ -18,9 +18,10 @@ private func entriesWithMinimumSupportedVersion(
 /// authority), projected for UI.
 ///
 /// Written by the irx composition on every applied directory fact and on
-/// sign-out; read by the Computers surfaces to warn only when a remembered
-/// Mac build is below the current minimum. A seeded row with no remembered
-/// version remains informational until its first hello supplies the build.
+/// sign-out; read by the Computers surfaces to warn when a remembered Mac
+/// build is below the current minimum or when the directory has no build for
+/// that Mac yet. A missing build is treated as possibly too old until the Mac
+/// advertises its version.
 ///
 /// A process-wide shared instance is the seam here because the writer lives
 /// in `cmuxFeature` (the transport composition) and the readers live in
@@ -54,14 +55,16 @@ public final class MobileMacListAuthState {
             self.minimumSupportedVersion = minimumSupportedVersion
         }
 
-        /// True only when both versions are known and the Mac is below the
-        /// server floor. Malformed, missing, or channel-only values stay
-        /// informational so an unverified row fails open.
+        /// True when the server floor is valid and the Mac is either missing
+        /// or has an unparsable build version, or is below that floor. An
+        /// unusable reported version cannot establish compatibility, so it is
+        /// treated as possibly too old until a valid hello arrives.
         public var isOutdated: Bool {
-            guard let appVersion, let minimumSupportedVersion,
-                  let installed = Self.numericVersion(appVersion),
+            guard let minimumSupportedVersion,
                   let required = Self.numericVersion(minimumSupportedVersion)
             else { return false }
+            guard let appVersion else { return true }
+            guard let installed = Self.numericVersion(appVersion) else { return true }
             return installed.lexicographicallyPrecedes(required)
         }
 
@@ -156,8 +159,9 @@ public final class MobileMacListAuthState {
     }
 
     /// Whether the directory still has a seeded overlay for this Mac. This is
-    /// retained for connection admission diagnostics, not a user-facing update
-    /// warning; the UI waits for a remembered version and `isOutdated`.
+    /// retained for connection admission diagnostics; the user-facing warning
+    /// is derived from `isOutdated`, including when the seeded row has no
+    /// remembered version yet.
     public func isSeeded(deviceID: String) -> Bool {
         entriesByDeviceID[deviceID]?.status == "seeded"
     }
