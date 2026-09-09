@@ -434,7 +434,7 @@
   },
   "vault": {
     "overview": {
-      "eyebrow": "cmux 볼트",
+      "eyebrow": "cmux Vault",
       "title": "Vault 개요",
       "description": "동기화된 세션에 대한 저장 및 업로드 활동입니다.",
       "emptyTitle": "아직 동기화된 세션이 없습니다.",
@@ -447,7 +447,7 @@
     },
     "cliAuth": {
       "section": "금고",
-      "eyebrow": "cmux 볼트",
+      "eyebrow": "cmux Vault",
       "title": "CLI 액세스 승인",
       "description": "이 장치를 로그인된 cmux 계정에 연결하려면 cmux-vault에 표시된 코드를 확인하세요.",
       "coderouterEyebrow": "CodeRouter",
@@ -461,7 +461,7 @@
     },
     "sessions": {
       "section": "금고",
-      "eyebrow": "cmux 볼트",
+      "eyebrow": "cmux Vault",
       "title": "동기화된 세션",
       "description": "로컬 컴퓨터에서 동기화된 최근 코딩 에이전트 성적표입니다.",
       "backToOverview": "개요로 돌아가기",
@@ -1521,7 +1521,7 @@
         "p5": "cmux v0.64+가 필요합니다."
       },
       "cmuxVault": {
-        "title": "cmux Vault 소개",
+        "title": "cmux Vault",
         "summary": "Vault 패널에서 Codex, Claude Code, OpenCode, Pi 세션을 검색하고 워크스페이스로 끌어올 수 있습니다.",
         "date": "2026년 5월 22일",
         "p1": "cmux 오른쪽 사이드바에 오래된 에이전트 세션을 위한 Vault 패널이 추가되었습니다.",
@@ -1604,10 +1604,10 @@
       ]
     },
     "cmuxVault": {
-      "metaTitle": "cmux Vault 소개",
+      "metaTitle": "cmux Vault",
       "metaDescription": "cmux v0.64+는 Codex, Claude Code, OpenCode, Pi 세션을 검색하고 워크스페이스로 끌어올 수 있는 Vault 패널을 추가합니다.",
       "metaKeywords": [
-        "cmux 볼트",
+        "cmux Vault",
         "Codex 세션",
         "Claude Code 세션",
         "OpenCode 세션",
@@ -2625,7 +2625,7 @@
       "suggestCloudVmName": "cmux 클라우드 VM",
       "suggestCloudVmUse": "Cloud VM 생성, 연결, 실행, SSH 엔드포인트, 청구, 공급자 문제 해결 흐름을 운영합니다.",
       "suggestCloudVmWhy": "클라우드 VM 작업은 웹 앱, 데이터베이스, 공급자 API 및 스모크 테스트를 포괄합니다.",
-      "suggestVaultName": "cmux 볼트",
+      "suggestVaultName": "cmux Vault",
       "suggestVaultUse": "암호를 프롬프트에 유출하지 않고 볼트 지원 에이전트 구성, 자격 증명 및 복원 동작을 관리합니다.",
       "suggestVaultWhy": "Vault 워크플로는 비밀 및 에이전트 시작에 영향을 미치기 때문에 일반 설정보다 더 엄격한 처리가 필요합니다.",
       "suggestionsCallout": "실제 명령 시퀀스를 통해 미래의 기술을 반복 가능한 워크플로우에 집중하세요. 기술이 제품 문서만 다시 기술하는 경우에는 대신 문서에 추가하세요.",
