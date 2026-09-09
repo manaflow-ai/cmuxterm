@@ -662,7 +662,7 @@
       ]
     },
     "pro": {
-      "name": "プロ",
+      "name": "Pro",
       "cta": "Pro を入手",
       "featuresLead": "Free のすべてに加えて:",
       "features": [
@@ -707,24 +707,24 @@
       "rows": [
         {
           "label": "ネイティブ macOS ターミナル、オープンソース",
-          "free": "本当の",
-          "pro": "本当の",
-          "team": "本当の",
-          "enterprise": "本当の"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "自分のキーで使うローカル CLI エージェント",
-          "free": "本当の",
-          "pro": "本当の",
-          "team": "本当の",
-          "enterprise": "本当の"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "縦型タブ、分割、通知、ソケット API",
-          "free": "本当の",
-          "pro": "本当の",
-          "team": "本当の",
-          "enterprise": "本当の"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "セッション履歴",
@@ -736,37 +736,37 @@
         },
         {
           "label": "cmux Vault: クラウドセッションバックアップ",
-          "free": "偽",
-          "pro": "本当の",
-          "team": "本当の",
-          "enterprise": "本当の",
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true",
           "vault": true
         },
         {
           "label": "すべてのセッションを横断検索",
-          "free": "偽",
-          "pro": "本当の",
-          "team": "本当の",
-          "enterprise": "本当の",
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true",
           "vault": true
         },
         {
           "label": "Cloud VM 上のクラウドエージェント",
-          "free": "偽",
-          "pro": "本当の",
-          "team": "本当の",
-          "enterprise": "本当の"
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "同時 Cloud VM 数",
-          "free": "偽",
+          "free": "false",
           "pro": "50",
           "team": "ユーザーごとに 50",
           "enterprise": "カスタム"
         },
         {
           "label": "Cloud VM 1 台あたりのリソース",
-          "free": "偽",
+          "free": "false",
           "pro": "標準 8 GB RAM / 32 GB ディスク。RAM 4～64 GB、ディスクは最大 256 GB",
           "team": "標準 8 GB RAM / 32 GB ディスク。RAM 4～64 GB、ディスクは最大 256 GB",
           "enterprise": "カスタム"
@@ -780,10 +780,10 @@
         },
         {
           "label": "iOS アプリ",
-          "free": "偽",
-          "pro": "本当の",
-          "team": "本当の",
-          "enterprise": "本当の"
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Mac に接続するネットワーク",
@@ -795,38 +795,38 @@
         },
         {
           "label": "SSO と SAML サインイン",
-          "free": "偽",
-          "pro": "偽",
-          "team": "偽",
-          "enterprise": "本当の"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "セルフホストとエアギャップ実行",
-          "free": "偽",
-          "pro": "偽",
-          "team": "偽",
-          "enterprise": "本当の"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "監査ログ: セッション、ネットワーク、ブラウザ",
-          "free": "偽",
-          "pro": "偽",
-          "team": "偽",
-          "enterprise": "本当の"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "ボリューム価格",
-          "free": "偽",
-          "pro": "偽",
-          "team": "偽",
-          "enterprise": "本当の"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "SOC 2 と SLA",
-          "free": "偽",
-          "pro": "偽",
-          "team": "偽",
-          "enterprise": "本当の"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "サポート",
