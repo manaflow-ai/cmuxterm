@@ -486,12 +486,13 @@ public actor SpeechAnalyzerDictationTranscriber: SpeechTranscribing {
             // No usable input device after the change: fail the session
             // instead of listening to silence forever.
             isFinishing = true
-            await finishInputPipeline(cancelConversion: true)
-            outputContinuation?.finish(
-                throwing: DictationFailure.audioCaptureFailed(error.localizedDescription)
-            )
-            cancelResultsTask()
+            let failure = DictationFailure.audioCaptureFailed(error.localizedDescription)
+            // Publish the failure before teardown; otherwise the result
+            // consumer can settle the stream successfully first.
+            outputContinuation?.finish(throwing: failure)
             outputContinuation = nil
+            cancelResultsTask()
+            await finishInputPipeline(cancelConversion: true)
             await cancelAnalyzer()
             await releaseReservedLocale()
         }
