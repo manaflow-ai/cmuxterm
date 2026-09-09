@@ -708,38 +708,6 @@ jobs:
             sleep $((attempt * 5))
           done
 
-      - name: Ensure node for wrapper regressions
-        id: detect-node
-        run: |
-          set -euo pipefail
-          # The OpenCode and Claude wrapper regressions execute JavaScript from
-          # XCTest app hosts. Provision Node before any xcodebuild test step on
-          # every shard because deterministic time-weighted sharding can place
-          # that suite on any worker, and Xcode sanitizes the host PATH.
-          for candidate in "$(command -v node || true)" /opt/homebrew/bin/node /usr/local/bin/node; do
-            if [ -n "$candidate" ] && [ -x "$candidate" ]; then
-              dirname "$candidate" >> "$GITHUB_PATH"
-              "$candidate" --version
-              echo "found=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          done
-          echo "no node runtime in the runner image; installing via setup-node"
-          echo "found=false" >> "$GITHUB_OUTPUT"
-
-      - name: Install node (runner image has none)
-        if: ${{ steps.detect-node.outputs.found == 'false' }}
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: "20"
-
-      - name: Export Node path for Xcode test hosts
-        run: |
-          set -euo pipefail
-          node_bin="$(command -v node)"
-          test -x "$node_bin"
-          echo "CMUX_TEST_NODE_BIN=$node_bin" >> "$GITHUB_ENV"
-
       - name: Run Ghostty split-theme appearance regression
         if: ${{ matrix.shard == fromJSON(env.CMUX_APP_HOST_FOCUSED_REGRESSION_SHARD) }}
         run: |

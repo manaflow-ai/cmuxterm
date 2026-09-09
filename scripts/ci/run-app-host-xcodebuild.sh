@@ -52,18 +52,6 @@ app_host_test_runner_environment=("TEST_RUNNER_CMUX_TEST_PROCESS=1")
 app_host_home=""
 app_host_key=""
 app_host_receipt_dir=""
-if [ -n "${CMUX_TEST_NODE_BIN:-}" ]; then
-  if [ ! -x "$CMUX_TEST_NODE_BIN" ]; then
-    echo "FAIL: CMUX_TEST_NODE_BIN is not an executable path: $CMUX_TEST_NODE_BIN" >&2
-    exit 1
-  fi
-  # Xcode only forwards TEST_RUNNER_-prefixed variables into the app-host
-  # process. Preserve the absolute Node path across that boundary instead of
-  # relying on the test host's sanitized PATH.
-  app_host_test_runner_environment+=(
-    "TEST_RUNNER_CMUX_TEST_NODE_BIN=$CMUX_TEST_NODE_BIN"
-  )
-fi
 app_host_home_input="${CMUX_APP_HOST_HOME:-}"
 app_host_xdg_config_home_input="${CMUX_APP_HOST_XDG_CONFIG_HOME:-}"
 if [ "${CMUX_CI_APP_HOST_ISOLATION_REQUIRED:-0}" = "1" ]; then
