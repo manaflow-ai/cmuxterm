@@ -145,6 +145,15 @@ extension CLINotifyProcessIntegrationRegressionTests {
             "session-start",
             payload: #"{"conversationId":"\#(stopSessionID)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"SessionStart"}"#
         )
+        let intermediateStop = run(
+            "stop",
+            payload: #"{"conversationId":"\#(stopSessionID)","fullyIdle":false,"workspacePaths":["\#(context.root.path)"],"hook_event_name":"Stop"}"#
+        )
+        XCTAssertEqual(intermediateStop.status, 0, intermediateStop.stderr)
+        let intermediateRecord = try readAntigravityHookSession(stopSessionID, context: context)
+        XCTAssertNil(intermediateRecord["activePromptDepth"])
+        XCTAssertEqual(intermediateRecord["agentLifecycle"] as? String, "running")
+        XCTAssertEqual(intermediateRecord["runtimeStatus"] as? String, "running")
         let feedCountBeforeStop = context.state.snapshot().filter { $0.contains(#""method":"feed.push"#) }.count
         let stop = run(
             "stop",
