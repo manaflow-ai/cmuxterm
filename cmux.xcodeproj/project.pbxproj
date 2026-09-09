@@ -1738,7 +1738,10 @@
 		A6D1F0100000000000000002 /* MainWindowVisibilityLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6D1F0100000000000000001 /* MainWindowVisibilityLifecycleTests.swift */; };
 		730600000000000000000001 /* MainWindowVisibleFrameFitCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 730600010000000000000001 /* MainWindowVisibleFrameFitCoreTests.swift */; };
 		730600020000000000000002 /* MainWindowVisibleFrameFitRescue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 730600020000000000000001 /* MainWindowVisibleFrameFitRescue.swift */; };
+		D15AB1ED000000000000A002 /* ManagedCapabilityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D15AB1ED000000000000A001 /* ManagedCapabilityPolicy.swift */; };
+		D15AB1ED000000000000A006 /* ManagedCapabilityPolicyGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D15AB1ED000000000000A005 /* ManagedCapabilityPolicyGateTests.swift */; };
 		4DD540783D6349A794464BDA /* ManagedPolicyBrowserGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 224F615BB3A34C66A999EACF /* ManagedPolicyBrowserGateTests.swift */; };
+		D15AB1ED000000000000A004 /* ManagedPolicyCloudGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D15AB1ED000000000000A003 /* ManagedPolicyCloudGateTests.swift */; };
 		F05288349F2E48398A0E0252 /* ManagedPolicyEnforcementObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFDB146929E340BE89407AC1 /* ManagedPolicyEnforcementObserver.swift */; };
 		E50D16B83824419FB525A70F /* ManagedPolicyRemoteControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0128D58A0B34955A144D263 /* ManagedPolicyRemoteControlTests.swift */; };
 		7F0F188D278E44898F9A2E83 /* ManagedPolicySettingsImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46438523E2764A18B697CC4B /* ManagedPolicySettingsImportTests.swift */; };
@@ -5128,7 +5131,10 @@
 		A6D1F0100000000000000001 /* MainWindowVisibilityLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowVisibilityLifecycleTests.swift; sourceTree = "<group>"; };
 		730600010000000000000001 /* MainWindowVisibleFrameFitCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowVisibleFrameFitCoreTests.swift; sourceTree = "<group>"; };
 		730600020000000000000001 /* MainWindowVisibleFrameFitRescue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/MainWindowVisibleFrameFitRescue.swift; sourceTree = "<group>"; };
+		D15AB1ED000000000000A001 /* ManagedCapabilityPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedCapabilityPolicy.swift; sourceTree = "<group>"; };
+		D15AB1ED000000000000A005 /* ManagedCapabilityPolicyGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedCapabilityPolicyGateTests.swift; sourceTree = "<group>"; };
 		224F615BB3A34C66A999EACF /* ManagedPolicyBrowserGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedPolicyBrowserGateTests.swift; sourceTree = "<group>"; };
+		D15AB1ED000000000000A003 /* ManagedPolicyCloudGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedPolicyCloudGateTests.swift; sourceTree = "<group>"; };
 		CFDB146929E340BE89407AC1 /* ManagedPolicyEnforcementObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedPolicyEnforcementObserver.swift; sourceTree = "<group>"; };
 		F0128D58A0B34955A144D263 /* ManagedPolicyRemoteControlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedPolicyRemoteControlTests.swift; sourceTree = "<group>"; };
 		46438523E2764A18B697CC4B /* ManagedPolicySettingsImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedPolicySettingsImportTests.swift; sourceTree = "<group>"; };
@@ -8024,6 +8030,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				A5001417 /* WorkspaceContentView.swift */,
 				5C0728FF0C3B4FF2925CA071 /* AppDelegate+ManagedPolicy.swift */,
 				CFDB146929E340BE89407AC1 /* ManagedPolicyEnforcementObserver.swift */,
+				D15AB1ED000000000000A001 /* ManagedCapabilityPolicy.swift */,
 				111A8E6117014894B1DB6998 /* BrowserAvailabilityManagedPolicy.swift */,
 				E30760030000000000000001 /* TmuxOverlayExperimentSettings.swift */,
 				E30760040000000000000001 /* TmuxOverlayExperimentTarget.swift */,
@@ -9910,6 +9917,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				46438523E2764A18B697CC4B /* ManagedPolicySettingsImportTests.swift */,
 				F0128D58A0B34955A144D263 /* ManagedPolicyRemoteControlTests.swift */,
 				224F615BB3A34C66A999EACF /* ManagedPolicyBrowserGateTests.swift */,
+				D15AB1ED000000000000A005 /* ManagedCapabilityPolicyGateTests.swift */,
+				D15AB1ED000000000000A003 /* ManagedPolicyCloudGateTests.swift */,
 				6083A7DAD962E287FC2FFE94 /* ShortcutAndCommandPaletteTests.swift */,
 				F17F00000000000000000004 /* FullWidthTabCommandTests.swift */,
 				A64610020000000000000002 /* QuitConfirmationAlertPresenterTests.swift */,
@@ -11891,6 +11900,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				A6D1F0300000000000000002 /* MainWindowVisibilityController+Lifecycle.swift in Sources */,
 				2F0C06000000000000000002 /* MainWindowVisibilityController.swift in Sources */,
 				730600020000000000000002 /* MainWindowVisibleFrameFitRescue.swift in Sources */,
+				D15AB1ED000000000000A002 /* ManagedCapabilityPolicy.swift in Sources */,
 				F05288349F2E48398A0E0252 /* ManagedPolicyEnforcementObserver.swift in Sources */,
 				A28B087F0000000000000003 /* MarkdownEditableFocusMessageHandler.swift in Sources */,
 				A5FD0002 /* MarkdownFindWebViewEvaluator.swift in Sources */,
@@ -13800,7 +13810,9 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				17C9F5BA0DD14EDC8C3E5001 /* MainWindowVisibilityControllerTests.swift in Sources */,
 				A6D1F0100000000000000002 /* MainWindowVisibilityLifecycleTests.swift in Sources */,
 				730600000000000000000001 /* MainWindowVisibleFrameFitCoreTests.swift in Sources */,
+				D15AB1ED000000000000A006 /* ManagedCapabilityPolicyGateTests.swift in Sources */,
 				4DD540783D6349A794464BDA /* ManagedPolicyBrowserGateTests.swift in Sources */,
+				D15AB1ED000000000000A004 /* ManagedPolicyCloudGateTests.swift in Sources */,
 				E50D16B83824419FB525A70F /* ManagedPolicyRemoteControlTests.swift in Sources */,
 				7F0F188D278E44898F9A2E83 /* ManagedPolicySettingsImportTests.swift in Sources */,
 				D9154002D9154002D9154002 /* MarkdownCodespanRenderingTests.swift in Sources */,
