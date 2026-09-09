@@ -173,10 +173,15 @@ public final class SocketCredentialResolver: @unchecked Sendable {
             }
             guard !Self.deadlineExpired(deadline) else { return nil }
             let services = Self.keychainServices(socketPath: socketPath, environment: environment)
-            if let keychainPassword = Self.normalized(keychainPasswordProvider(services)) {
+            let keychainPassword = Self.normalized(keychainPasswordProvider(services))
+            if let keychainPassword {
                 state = .resolved(password: keychainPassword, source: .keychain)
                 return keychainPassword
             }
+            // A missing result that arrives after the deadline is not a
+            // definitive credential absence; leave the source unresolved so a
+            // later operation can retry with its own deadline.
+            guard !Self.deadlineExpired(deadline) else { return nil }
             state = .resolved(password: nil, source: nil)
             return nil
         }
