@@ -34111,6 +34111,17 @@ export default CMUXSessionRestore;
             return
         }
 
+        if def.name == "codex", subcommand == "sync-native-title" {
+            runCodexNativeTitleSyncHook(
+                commandArgs: hookArgs,
+                environment: env,
+                client: client,
+                telemetry: telemetry
+            )
+            print("OK")
+            return
+        }
+
         if subcommand == "auto-name", autoNamingSource(for: def) != nil {
             // Detached re-invocation spawned from the codex Stop hook (see
             // spawnDetachedAgentAutoName): runs the full naming pass without
@@ -36513,6 +36524,16 @@ export default CMUXSessionRestore;
                 cursorLifecycleLease?.release()
                 cursorLifecycleLease = nil
                 sendAgentFeedTelemetry(workspaceId: workspaceId, surfaceId: surfaceId)
+            }
+
+            if def.name == "codex", !suppressVisibleMutations, !sessionId.isEmpty {
+                spawnDetachedCodexNativeTitleSync(
+                    sessionId: sessionId,
+                    workspaceId: workspaceId,
+                    surfaceId: surfaceId,
+                    environment: env,
+                    telemetry: telemetry
+                )
             }
 
             // Opt-in auto-naming for generic-agent sessions: a detached pass so the
