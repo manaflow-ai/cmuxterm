@@ -1,4 +1,6 @@
+import AppKit
 import CmuxSettings
+import CmuxSettingsUI
 import Foundation
 import Testing
 
@@ -11,6 +13,44 @@ import Testing
 @MainActor
 @Suite("Workspace creation working-directory spawn policy", .serialized)
 struct WorkspaceCreationWorkingDirectorySpawnPolicyTests {
+    @Test("ready terminal configuration creates the first window workspace synchronously")
+    func readyConfigurationCreatesInitialWorkspaceSynchronously() async throws {
+        let appDelegate = try #require(AppDelegate.shared)
+        let runtime = try #require(appDelegate.settingsRuntime)
+        await runtime.declarativeTerminalConfigurationModel.waitForInitialSnapshot()
+
+        let windowID = appDelegate.createMainWindow(shouldActivate: false)
+        defer { appDelegate.mainWindow(for: windowID)?.close() }
+        let manager = try #require(appDelegate.tabManagerFor(windowId: windowID))
+        #expect(manager.tabs.count == 1)
+        #expect(manager.selectedWorkspace != nil)
+        await manager.waitForInitialWorkspace()
+    }
+
+    @Test("a window stays hidden while its initial terminal configuration loads")
+    func unreadyConfigurationDoesNotPresentAnEmptyWindow() async throws {
+        let appDelegate = try #require(AppDelegate.shared)
+        let originalRuntime = try #require(appDelegate.settingsRuntime)
+        let loadingRuntime = SettingsRuntime(
+            catalog: originalRuntime.catalog,
+            userDefaultsStore: originalRuntime.userDefaultsStore,
+            jsonStore: originalRuntime.jsonStore,
+            secretStore: originalRuntime.secretStore,
+            errorLog: SettingsErrorLog()
+        )
+        appDelegate.settingsRuntime = loadingRuntime
+        let windowID = appDelegate.createMainWindow(shouldActivate: false)
+        appDelegate.settingsRuntime = originalRuntime
+        defer { appDelegate.mainWindow(for: windowID)?.close() }
+
+        let window = try #require(appDelegate.mainWindow(for: windowID))
+        let manager = try #require(appDelegate.tabManagerFor(windowId: windowID))
+        #expect(manager.tabs.isEmpty)
+        #expect(!window.isVisible)
+        await manager.waitForInitialWorkspace()
+        #expect(manager.tabs.count == 1)
+    }
+
     @Test("declarative shell startup stays with the surface creation snapshot")
     func declarativeShellStartupDefaultsArePinnedAtSurfaceCreation() {
         @MainActor
