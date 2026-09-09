@@ -4,6 +4,11 @@ export const ACCOUNT_MAX_BINDINGS = 32;
 export const ACCOUNT_MAX_PAYLOAD_BYTES = 64 * 1024;
 export const ACCOUNT_MAX_RECORDS = 4096;
 export const ACCOUNT_RETENTION_BATCH_SIZE = 128;
+/** Physical guard leaves room for SQLite indexes and migration metadata while
+ * staying far below Cloudflare's per-object limit. Cloudflare does not expose
+ * a supported VACUUM operation here, so writes fail closed before the file can
+ * approach the platform limit; DELETE still makes pages available for reuse. */
+export const ACCOUNT_PHYSICAL_STORAGE_QUOTA_BYTES = 16 * 1024 * 1024;
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const RETENTION_WINDOWS_MS = {
   challenge: 10 * 60 * 1000,
@@ -15,6 +20,7 @@ export const RETENTION_WINDOWS_MS = {
 
 export interface SqliteExecutor {
   exec(query: string, ...bindings: unknown[]): Iterable<unknown>;
+  readonly databaseSize?: number;
 }
 export interface AccountSqliteDatabase {
   readonly sql: SqliteExecutor;
@@ -223,6 +229,10 @@ export function accountPayloadBytes(sql: SqliteExecutor): number {
 export function assertAccountStorageQuota(sql: SqliteExecutor): void {
   const bytes = accountPayloadBytes(sql);
   if (bytes > ACCOUNT_STORAGE_QUOTA_BYTES) throw new AccountStorageQuotaError(bytes);
+  if (sql.databaseSize !== undefined
+    && (!Number.isSafeInteger(sql.databaseSize) || sql.databaseSize > ACCOUNT_PHYSICAL_STORAGE_QUOTA_BYTES)) {
+    throw new AccountStorageQuotaError(sql.databaseSize);
+  }
 }
 export function assertBindingQuota(sql: SqliteExecutor): void {
   const bindings = scalarNumber(sql, "SELECT live_bindings AS value FROM account_storage_usage WHERE id = 1");

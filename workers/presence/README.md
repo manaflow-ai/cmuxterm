@@ -239,7 +239,12 @@ has completed; a route rollback must not attempt to downgrade SQLite.
 SQLite-backed objects have a 10 GB per-object platform limit on Workers Paid,
 but this service enforces a much smaller logical quota. Every write path must
 run expiry cleanup first, enforce payload and active-binding limits, and handle
-`SQLITE_FULL` as a recoverable storage error after bounded deletion. Temporary
+`SQLITE_FULL` as a recoverable storage error after bounded deletion. The worker
+also checks `sql.databaseSize` against its physical quota before each write.
+Cloudflare does not document `VACUUM` for this API, so the code does not issue
+unsupported pragmas; deleted pages are reused by SQLite, and a physical quota
+failure requires operator cleanup or account recovery rather than risky online
+compaction. Temporary
 rows require an `expires_at` column and an index. The alarm runs cleanup daily
 and is scheduled earlier when the next expiry is known. Terminal bytes,
 WebSocket frames, and analytics payloads must never be persisted here.

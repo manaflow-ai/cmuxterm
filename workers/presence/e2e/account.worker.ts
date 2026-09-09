@@ -16,14 +16,24 @@ export class SandboxAccount extends AccountControlPlane {
         rows: Array.from(this.ctx.storage.sql.exec("SELECT challenge_id, expires_at FROM account_challenges")),
         alarm: await this.ctx.storage.getAlarm(),
         alarmInvocations: await this.ctx.storage.get<number>("sandbox:alarms") ?? 0,
+        databaseSize: this.ctx.storage.sql.databaseSize,
       });
     }
     if (path === "/seed") {
-      const { id, expiresAt } = await request.json() as { id: string; expiresAt: number };
+      const { id, expiresAt, payload = "{}" } = await request.json() as { id: string; expiresAt: number; payload?: string };
       this.ctx.storage.sql.exec(
-        "INSERT INTO account_challenges (challenge_id, payload, expires_at) VALUES (?, '{}', ?)", id, expiresAt,
+        "INSERT INTO account_challenges (challenge_id, payload, expires_at) VALUES (?, ?, ?)", id, payload, expiresAt,
       );
       return Response.json({ ok: true });
+    }
+    if (path === "/fill-and-expire") {
+      this.ctx.storage.transactionSync(() => {
+        for (let i = 0; i < 128; i++) this.ctx.storage.sql.exec(
+          "INSERT INTO account_challenges (challenge_id, payload, expires_at) VALUES (?, ?, ?)",
+          `churn-${Date.now()}-${i}`, "x".repeat(65_536), Date.now() - 1,
+        );
+      });
+      return Response.json({ databaseSize: this.ctx.storage.sql.databaseSize });
     }
     if (path === "/set-alarm") {
       const { at } = await request.json() as { at: number };

@@ -64,6 +64,17 @@ try {
   assert.deepEqual(delivered.rows, []);
   assert.equal(delivered.alarm, null, "Drained SQL state must stop scheduling cleanup");
 
+  const churnSizes = [];
+  for (let cycle = 0; cycle < 3; cycle++) {
+    const filled = await request("/fill-and-expire?account=churn");
+    churnSizes.push(filled.databaseSize);
+    await request("/alarm?account=churn");
+    const churned = await request("/inspect?account=churn");
+    assert.deepEqual(churned.rows, [], "Expired churn must be removed");
+    assert.ok(churned.databaseSize <= 16 * 1024 * 1024, "Physical SQLite size must stay bounded after churn");
+  }
+  assert.ok(churnSizes.every(size => Number.isSafeInteger(size) && size <= 16 * 1024 * 1024));
+
   const original = await request("/schema/seed");
   await runtime.dispose();
   await start("bad");
