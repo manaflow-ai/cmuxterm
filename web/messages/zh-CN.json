@@ -168,11 +168,11 @@
       "vaultSessions": "会议",
       "coderouterGroup": "coderouter",
       "coderouterOverview": "概览",
-      "iosGroup": "iOS系统",
+      "iosGroup": "iOS",
       "accountGroup": "帐户",
       "billing": "计费",
       "team": "团队",
-      "testflight": "iOS 测试飞行"
+      "testflight": "iOS TestFlight"
     },
     "home": {
       "title": "仪表板",
@@ -389,7 +389,7 @@
     },
     "testflight": {
       "eyebrow": "帐户",
-      "title": "iOS 测试飞行",
+      "title": "iOS TestFlight",
       "description": "通过您的有效订阅加入 cmux iOS 测试版。",
       "banners": {
         "joined": "Apple 很快就会通过电子邮件发送您的 TestFlight 邀请。",
@@ -450,7 +450,7 @@
       "eyebrow": "cmux 保险库",
       "title": "批准 CLI 访问",
       "description": "确认 cmux-vault 显示的代码以将此设备连接到您登录的 cmux 帐户。",
-      "coderouterEyebrow": "代码路由器",
+      "coderouterEyebrow": "CodeRouter",
       "coderouterTitle": "批准 CodeRouter 访问",
       "coderouterDescription": "确认 cr 显示的代码以将此设备连接到您登录的 cmux 团队。",
       "codeLabel": "用户代码",
@@ -542,7 +542,7 @@
     "terms": "服务条款",
     "eula": "EULA",
     "github": "GitHub",
-    "twitter": "X/推特",
+    "twitter": "X / Twitter",
     "discord": "Discord",
     "contact": "联系我们",
     "nightly": "每夜构建",
@@ -1183,14 +1183,14 @@
       "metaDescription": "我通过与 cmux 并行运行 Codex 和 Claude Code，然后通过 Cmd+Shift+U 检查每个完成情况，在 30 天内使用了 3670 亿个代币。",
       "metaKeywords": [
         "3670 亿个代币",
-        "GPT 5.6 索尔",
+        "GPT 5.6 Sol",
         "法典 CLI",
         "Claude Code",
         "cmux",
         "AI编码代理",
         "并行编码代理",
         "Cmd+Shift+U",
-        "法典吧"
+        "CodexBar"
       ]
     },
     "passkeyAuth": {
@@ -1238,10 +1238,10 @@
         "Claude Code",
         "Codex",
         "OpenCode",
-        "开放代码",
+        "opencode",
         "双子座命令行界面",
         "反重力 CLI",
-        "Grok 构建 CLI",
+        "Grok Build CLI",
         "AI 编程 agent"
       ]
     },
@@ -1262,7 +1262,7 @@
         "cmux super repo",
         "AI 编码代理",
         "Codex",
-        "cmux 自定义命令",
+        "Codex",
         "cmux skills",
         "终端工作流",
         "代理式开发"
@@ -2466,7 +2466,7 @@
       "copilotCliRepoHooks": "对于仓库级别的 hooks，使用相同结构创建 .github/hooks/notify.json 文件：",
       "integrationExamples": "集成示例",
       "notifyAfterLong": "长时间命令后发送通知",
-      "python": "蟒蛇",
+      "python": "Python",
       "nodejs": "Node.js",
       "tmuxPassthrough": "tmux 透传",
       "tmuxDesc": "如果在 cmux 内使用 tmux，启用透传：",
@@ -2712,7 +2712,7 @@
     },
     "claudeCodeTeams": {
       "title": "克劳德代码团队",
-      "metaTitle": "克劳德代码团队 - cmux",
+      "metaTitle": "Claude Code Teams - cmux",
       "metaDescription": "与 cmux 内的代理团队一起运行 Claude Code。队友代理作为本机 cmux 分割而不是 tmux 窗格生成。",
       "nightlyWarning": "仅适用于 <nightly>nightly 版本 </nightly>。",
       "intro": "cmux claude-teams 启动启用了代理团队的 Claude Code。当 Claude 生成队友代理时，它们显示为本机 cmux 分区而不是 tmux 窗格，并具有完整的侧边栏元数据和通知。",
@@ -3264,9 +3264,9 @@
       "ghosttyBody": "Ghostty 是一款快速的原生终端，它的引擎 libghostty 驱动着 cmux。与较旧的 CPU 渲染终端和更重的 Electron 风格终端相比，Ghostty 的优势是低延迟 GPU 渲染、清晰的字体和颜色处理、强大的终端兼容性、简单的文件式配置，以及无需云账号。如果你只想要一个干净的终端窗口，并保留这些渲染优势，不需要工作区或自动化层，Ghostty 本身就很好。如果你想要同样的 Ghostty 渲染优势，再加上工作区、通知、脚本化和代理编排，请使用 cmux。",
       "iterm2Title": "iTerm2",
       "iterm2Body": "成熟、可无止境配置的 macOS 终端。深度的配置文件、触发器和 tmux 集成。如果你想要极致功能且不需要同时编排许多任务，它是稳妥的默认选择。",
-      "warpTitle": "扭曲",
+      "warpTitle": "Warp",
       "warpBody": "一款基于 Rust 的终端，内置 AI 助手和区块式命令界面，需要登录账号，且支持 macOS 以外的平台。如果你想要把 AI 直接内置进终端，或同样需要 Linux 和 Windows，它很合适。",
-      "terminalAppTitle": "终端程序",
+      "terminalAppTitle": "Terminal.app",
       "terminalAppBody": "macOS 内置终端。随时可用，零配置。适合轻度使用；大多数高级用户最终会想要更多。",
       "otherTitle": "Alacritty、kitty 和 WezTerm",
       "otherBody": "面向喜欢在文件里配置一切的人的快速 GPU 终端。Alacritty 刻意极简，kitty 功能丰富且可脚本化，WezTerm 自带多路复用器。它们都跨平台，如果你想要一个高度调校的单一终端，它们很合适。",
@@ -3426,7 +3426,7 @@
                 "源可用的 Electron 应用程序和更固执己见的工作流程"
               ],
               [
-                "赫尔德",
+                "Herdr",
                 "终端本地代理复用",
                 "许多 CLI 代理",
                 "在另一个终端内运行，而不是作为 Mac 应用程序"
@@ -3438,7 +3438,7 @@
                 "它是代理，而不是终端控制平面"
               ],
               [
-                "光标",
+                "Cursor",
                 "AI 编辑和托管代理工作流程",
                 "以光标为中心的代理工作流程以及集成",
                 "以编辑器和帐户为中心的工作流程"
@@ -3456,13 +3456,13 @@
                 "终端代理监督保留在编辑器界面内"
               ],
               [
-                "泽德",
+                "Zed",
                 "快速协作编辑",
                 "编辑器集成的 AI 工作流程",
                 "终端代理监督与编辑保持联系"
               ],
               [
-                "扭曲",
+                "Warp",
                 "代理式终端加云端编排",
                 "Warp Agent、Oz，以及自带 CLI 代理",
                 "开源客户端绑定到托管的 Warp/Oz 服务"
@@ -3480,19 +3480,19 @@
                 "代理状态保持手动"
               ],
               [
-                "基蒂",
+                "Kitty",
                 "快速、功能丰富的 GPU 终端",
                 "任何 CLI 代理",
                 "没有内置代理审核队列"
               ],
               [
-                "阿拉克里蒂",
+                "Alacritty",
                 "快速简单的 OpenGL 终端",
                 "任何 CLI 代理",
                 "最小的应用程序级工作流程功能"
               ],
               [
-                "韦兹术语",
+                "WezTerm",
                 "跨平台终端和多路复用器",
                 "任何 CLI 代理",
                 "代理注意仍需自定义接线"
@@ -3545,8 +3545,8 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
-              "阿拉克里蒂"
+              "cmux",
+              "Alacritty"
             ],
             "rows": [
               [
@@ -3626,7 +3626,7 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
+              "cmux",
               "导体"
             ],
             "rows": [
@@ -3780,7 +3780,7 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
+              "cmux",
               "超级组"
             ],
             "rows": [
@@ -3866,8 +3866,8 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
-              "光标"
+              "cmux",
+              "Cursor"
             ],
             "rows": [
               [
@@ -3943,8 +3943,8 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
-              "德文"
+              "cmux",
+              "Devin"
             ],
             "rows": [
               [
@@ -4024,7 +4024,7 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
+              "cmux",
               "iTerm2"
             ],
             "rows": [
@@ -4105,8 +4105,8 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
-              "猫咪"
+              "cmux",
+              "Kitty"
             ],
             "rows": [
               [
@@ -4186,8 +4186,8 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
-              "赫尔德"
+              "cmux",
+              "Herdr"
             ],
             "rows": [
               [
@@ -4268,8 +4268,8 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
-              "开放代码"
+              "cmux",
+              "OpenCode"
             ],
             "rows": [
               [
@@ -4340,7 +4340,7 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
+              "cmux",
               "tmux"
             ],
             "rows": [
@@ -4421,7 +4421,7 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
+              "cmux",
               "VS代码"
             ],
             "rows": [
@@ -4498,7 +4498,7 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
+              "cmux",
               "Devin Desktop（原 Windsurf）"
             ],
             "rows": [
@@ -4575,8 +4575,8 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
-              "泽德"
+              "cmux",
+              "Zed"
             ],
             "rows": [
               [
@@ -4652,8 +4652,8 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
-              "经"
+              "cmux",
+              "Warp"
             ],
             "rows": [
               [
@@ -4734,8 +4734,8 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
-              "韦兹术语"
+              "cmux",
+              "WezTerm"
             ],
             "rows": [
               [
@@ -4815,7 +4815,7 @@
           "table": {
             "headers": [
               "维度",
-              "多路复用器",
+              "cmux",
               "Ghostty"
             ],
             "rows": [
@@ -5025,7 +5025,7 @@
   },
   "platforms": {
     "macos": "macOS",
-    "ios": "iOS系统",
+    "ios": "iOS",
     "linux": "Linux",
     "android": "Android",
     "windows": "Windows"
