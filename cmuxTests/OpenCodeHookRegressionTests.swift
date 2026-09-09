@@ -28,8 +28,8 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         try Self.openCodeFeedEventHarness.write(to: harnessURL, atomically: true, encoding: .utf8)
 
         let result = runProcess(
-            executablePath: "/usr/bin/env",
-            arguments: ["node", harnessURL.path, pluginURL.path, socketPath],
+            executablePath: Self.nodeExecutablePath(),
+            arguments: [harnessURL.path, pluginURL.path, socketPath],
             environment: ProcessInfo.processInfo.environment,
             timeout: 5
         )
@@ -109,6 +109,16 @@ final class OpenCodeHookRegressionTests: XCTestCase {
 
     private func bundledCLIPath() throws -> String {
         try BundledCLITestSupport.bundledCLIPath(for: Self.self)
+    }
+
+    private static func nodeExecutablePath() -> String {
+        let environment = ProcessInfo.processInfo.environment
+        let pathCandidates = (environment["PATH"] ?? "")
+            .split(separator: ":")
+            .map { String($0) }
+        let candidates = pathCandidates.map { URL(fileURLWithPath: $0).appendingPathComponent("node").path }
+            + ["/opt/homebrew/bin/node", "/usr/local/bin/node", "/usr/bin/node"]
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) } ?? "/opt/homebrew/bin/node"
     }
 
     private static let openCodeFeedEventHarness = #"""
