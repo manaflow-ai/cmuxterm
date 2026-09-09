@@ -20,6 +20,13 @@ let package = Package(
             name: "CmuxGhosttyKit",
             targets: ["GhosttyKit"]
         ),
+        // Re-uses the weak Ghostty C stubs from dependent packages' standalone
+        // test targets. The production app links the real GhosttyKit archive;
+        // this product exists only to keep SwiftPM test runners linkable.
+        .library(
+            name: "CmuxTerminalCoreTestSupport",
+            targets: ["GhosttyRuntimeTestStubs"]
+        ),
     ],
     dependencies: [
         .package(path: "../CmuxFoundation"),

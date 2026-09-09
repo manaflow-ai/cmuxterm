@@ -33,6 +33,10 @@ let package = Package(
             dependencies: [
                 "CmuxAgentPromptCore",
                 .product(name: "CmuxTerminalCore", package: "CmuxTerminalCore"),
+                .product(
+                    name: "CmuxTerminalCoreTestSupport",
+                    package: "CmuxTerminalCore"
+                ),
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
