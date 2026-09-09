@@ -434,7 +434,7 @@
   },
   "vault": {
     "overview": {
-      "eyebrow": "Bóveda cmux",
+      "eyebrow": "cmux Vault",
       "title": "Descripción general de la bóveda",
       "description": "Actividad de almacenamiento y carga para sesiones sincronizadas.",
       "emptyTitle": "Aún no hay sesiones sincronizadas",
@@ -447,7 +447,7 @@
     },
     "cliAuth": {
       "section": "bóveda",
-      "eyebrow": "Bóveda cmux",
+      "eyebrow": "cmux Vault",
       "title": "Aprobar el acceso CLI",
       "description": "Confirme el código que muestra cmux-vault para conectar este dispositivo a su cuenta cmux iniciada.",
       "coderouterEyebrow": "CodeRouter",
@@ -461,7 +461,7 @@
     },
     "sessions": {
       "section": "bóveda",
-      "eyebrow": "Bóveda cmux",
+      "eyebrow": "cmux Vault",
       "title": "Sesiones sincronizadas",
       "description": "Transcripciones recientes del agente de codificación sincronizadas desde sus máquinas locales.",
       "backToOverview": "Volver a la descripción general",
@@ -1521,7 +1521,7 @@
         "p5": "Requiere cmux v0.64+."
       },
       "cmuxVault": {
-        "title": "Presentamos cmux Vault",
+        "title": "cmux Vault",
         "summary": "Busca sesiones de Codex, Claude Code, OpenCode y Pi desde el panel Vault y arrástralas a tu workspace.",
         "date": "22 de mayo de 2026",
         "p1": "cmux ahora tiene un panel Vault en la barra lateral derecha para sesiones antiguas de agentes.",
@@ -1604,10 +1604,10 @@
       ]
     },
     "cmuxVault": {
-      "metaTitle": "Presentamos cmux Vault",
+      "metaTitle": "cmux Vault",
       "metaDescription": "cmux v0.64+ añade un panel Vault para buscar sesiones de Codex, Claude Code, OpenCode y Pi, y arrastrarlas a tu workspace.",
       "metaKeywords": [
-        "Bóveda cmux",
+        "cmux Vault",
         "sesiones de Codex",
         "sesiones de Claude Code",
         "sesiones de OpenCode",
@@ -2625,7 +2625,7 @@
       "suggestCloudVmName": "máquina virtual en la nube cmux",
       "suggestCloudVmUse": "Operar flujos de creación, conexión, ejecución, punto final SSH, facturación y resolución de problemas de proveedores de Cloud VM.",
       "suggestCloudVmWhy": "El trabajo de VM en la nube cruza la aplicación web, la base de datos, las API del proveedor y las pruebas de humo.",
-      "suggestVaultName": "Bóveda cmux",
+      "suggestVaultName": "cmux Vault",
       "suggestVaultUse": "Administre la configuración, las credenciales y el comportamiento de restauración del agente respaldado por bóveda sin filtrar secretos en las solicitudes.",
       "suggestVaultWhy": "Los flujos de trabajo de Vault necesitan un manejo más estricto que la configuración normal porque afectan los secretos y el inicio de los agentes.",
       "suggestionsCallout": "Mantenga las habilidades futuras centradas en flujos de trabajo repetibles con secuencias de comandos reales. Si una habilidad solo reexpresa los documentos del producto, agréguela a los documentos.",
