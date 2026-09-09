@@ -32,13 +32,13 @@ extension ChromiumBrowserSession {
             failNavigation()
             throw error
         }
-        currentURL = url
         if case .object(let object) = result,
            let errorText = object["errorText"]?.stringValue,
            !errorText.isEmpty {
             failNavigation()
             throw CDPError.commandFailed(errorText)
         }
+        currentURL = url
         publish()
     }
 
@@ -271,8 +271,17 @@ extension ChromiumBrowserSession {
         _ intent: OwlNavigationIntent,
         eventURL: URL?
     ) -> Bool {
-        guard let expectedURL = intent.expectedURL else { return true }
-        return Self.matches(url: eventURL, target: expectedURL)
+        guard let eventURL else { return intent.expectedURL == nil }
+        switch intent {
+        case .destination, .reload:
+            // The final document may be a server redirect. The readiness
+            // predicate still requires this operation's loading edge and a
+            // newer document epoch before accepting the URL.
+            return true
+        case .back, .forward:
+            guard let expectedURL = intent.expectedURL else { return true }
+            return Self.matches(url: eventURL, target: expectedURL)
+        }
     }
 
     func commitOwlNavigation(_ intent: OwlNavigationIntent, eventURL: URL?) {
@@ -325,7 +334,7 @@ extension ChromiumBrowserSession {
         }
     }
 
-    private func owlDocumentEpoch(runtime: OwlFreshRuntime) -> Double? {
+    func owlDocumentEpoch(runtime: OwlFreshRuntime) -> Double? {
         guard let raw = try? runtime.evaluate("Number(performance.timeOrigin || 0)"),
               let data = raw.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) else {

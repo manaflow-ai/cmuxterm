@@ -377,6 +377,7 @@ public actor ChromiumBrowserSession {
         // The Content Shell is created with this initial document. A later
         // adapter-provided initial URL goes through the normal OWL navigation
         // operation and readiness monitor.
+        currentURL = initialURL
         isLoading = false
         owlHistory = OwlNavigationHistoryState(initialURL: initialURL)
         owlNavigationIntent = nil
@@ -408,7 +409,13 @@ public actor ChromiumBrowserSession {
                 owlNavigationSawLoadingEvent = true
                 isLoading = true
                 if owlNavigationIntent == nil, let eventURL, !Self.matches(url: currentURL, target: eventURL) {
-                    owlNavigationIntent = .destination(eventURL)
+                    // Renderer-started navigations have no caller to start
+                    // the fallback monitor. The loading callback is the
+                    // operation's start edge; readiness still verifies the
+                    // complete document before committing it.
+                    beginOwlNavigation(.destination(eventURL))
+                    owlNavigationSawLoadingEvent = true
+                    startOwlNavigationReadinessMonitor()
                 }
             } else if owlNavigationIntent == nil, let eventURL,
                       !Self.matches(url: currentURL, target: eventURL) {

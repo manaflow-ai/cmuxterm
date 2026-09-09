@@ -5,7 +5,22 @@ extension ChromiumBrowserSession {
     ///
     /// - Throws: A CDP transport or command error.
     public func stopLoading() async throws {
-        if owlRuntime != nil { return }
+        if let owlRuntime {
+            do {
+                _ = try owlRuntime.evaluate("window.stop()")
+            } catch {
+                failOwlNavigation()
+                throw error
+            }
+            owlNavigationReadinessTask?.cancel()
+            owlNavigationReadinessTask = nil
+            owlNavigationIntent = nil
+            owlNavigationSawLoadingEvent = false
+            owlNavigationBaselineDocumentEpoch = nil
+            isLoading = false
+            publish()
+            return
+        }
         _ = try await send(method: "Page.stopLoading")
     }
 
