@@ -753,17 +753,20 @@ actor VMClient {
     /// "Does this account have a machine?", remembered for the next launch
     /// (``CloudActivationPolicy``). Every list and every create updates it.
     private let machineCache: CloudMachineCache
+    private let isDisabledByManagedPolicy: (@Sendable () -> Bool)?
 
     init(
         session: URLSession = .shared,
         auth: AuthCoordinator,
         telemetry: VMClientTelemetry = .shared,
-        machineCache: CloudMachineCache = CloudMachineCache()
+        machineCache: CloudMachineCache = CloudMachineCache(),
+        isDisabledByManagedPolicy: (@Sendable () -> Bool)? = nil
     ) {
         self.session = session
         self.auth = auth
         self.telemetry = telemetry
         self.machineCache = machineCache
+        self.isDisabledByManagedPolicy = isDisabledByManagedPolicy
     }
 
     func list() async throws -> [VMSummary] {
@@ -1562,7 +1565,8 @@ actor VMClient {
         let (data, http) = try await request(
             "DELETE",
             path: revocation.path,
-            jsonBody: revocation.body
+            jsonBody: revocation.body,
+            allowedUnderManagedPolicy: true
         )
         try ensureOK(http, data: data)
     }
@@ -1891,8 +1895,12 @@ actor VMClient {
         jsonBody: [String: Any]? = nil,
         extraHeaders: [String: String] = [:],
         timeoutSeconds: TimeInterval? = nil,
-        retryTransientServiceUnavailable: Bool = false
+        retryTransientServiceUnavailable: Bool = false,
+        allowedUnderManagedPolicy: Bool = false
     ) async throws -> (Data, HTTPURLResponse) {
+        if !allowedUnderManagedPolicy, isDisabledByManagedPolicy?() == true {
+            throw VMClientError.disabledByManagedPolicy
+        }
         let trace = VMRequestTraceContext.mint()
         let route = VMClientTelemetry.normalizedRoute(path: path)
         let startedAt = DispatchTime.now().uptimeNanoseconds
