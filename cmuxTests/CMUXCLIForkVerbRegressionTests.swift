@@ -128,8 +128,8 @@ struct CMUXCLIForkVerbRegressionTests {
         let retargeted = snapshot.retargetingForkWorkingDirectory("/tmp/destination")
 
         #expect(retargeted.restoreWorkingDirectorySelection == .exact("/tmp/destination"))
-        #expect(retargeted.forkCommand()?.contains("'/tmp/destination'") == true)
-        #expect(retargeted.forkCommand()?.contains("'/tmp/original'") == false)
+        #expect(retargeted.forkCommand(restoringWorkingDirectory: nil)?.contains("'/tmp/destination'") == true)
+        #expect(retargeted.forkCommand(restoringWorkingDirectory: nil)?.contains("'/tmp/original'") == false)
     }
 
     @Test
@@ -142,7 +142,7 @@ struct CMUXCLIForkVerbRegressionTests {
         let retargeted = snapshot.retargetingForkWorkingDirectory("/tmp/destination")
         #expect(retargeted.restoreWorkingDirectorySelection == .unavailable)
         #expect(retargeted.workingDirectory == nil)
-        #expect(retargeted.forkCommand() == nil)
+        #expect(retargeted.forkCommand(restoringWorkingDirectory: nil) == nil)
         #expect(retargeted.preparedForkArguments() == nil)
     }
 
