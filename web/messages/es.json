@@ -662,7 +662,7 @@
       ]
     },
     "pro": {
-      "name": "profesional",
+      "name": "Pro",
       "cta": "Conviértete en profesional",
       "featuresLead": "Todo Gratis, más:",
       "features": [
@@ -707,24 +707,24 @@
       "rows": [
         {
           "label": "Terminal macOS nativo, código abierto",
-          "free": "cierto",
-          "pro": "cierto",
-          "team": "cierto",
-          "enterprise": "cierto"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Agentes CLI locales con sus propias claves",
-          "free": "cierto",
-          "pro": "cierto",
-          "team": "cierto",
-          "enterprise": "cierto"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Pestañas verticales, divisiones, notificaciones, API de socket",
-          "free": "cierto",
-          "pro": "cierto",
-          "team": "cierto",
-          "enterprise": "cierto"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Historial de sesiones",
@@ -736,37 +736,37 @@
         },
         {
           "label": "cmux Vault: copia de seguridad de la sesión en la nube",
-          "free": "falso",
-          "pro": "cierto",
-          "team": "cierto",
-          "enterprise": "cierto",
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true",
           "vault": true
         },
         {
           "label": "Busque en todas sus sesiones",
-          "free": "falso",
-          "pro": "cierto",
-          "team": "cierto",
-          "enterprise": "cierto",
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true",
           "vault": true
         },
         {
           "label": "Agentes de la nube en máquinas virtuales de la nube",
-          "free": "falso",
-          "pro": "cierto",
-          "team": "cierto",
-          "enterprise": "cierto"
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Máquinas virtuales en la nube simultáneas",
-          "free": "falso",
+          "free": "false",
           "pro": "50",
           "team": "50 por usuario",
           "enterprise": "personalizado"
         },
         {
           "label": "Recursos por máquina virtual en la nube",
-          "free": "falso",
+          "free": "false",
           "pro": "Por defecto, 8 GB de RAM y 32 GB de disco; 4 a 64 GB de RAM, disco de hasta 256 GB",
           "team": "Por defecto, 8 GB de RAM y 32 GB de disco; 4 a 64 GB de RAM, disco de hasta 256 GB",
           "enterprise": "personalizado"
@@ -780,10 +780,10 @@
         },
         {
           "label": "aplicación para iOS",
-          "free": "falso",
-          "pro": "cierto",
-          "team": "cierto",
-          "enterprise": "cierto"
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Redes para llegar a tu Mac",
@@ -795,38 +795,38 @@
         },
         {
           "label": "Inicio de sesión SSO y SAML",
-          "free": "falso",
-          "pro": "falso",
-          "team": "falso",
-          "enterprise": "cierto"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "Ejecución autohospedada y aislada",
-          "free": "falso",
-          "pro": "falso",
-          "team": "falso",
-          "enterprise": "cierto"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "Registros de auditoría: sesiones, red, navegador",
-          "free": "falso",
-          "pro": "falso",
-          "team": "falso",
-          "enterprise": "cierto"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "Precios por volumen",
-          "free": "falso",
-          "pro": "falso",
-          "team": "falso",
-          "enterprise": "cierto"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "SOC 2 y un SLA",
-          "free": "falso",
-          "pro": "falso",
-          "team": "falso",
-          "enterprise": "cierto"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "Soporte",
