@@ -11,6 +11,43 @@ import Testing
 @MainActor
 @Suite("Workspace creation working-directory spawn policy", .serialized)
 struct WorkspaceCreationWorkingDirectorySpawnPolicyTests {
+    @Test("declarative shell startup stays with the surface creation snapshot")
+    func declarativeShellStartupDefaultsArePinnedAtSurfaceCreation() {
+        @MainActor
+        final class MutableConfigurationSource: DeclarativeTerminalConfigurationProviding {
+            var snapshot = DeclarativeTerminalConfiguration.Snapshot(
+                shellStartupMode: .nonLogin,
+                shellStartupCommand: "printf before"
+            )
+            let fileURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("cmux-spawn-snapshot-\(UUID().uuidString).json")
+
+            func waitForInitialSnapshot() async {}
+        }
+
+        let source = MutableConfigurationSource()
+        let configStore = JSONConfigStore(fileURL: source.fileURL)
+        let pendingSurfacePolicy = TerminalSurfaceSpawnPolicyBridge(
+            declarativeTerminalConfigurationSource: source,
+            computerUseConfigStore: configStore
+        )
+
+        source.snapshot.shellStartupMode = .login
+        source.snapshot.shellStartupCommand = "printf after"
+
+        let pendingSpawn = pendingSurfacePolicy.currentSpawnPolicy()
+        #expect(pendingSpawn.shellStartupMode == .nonLogin)
+        #expect(pendingSpawn.shellStartupCommand == "printf before")
+
+        let nextSurfacePolicy = TerminalSurfaceSpawnPolicyBridge(
+            declarativeTerminalConfigurationSource: source,
+            computerUseConfigStore: configStore
+        )
+        let nextSpawn = nextSurfacePolicy.currentSpawnPolicy()
+        #expect(nextSpawn.shellStartupMode == .login)
+        #expect(nextSpawn.shellStartupCommand == "printf after")
+    }
+
     @Test("explicit fixed-path policy overrides the legacy caller inheritance flag")
     func explicitFixedPathPolicyOverridesLegacyCallerFlag() throws {
         let suiteName = "WorkspaceCreationWorkingDirectorySpawnPolicyTests.\(UUID().uuidString)"
