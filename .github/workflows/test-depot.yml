@@ -89,7 +89,7 @@ jobs:
 
       - name: Export Node binary for Xcode test runners
         if: ${{ contains(inputs.unit_test_suites, 'OpenCodeHookRegressionTests') }}
-        run: echo "CMUX_NODE_BINARY=$(command -v node)" >> "$GITHUB_ENV"
+        run: echo "TEST_RUNNER_CMUX_NODE_BINARY=$(command -v node)" >> "$GITHUB_ENV"
 
       - name: Download pre-built GhosttyKit.xcframework
         env:
