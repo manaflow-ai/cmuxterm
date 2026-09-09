@@ -26,11 +26,11 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         let socketPath = root.appendingPathComponent("cmux.sock").path
         let harnessURL = root.appendingPathComponent("harness.js")
         try Self.openCodeFeedEventHarness.write(to: harnessURL, atomically: true, encoding: .utf8)
-        let bunURL = try Self.bunExecutableURL()
 
+        let nodeInvocation = makeNodeInvocation(arguments: [harnessURL.path, pluginURL.path, socketPath])
         let result = runProcess(
-            executablePath: bunURL.path,
-            arguments: [harnessURL.path, pluginURL.path, socketPath],
+            executablePath: nodeInvocation.executablePath,
+            arguments: nodeInvocation.arguments,
             environment: ProcessInfo.processInfo.environment,
             timeout: 5
         )
@@ -112,23 +112,6 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         try BundledCLITestSupport.bundledCLIPath(for: Self.self)
     }
 
-    private static func bunExecutableURL() throws -> URL {
-        let fileManager = FileManager.default
-        var candidates: [String] = []
-        if let install = ProcessInfo.processInfo.environment["BUN_INSTALL"], !install.isEmpty {
-            candidates.append(URL(fileURLWithPath: install).appendingPathComponent("bin/bun").path)
-        }
-        candidates += [
-            fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".bun/bin/bun").path,
-            "/opt/homebrew/bin/bun",
-            "/usr/local/bin/bun",
-        ]
-        if let path = candidates.first(where: { fileManager.isExecutableFile(atPath: $0) }) {
-            return URL(fileURLWithPath: path)
-        }
-        throw XCTSkip("Bun runtime is required for the OpenCode plugin harness")
-    }
-
     private static let openCodeFeedEventHarness = #"""
 const net = require("node:net");
 const fs = require("node:fs");
@@ -194,6 +177,14 @@ const fs = require("node:fs");
   process.exit(1);
 });
 """#
+
+    private func makeNodeInvocation(arguments: [String]) -> (executablePath: String, arguments: [String]) {
+        if let nodePath = ProcessInfo.processInfo.environment["CMUX_NODE_BINARY"],
+           FileManager.default.isExecutableFile(atPath: nodePath) {
+            return (nodePath, arguments)
+        }
+        return ("/usr/bin/env", ["node"] + arguments)
+    }
 
     private func runProcess(
         executablePath: String,

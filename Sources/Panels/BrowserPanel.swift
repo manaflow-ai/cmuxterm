@@ -430,15 +430,48 @@ final class BrowserProfileStore: ObservableObject {
     }
 
     func deleteProfile(id: UUID) -> BrowserProfileDefinition? {
+        // Profile data is shared by every Chromium pane. Check usage on the
+        // main actor immediately before removing the repository entry so a
+        // concurrent pane creation either wins first or resolves to the
+        // built-in profile; no live pane can begin using a deleted profile.
+        guard BrowserProfileAutomation.liveBrowserPanelCount(profileID: id) == 0 else {
+            return nil
+        }
         let result = repository.deleteProfile(id: id)
+        if result != nil {
+            Task { @MainActor [weak self] in
+                await self?.removeChromiumProfileData(for: id)
+            }
+        }
         mirrorPublishedState()
         return result
     }
 
     func clearProfileData(id: UUID) async -> BrowserProfileClearOutcome? {
+        guard BrowserProfileAutomation.liveBrowserPanelCount(profileID: id) == 0 else {
+            return nil
+        }
         let result = await repository.clearProfileData(id: id)
+        if result != nil {
+            await removeChromiumProfileData(for: id)
+        }
         mirrorPublishedState()
         return result
+    }
+
+    private func removeChromiumProfileData(for profileID: UUID) async {
+        // This second check is intentionally adjacent to the asynchronous
+        // filesystem work. The repository mutation above is main-actor
+        // serialized, and a profile removed from it cannot be selected by a
+        // new pane; an existing pane therefore makes cleanup fail closed.
+        guard BrowserProfileAutomation.liveBrowserPanelCount(profileID: profileID) == 0 else {
+            return
+        }
+        await ChromiumBrowserSession.removeOwnedProfileData(
+            for: profileID,
+            environment: .cmuxLive
+        )
+        await CEFRuntimeBootstrap.removeProfileData(for: profileID)
     }
 
     func noteUsed(_ id: UUID) {
@@ -1986,13 +2019,35 @@ final class BrowserPanel: Panel, ObservableObject {
 
     /// The workspace ID this panel belongs to
     private(set) var workspaceId: UUID
+    /// Whether this panel currently belongs to a remote workspace.
+    ///
+    /// Chromium has no request-interception or per-workspace proxy seam, so a
+    /// panel that crosses into a remote workspace must stop its Chromium child
+    /// before the new workspace can expose it to page traffic.
+    var isRemoteWorkspace: Bool
     private let externalNavigationHandler: BrowserExternalNavigationHandler
 
-    @Published private(set) var profileID: UUID
-    @Published private(set) var historyStore: BrowserHistoryStore
+    @Published var profileID: UUID
+    @Published var historyStore: BrowserHistoryStore
+
+    /// Renderer selected when this pane was created. Changing the default in
+    /// Settings affects future panes only; an existing pane never changes
+    /// engine underneath a live document.
+    let engineKind: BrowserEngineKind
+    /// Stable cmux-owned storage identity for this Chromium pane. Logical
+    /// browser profiles can be selected independently while each live child
+    /// receives its own Chromium user-data directory.
+    let chromiumStorageID: UUID
+    private let chromiumRemoteDebuggingPort: ChromiumRemoteDebuggingPort
+    let chromiumStartPrerequisite: Task<Bool, Never>?
 
     /// The underlying web view
     private(set) var webView: WKWebView
+    /// Engine-neutral lifecycle/automation seam. WebKit keeps the existing
+    /// delegate stack; Chromium owns a separate out-of-process session and
+    /// AppKit frame host.
+    lazy var browserEngineController: BrowserPaneEngineController =
+        makeBrowserEngineController()
     private let surfaceSelectionReader = WebSurfaceSelectionReader()
     let viewportHostView = BrowserViewportHostView(frame: .zero)
     let viewportModel = BrowserViewportModel()
@@ -2016,8 +2071,8 @@ final class BrowserPanel: Panel, ObservableObject {
 
     /// Monotonic identity for the current WKWebView instance.
     /// Incremented whenever we replace the underlying WKWebView after a process crash.
-    @Published private(set) var webViewInstanceID: UUID = UUID()
-    private(set) var hasRecoverableWebContentTermination = false {
+    @Published var webViewInstanceID: UUID = UUID()
+    var hasRecoverableWebContentTermination = false {
         willSet {
             if newValue != hasRecoverableWebContentTermination {
                 objectWillChange.send()
@@ -2048,7 +2103,7 @@ final class BrowserPanel: Panel, ObservableObject {
     )
 
     /// Published URL being displayed
-    @Published private(set) var currentURL: URL? {
+    @Published var currentURL: URL? {
         didSet {
             guard oldValue != currentURL else { return }
             applyConfiguredWebViewBackground()
@@ -2058,9 +2113,12 @@ final class BrowserPanel: Panel, ObservableObject {
 
     /// Whether the browser panel should render its WKWebView in the content area.
     /// New browser tabs stay in an empty "new tab" state until first navigation.
+    @Published private(set) var browserExtensionError: String?
+
     @Published var shouldRenderWebView: Bool = false {
         didSet {
             if oldValue != shouldRenderWebView {
+                syncChromiumPaneVisibility()
                 refreshWebViewLifecycleState()
                 applyConfiguredWebViewBackground()
             }
@@ -2095,7 +2153,7 @@ final class BrowserPanel: Panel, ObservableObject {
     }
     private var pendingInteractiveBrowserPrompts: [PendingInteractiveBrowserPrompt] = []
     private var isPresentingPendingInteractiveBrowserPrompt = false
-    private var isWebViewVisibleInUI: Bool = false
+    var isWebViewVisibleInUI: Bool = false
     var isClosingWebViewLifecycle: Bool = false
 
     /// True while a canvas pane hosts this browser's webview inline (in the
@@ -2109,17 +2167,22 @@ final class BrowserPanel: Panel, ObservableObject {
     }
 
     var isShowingBlankBrowserPage: Bool {
-        Self.isBlankBrowserPage(
-            liveURL: restorableDisplayURLForCurrentErrorPage(liveURL: webView.url) ?? webView.url,
+        let liveURL = isChromiumBacked ? currentURL : webView.url
+        return Self.isBlankBrowserPage(
+            liveURL: restorableDisplayURLForCurrentErrorPage(liveURL: liveURL) ?? liveURL,
             currentURL: currentURL,
-            pendingNavigationURL: Self.remoteProxyDisplayURL(for: navigationDelegate?.lastAttemptedURL)
-                ?? navigationDelegate?.lastAttemptedURL,
-            isMainFrameProvisionalNavigationActive: isMainFrameProvisionalNavigationActive
+            pendingNavigationURL: isChromiumBacked
+                ? nil
+                : Self.remoteProxyDisplayURL(for: navigationDelegate?.lastAttemptedURL)
+                    ?? navigationDelegate?.lastAttemptedURL,
+            isMainFrameProvisionalNavigationActive: isChromiumBacked
+                ? false
+                : isMainFrameProvisionalNavigationActive
         )
     }
 
     /// Published page title
-    @Published private(set) var pageTitle: String = "" {
+    @Published var pageTitle: String = "" {
         didSet {
             guard oldValue != pageTitle else { return }
             mobileBrowserStreamStateDidChange(markDirty: true)
@@ -2130,7 +2193,7 @@ final class BrowserPanel: Panel, ObservableObject {
     @Published private(set) var faviconPNGData: Data?
 
     /// Published loading state
-    @Published private(set) var isLoading: Bool = false {
+    @Published var isLoading: Bool = false {
         didSet {
             guard oldValue != isLoading else { return }
             mobileBrowserStreamStateDidChange(markDirty: true)
@@ -2153,7 +2216,7 @@ final class BrowserPanel: Panel, ObservableObject {
     @Published private(set) var isMuted: Bool = false
 
     /// Published can go back state
-    @Published private(set) var canGoBack: Bool = false {
+    @Published var canGoBack: Bool = false {
         didSet {
             guard oldValue != canGoBack else { return }
             mobileBrowserStreamStateDidChange()
@@ -2161,15 +2224,22 @@ final class BrowserPanel: Panel, ObservableObject {
     }
 
     /// Published can go forward state
-    @Published private(set) var canGoForward: Bool = false {
+    @Published var canGoForward: Bool = false {
         didSet {
             guard oldValue != canGoForward else { return }
             mobileBrowserStreamStateDidChange()
         }
     }
 
-    private var nativeCanGoBack: Bool = false
-    private var nativeCanGoForward: Bool = false
+    /// Engine-native history availability, reconciled with any persisted
+    /// session-history stack before publishing the toolbar state.
+    var nativeCanGoBack: Bool = false
+    var nativeCanGoForward: Bool = false
+    /// The latest URL lists reported by the out-of-process Chromium session.
+    /// They are cached because session snapshotting is synchronous on the main
+    /// actor while the engine's authoritative history query is asynchronous.
+    var chromiumBackHistoryURLs: [URL] = []
+    var chromiumForwardHistoryURLs: [URL] = []
 
     /// The replayable back/forward session history this surface restores from a
     /// prior launch. The pure stack state machine lives in `CmuxBrowser`;
@@ -2181,7 +2251,7 @@ final class BrowserPanel: Panel, ObservableObject {
         sanitizer: SessionHistoryURLSanitizer { browserIsTemporaryHistoryURL($0) }
     )
 
-    private var usesRestoredSessionHistory: Bool {
+    var usesRestoredSessionHistory: Bool {
         restoredSessionHistory.usesRestoredSessionHistory
     }
     var restoredHistoryCurrentURL: URL? {
@@ -2304,6 +2374,19 @@ final class BrowserPanel: Panel, ObservableObject {
     private var pendingDistinctPortalHostReplacementPaneId: UUID?
     private var lockedPortalHost: PortalHostLock?
     private var webViewCancellables = Set<AnyCancellable>()
+    var chromiumIsolationTask: Task<Void, Never>?
+    /// Completes after a hidden Chromium engine has relinquished its child
+    /// process/window; a visible reveal waits for this boundary before restart.
+    var chromiumMemoryDiscardTask: Task<Bool, Never>?
+    var chromiumMemoryDiscardRestoreTask: Task<Void, Never>?
+    var chromiumCloseTask: Task<Bool, Never>?
+    var chromiumIsolationPending = false
+    /// Render intent retained while Chromium is stopped for a temporary
+    /// workspace/allowlist isolation policy. This is distinct from memory
+    /// discard state so a hidden pane can be restored when policy permits it.
+    var chromiumIsolationRestoreIntent = false
+    var chromiumIsolationRestoreURL: URL?
+    var lastRecordedChromiumNavigationRevision: UInt64?
     private(set) var navigationDelegate: BrowserNavigationDelegate?
     /// Provenance for an app-owned local document, retained across WebView replacement.
     private var trustedLocalFileURL: URL?
@@ -2350,6 +2433,7 @@ final class BrowserPanel: Panel, ObservableObject {
         javaScriptEvaluator: BrowserDesignModeJavaScriptEvaluator(),
         screenshotEvaluator: BrowserDesignModeScreenshotEvaluator(),
         canEnable: { [weak self] in self?.shouldRenderWebView == true
+                && self?.isChromiumBacked == false
                 && self?.isMainFrameProvisionalNavigationActive == false
                 && self?.webView.url != nil
         },
@@ -2543,6 +2627,20 @@ final class BrowserPanel: Panel, ObservableObject {
             webViewLastVisibleAt = now
         }
         refreshWebViewLifecycleState()
+        syncChromiumPaneVisibility()
+
+        // Chromium uses the same bounded hidden-pane lifecycle as WebKit, but
+        // discarding stops its child engine instead of replacing the inert
+        // compatibility WKWebView.
+        if isChromiumBacked {
+            if visible {
+                cancelHiddenWebViewDiscard()
+                restoreDeferredChromiumIfNeeded(reason: "visible.\(reason)")
+            } else if changed || isFirstVisibilityRecord || !hiddenWebViewDiscardManager.hasScheduledDiscard {
+                scheduleHiddenWebViewDiscardIfNeeded(reason: reason, now: now)
+            }
+            return
+        }
 
         if visible {
             cancelHiddenWebViewDiscard()
@@ -2598,8 +2696,21 @@ final class BrowserPanel: Panel, ObservableObject {
         webViewLifecycleState = nextState
     }
 
+    /// Propagates the panel's effective render/visibility state to the selected
+    /// Chromium adapter. This is the shared mutation path used by SwiftUI,
+    /// canvas, dock, and portal visibility entry points.
+    private func syncChromiumPaneVisibility() {
+        guard isChromiumBacked else { return }
+        (browserEngineController.adapter as? (any ChromiumEngineAdapting))?
+            .setPaneVisible(isWebViewVisibleInUI && shouldRenderWebView)
+    }
+
     private func resetWebViewLifecycleMetadata(resetVisibility: Bool = true) {
         cancelHiddenWebViewDiscard()
+        chromiumMemoryDiscardRestoreTask?.cancel()
+        chromiumMemoryDiscardRestoreTask = nil
+        chromiumIsolationRestoreIntent = false
+        chromiumIsolationRestoreURL = nil
         webViewLifecycleState = .newTab; pendingDiscardRestoreNavigation = nil; currentDiscardRestoreAttemptID = nil
         if resetVisibility {
             webViewLastVisibleAt = nil
@@ -2639,6 +2750,9 @@ final class BrowserPanel: Panel, ObservableObject {
 
     @discardableResult
     func discardHiddenWebViewForMemory(reason: String, now: Date = Date()) -> Bool {
+        if isChromiumBacked {
+            return discardChromiumForMemory(reason: reason, now: now)
+        }
         let blockers = hiddenWebViewDiscardBlockers()
         guard blockers.isEmpty else { return false }
 
@@ -2710,6 +2824,17 @@ final class BrowserPanel: Panel, ObservableObject {
 
     @discardableResult
     func reactivateDiscardedWebViewWithoutNavigation(reason: String) -> Bool {
+        if isChromiumBacked {
+            guard !chromiumIsolationPending,
+                  hiddenWebViewDiscardManager.isDiscardedForMemory else { return false }
+            guard chromiumMemoryDiscardTask == nil else { return false }
+            shouldRenderWebView = true
+            hiddenWebViewDiscardManager.clearDiscardState(reason: "chromium.\(reason)")
+            startChromiumIfNeeded()
+            refreshNavigationAvailability()
+            refreshWebViewLifecycleState()
+            return true
+        }
         let reactivated = hiddenWebViewDiscardManager.reactivateWithoutNavigation(reason: reason) {
             shouldRenderWebView = true
         }
@@ -2893,12 +3018,21 @@ final class BrowserPanel: Panel, ObservableObject {
         websiteDataStore: WKWebsiteDataStore? = nil
     ) -> CmuxWebView {
         let config = WKWebViewConfiguration()
+        if #available(macOS 15.4, *) {
+            let extensionDirectories = BrowserEngineSettingsStore(defaults: .standard).chromiumExtensionDirectories()
+            let extensionManager = WebKitBrowserExtensionManager(profileID: profileID, websiteDataStore: websiteDataStore ?? BrowserProfileStore.shared.websiteDataStore(for: profileID), directories: extensionDirectories)
+            config.webExtensionController = extensionManager.controller
+            WebKitBrowserExtensionManager.retain(extensionManager, on: config)
+        }
         configureWebViewConfiguration(
             config,
             websiteDataStore: websiteDataStore ?? BrowserProfileStore.shared.websiteDataStore(for: profileID)
         )
 
         let webView = CmuxWebView(frame: .zero, configuration: config)
+        if #available(macOS 15.4, *), let extensionManager = WebKitBrowserExtensionManager.manager(for: config) {
+            WebKitBrowserExtensionManager.retain(extensionManager, on: webView)
+        }
         webView.allowsBackForwardNavigationGestures = true
         if #available(macOS 13.3, *) {
             webView.isInspectable = true
@@ -3358,6 +3492,16 @@ final class BrowserPanel: Panel, ObservableObject {
     /// Pure with respect to the injected `defaults`, so it is unit-testable against
     /// a scratch `UserDefaults(suiteName:)` without touching `UserDefaults.standard`.
     static func normalizeBrowserDefaults(defaults: UserDefaults) {
+        // Registration values are visible through `string(forKey:)`. Migrate
+        // the legacy key before registering the new fallback, otherwise the
+        // synthetic `.auto` value masks an existing Chromium opt-in.
+        let currentEngineObject = defaults.object(forKey: BrowserEngineSettingsStore.defaultEngineKey)
+        if (currentEngineObject == nil || (currentEngineObject as? String)?.isEmpty == true),
+           let legacyEngine = defaults.string(forKey: "browser.engine"),
+           !legacyEngine.isEmpty {
+            let migratedChoice = BrowserEngineDefaultChoice(persistedRawValue: legacyEngine)
+            defaults.set(migratedChoice.rawValue, forKey: BrowserEngineSettingsStore.defaultEngineKey)
+        }
         defaults.register(defaults: [
             BrowserSearchSettingsStore.searchEngineKey: BrowserSearchSettingsStore.defaultSearchEngine.rawValue,
             BrowserSearchSettingsStore.customSearchEngineNameKey: BrowserSearchSettingsStore.defaultCustomSearchEngineName,
@@ -3366,6 +3510,9 @@ final class BrowserPanel: Panel, ObservableObject {
             BrowserToolbarAccessorySpacingDebugSettings.key: BrowserToolbarAccessorySpacingDebugSettings.defaultSpacing,
             BrowserProfilePopoverDebugSettings.horizontalPaddingKey: BrowserProfilePopoverDebugSettings.defaultHorizontalPadding,
             BrowserProfilePopoverDebugSettings.verticalPaddingKey: BrowserProfilePopoverDebugSettings.defaultVerticalPadding,
+            BrowserEngineSettingsStore.defaultEngineKey: BrowserEngineSettingsStore.defaultEngineChoice.rawValue,
+            BrowserEngineSettingsStore.remoteDebuggingPortKey:
+                BrowserEngineSettingsStore.defaultRemoteDebuggingPort.rawValue,
             BrowserZoomSettings.userDefaultsKey: BrowserZoomSettings.defaultLevel,
             // The theme mode deliberately has no registered fallback. Registration
             // writes into the process-wide registration domain, which every
@@ -3412,6 +3559,21 @@ final class BrowserPanel: Panel, ObservableObject {
             defaults.set(resolvedVerticalPadding, forKey: BrowserProfilePopoverDebugSettings.verticalPaddingKey)
         }
 
+        let browserEngineSettings = BrowserEngineSettingsStore(defaults: defaults)
+        // Normalize the persisted *choice*, never the resolved engine: writing
+        // a resolved engine here would silently pin an `.auto` user to
+        // whatever their default browser was on first launch.
+        let resolvedEngineChoice = browserEngineSettings.defaultEngineChoice()
+        if let storedEngineChoice = defaults.string(forKey: BrowserEngineSettingsStore.defaultEngineKey),
+           storedEngineChoice != resolvedEngineChoice.rawValue {
+            browserEngineSettings.setDefaultEngine(resolvedEngineChoice)
+        }
+        let resolvedRemoteDebuggingPort = browserEngineSettings.remoteDebuggingPort()
+        if (defaults.object(forKey: BrowserEngineSettingsStore.remoteDebuggingPortKey) as? NSNumber)?.intValue
+            != resolvedRemoteDebuggingPort.rawValue {
+            browserEngineSettings.setRemoteDebuggingPort(resolvedRemoteDebuggingPort)
+        }
+
         let resolvedZoom = BrowserZoomSettings().current(defaults: defaults)
         let currentZoom = Double.decodeFromUserDefaults(
             defaults.object(forKey: BrowserZoomSettings.userDefaultsKey)
@@ -3425,6 +3587,7 @@ final class BrowserPanel: Panel, ObservableObject {
         id: UUID = UUID(),
         workspaceId: UUID,
         profileID: UUID? = nil,
+        chromiumStorageID: UUID? = nil,
         initialURL: URL? = nil,
         initialRequest: URLRequest? = nil,
         renderInitialNavigation: Bool = true,
@@ -3434,9 +3597,11 @@ final class BrowserPanel: Panel, ObservableObject {
         transparentBackground: Bool = false,
         proxyEndpoint: BrowserProxyEndpoint? = nil,
         bypassRemoteProxy: Bool = false,
+        engine: BrowserEngineKind? = nil,
         isRemoteWorkspace: Bool = false,
         remoteWebsiteDataStoreIdentifier: UUID? = nil,
-        websiteDataStore explicitWebsiteDataStore: WKWebsiteDataStore? = nil
+        websiteDataStore explicitWebsiteDataStore: WKWebsiteDataStore? = nil,
+        chromiumStartPrerequisite: Task<Bool, Never>? = nil
     ) {
         // Register fallback defaults and normalize legacy/out-of-range settings once
         // per process, before any setting is read below or by the SwiftUI view.
@@ -3444,9 +3609,24 @@ final class BrowserPanel: Panel, ObservableObject {
         self.id = id
         self.mobileBrowserDialogBroker = MobileBrowserDialogBroker(panelID: self.id.uuidString)
         self.workspaceId = workspaceId
+        self.isRemoteWorkspace = isRemoteWorkspace
         self.externalNavigationHandler = BrowserExternalNavigationHandler()
         let resolvedProfileID = Self.resolvedProfileID(requested: profileID)
         self.profileID = resolvedProfileID
+        let browserEngineSettings = BrowserEngineSettingsStore(defaults: .standard)
+        let requestedEngine = engine ?? browserEngineSettings.defaultEngineValue(
+            systemDefaultBrowserIsChromium: SystemDefaultBrowserDetector.isChromiumFamily()
+        )
+        let resolvedEngine = Self.effectiveBrowserEngine(
+            requested: requestedEngine,
+            isRemoteWorkspace: isRemoteWorkspace,
+            isURLAllowlistActive: BrowserURLAllowlistPolicy(defaults: .standard).isActive,
+            initialURL: initialURL ?? initialRequest?.url
+        )
+        self.engineKind = resolvedEngine
+        self.chromiumStorageID = chromiumStorageID ?? UUID()
+        self.chromiumRemoteDebuggingPort = browserEngineSettings.remoteDebuggingPort()
+        self.chromiumStartPrerequisite = chromiumStartPrerequisite
         self.insecureHTTPBypassHostOnce = BrowserInsecureHTTPSettings.normalizeHost(bypassInsecureHTTPHostOnce ?? "")
         self.bypassesRemoteWorkspaceProxy = bypassRemoteProxy
         self.remoteProxyEndpoint = bypassRemoteProxy ? nil : proxyEndpoint
@@ -3472,7 +3652,7 @@ final class BrowserPanel: Panel, ObservableObject {
             preservesExplicitEphemeralWebsiteDataStore
         let webView: CmuxWebView
         var adoptedPrewarmedWebView = false
-        if let prewarmed = Self.claimedPrewarmedWebView(
+        if resolvedEngine == .webkit, let prewarmed = Self.claimedPrewarmedWebView(
             isRemoteWorkspace: isRemoteWorkspace,
             initialRequest: initialRequest,
             renderInitialNavigation: renderInitialNavigation,
@@ -3694,6 +3874,18 @@ final class BrowserPanel: Panel, ObservableObject {
         navDelegate.downloadDelegate = dlDelegate
         self.downloadDelegate = dlDelegate
         self.navigationDelegate = navDelegate
+        if #available(macOS 15.4, *), let extensionManager = WebKitBrowserExtensionManager.manager(for: webView) {
+            extensionManager.onError = { [weak self] message in
+                self?.browserExtensionError = message
+            }
+            extensionManager.onReady = { [weak self] in
+                guard let self, self.webView.url != nil, self.webView.url?.absoluteString != self.blankURLString else { return }
+                self.webView.reload()
+            }
+            if let loadError = extensionManager.loadError {
+                browserExtensionError = loadError.localizedDescription
+            }
+        }
 
         // Set up UI delegate (handles cmd+click, target=_blank, and context menu)
         let browserUIDelegate = BrowserUIDelegate(
@@ -3739,6 +3931,14 @@ final class BrowserPanel: Panel, ObservableObject {
                 return window
             }
             return browserFallbackInteractiveModalHostWindow()
+        }
+
+        if configureInitialChromiumNavigation(
+            request: initialRequest,
+            url: initialURL,
+            shouldRender: renderInitialNavigation
+        ) {
+            return
         }
 
         if let initialRequest {
@@ -3992,10 +4192,10 @@ final class BrowserPanel: Panel, ObservableObject {
         remoteWorkspaceStatus = status
     }
 
-    private func applyProxyConfigurationIfAvailable() {
+    private func applyProxyConfigurationIfAvailable(to targetStore: WKWebsiteDataStore? = nil) {
         guard #available(macOS 14.0, *) else { return }
 
-        let store = webView.configuration.websiteDataStore
+        let store = targetStore ?? webView.configuration.websiteDataStore
         guard let endpoint = remoteProxyEndpoint else {
             // Local panes mirror an active system proxy with loopback excluded
             // (#5888); remote panes keep [] while their endpoint is pending/lost.
@@ -4154,6 +4354,14 @@ final class BrowserPanel: Panel, ObservableObject {
         preservesExplicitEphemeralWebsiteDataStore ? websiteDataStore : nil
     }
 
+    var preservesExplicitEphemeralWebsiteDataStoreForProfileSwitch: Bool {
+        preservesExplicitEphemeralWebsiteDataStore
+    }
+
+    var configuredChromiumRemoteDebuggingPort: ChromiumRemoteDebuggingPort {
+        chromiumRemoteDebuggingPort
+    }
+
     func reattachToWorkspace(
         _ newWorkspaceId: UUID,
         isRemoteWorkspace: Bool,
@@ -4162,6 +4370,7 @@ final class BrowserPanel: Panel, ObservableObject {
         remoteStatus: BrowserRemoteWorkspaceStatus?
     ) {
         workspaceId = newWorkspaceId
+        self.isRemoteWorkspace = isRemoteWorkspace
         usesRemoteWorkspaceProxy = isRemoteWorkspace && !bypassesRemoteWorkspaceProxy
         let targetStore = preservesExplicitEphemeralWebsiteDataStore
             ? websiteDataStore
@@ -4172,6 +4381,10 @@ final class BrowserPanel: Panel, ObservableObject {
         websiteDataStore = targetStore
         remoteProxyEndpoint = bypassesRemoteWorkspaceProxy ? nil : proxyEndpoint
         remoteWorkspaceStatus = remoteStatus
+        // Install the destination proxy before replacing a live WebKit view;
+        // replacement restores its URL immediately and must never issue the
+        // first request through the local machine.
+        applyProxyConfigurationIfAvailable(to: targetStore)
         if needsStoreSwap {
             clearBrowserAutomationUserScripts()
             replaceWebViewPreservingState(
@@ -4180,12 +4393,16 @@ final class BrowserPanel: Panel, ObservableObject {
                 reason: "workspace_reattach"
             )
         }
-        applyProxyConfigurationIfAvailable()
+        enforceChromiumIsolationIfNeeded(reason: "workspace_reattach")
+        restoreDeferredChromiumIfNeeded(reason: "workspace_reattach")
         resumePendingRemoteNavigationIfNeeded()
     }
 
     @discardableResult
     func switchToProfile(_ requestedProfileID: UUID) -> Bool {
+        if isChromiumBacked {
+            return switchChromiumToProfile(requestedProfileID)
+        }
         guard !preservesExplicitEphemeralWebsiteDataStore else {
             return false
         }
@@ -4290,17 +4507,35 @@ final class BrowserPanel: Panel, ObservableObject {
         backHistoryURLStrings: [String],
         forwardHistoryURLStrings: [String]
     ) {
+        if isChromiumBacked {
+            if usesRestoredSessionHistory {
+                let restored = restoredSessionHistory.snapshot(
+                    nativeBackURLs: [],
+                    nativeForwardURLs: [],
+                    isLiveAligned: true
+                )
+                return (restored.backHistoryURLStrings, restored.forwardHistoryURLStrings)
+            }
+            return (
+                chromiumBackHistoryURLs.compactMap(Self.serializableSessionHistoryURLString),
+                chromiumForwardHistoryURLs.compactMap(Self.serializableSessionHistoryURLString)
+            )
+        }
+
         realignRestoredSessionHistoryToLiveCurrentIfPossible()
 
         let snapshot = restoredSessionHistory.snapshot(
-            nativeBackURLs: webView.backForwardList.backList.map { $0.url },
-            nativeForwardURLs: webView.backForwardList.forwardList.map { $0.url },
+            nativeBackURLs: isChromiumBacked ? [] : webView.backForwardList.backList.map { $0.url },
+            nativeForwardURLs: isChromiumBacked ? [] : webView.backForwardList.forwardList.map { $0.url },
             isLiveAligned: isLiveSessionHistoryAlignedWithRestoredCurrent
         )
         return (snapshot.backHistoryURLStrings, snapshot.forwardHistoryURLStrings)
     }
 
     private func resolvedLiveSessionHistoryURL() -> URL? {
+        if isChromiumBacked {
+            return Self.serializableSessionHistoryURLString(currentURL) == nil ? nil : currentURL
+        }
         if let displayURL = restorableDisplayURLForCurrentErrorPage(liveURL: webView.url),
            Self.serializableSessionHistoryURLString(displayURL) != nil {
             return displayURL
@@ -4438,7 +4673,8 @@ final class BrowserPanel: Panel, ObservableObject {
                 requestPath: components.requestPath
             )
         }
-        guard !Self.isTemporarySessionHistoryURL(webView.url),
+        let liveURL = isChromiumBacked ? currentURL : webView.url
+        guard !Self.isTemporarySessionHistoryURL(liveURL),
               !Self.isTemporarySessionHistoryURL(currentURL),
               !Self.isTemporarySessionHistoryURL(restoredHistoryCurrentURL) else {
             return false
@@ -4455,12 +4691,14 @@ final class BrowserPanel: Panel, ObservableObject {
     /// The diff viewer `(token, requestPath)` for the live URL, if this surface
     /// is currently showing a diff viewer; used to persist + restore it.
     func diffViewerSessionComponents() -> (token: String, requestPath: String)? {
-        CmuxDiffViewerURLSchemeHandler.diffViewerComponents(from: webView.url)
+        let liveURL = isChromiumBacked ? currentURL : webView.url
+        return CmuxDiffViewerURLSchemeHandler.diffViewerComponents(from: liveURL)
             ?? CmuxDiffViewerURLSchemeHandler.diffViewerComponents(from: currentURL)
     }
 
     func preferredURLStringForSessionSnapshot() -> String? {
-        if let displayURL = restorableDisplayURLForCurrentErrorPage(liveURL: webView.url),
+        let liveURL = isChromiumBacked ? currentURL : webView.url
+        if let displayURL = restorableDisplayURLForCurrentErrorPage(liveURL: liveURL),
            let value = Self.serializableSessionHistoryURLString(displayURL) {
             return value
         }
@@ -4855,6 +5093,9 @@ final class BrowserPanel: Panel, ObservableObject {
         reason: String = "manual",
         cachePolicy: URLRequest.CachePolicy = .useProtocolCachePolicy
     ) -> Bool {
+        if isChromiumBacked {
+            return recoverChromiumIfNeeded()
+        }
         guard hasRecoverableWebContentTermination else { return false }
         let recoveryURL = pendingWebContentRecoveryURL
         clearWebContentTerminationRecovery()
@@ -4895,6 +5136,11 @@ final class BrowserPanel: Panel, ObservableObject {
             return
         }
 
+        if isChromiumBacked {
+            focusChromiumContentIfVisible()
+            return
+        }
+
         guard let window = webView.window, !webView.isHiddenOrHasHiddenAncestor else { return }
 
         // If nothing meaningful is loaded yet, prefer letting the omnibar take focus.
@@ -4924,6 +5170,10 @@ final class BrowserPanel: Panel, ObservableObject {
         endSuppressWebViewFocusForAddressBar()
         clearWebViewFocusSuppression()
         NotificationCenter.default.post(name: .browserDidBlurAddressBar, object: id)
+
+        if isChromiumBacked {
+            return requestChromiumContentFocus()
+        }
 
         guard let window = webView.window, !webView.isHiddenOrHasHiddenAncestor else { return false }
 
@@ -4979,6 +5229,10 @@ final class BrowserPanel: Panel, ObservableObject {
         webViewFocusRequestGeneration &+= 1
         clearBrowserFocusMode(reason: "panelUnfocus")
         invalidateSearchFocusRequests(reason: "panelUnfocus")
+        if isChromiumBacked {
+            unfocusChromiumContent()
+            return
+        }
         guard let window = webView.window else { return }
         if BrowserWindowPortalRegistry.yieldSearchOverlayFocusIfOwned(by: id, in: window) {
             return
@@ -4990,6 +5244,10 @@ final class BrowserPanel: Panel, ObservableObject {
 
     func close() {
         cancelHiddenWebViewDiscard()
+        chromiumMemoryDiscardRestoreTask?.cancel()
+        chromiumMemoryDiscardRestoreTask = nil
+        chromiumIsolationRestoreIntent = false
+        chromiumIsolationRestoreURL = nil
         isClosingWebViewLifecycle = true
         trustedLocalFileURL = nil
         pendingTrustedLocalFileURL = nil
@@ -5011,6 +5269,9 @@ final class BrowserPanel: Panel, ObservableObject {
         cancelPendingInteractiveBrowserPrompts(reason: "close", cancelAuthenticationPrompts: false)
         closeBackgroundPreloadHost(reason: "close")
         closeAllPopupControllers()
+        if isChromiumBacked {
+            _ = prepareChromiumShutdownForClose()
+        }
         webAuthnCoordinator.tearDown(from: webView); webView.stopLoading()
         designModeController.webViewWillBeRemoved(webView)
         designModeController.releaseDeliveredHandoffForTeardown()
@@ -5054,13 +5315,21 @@ final class BrowserPanel: Panel, ObservableObject {
     /// redirects, while this sweep closes the window in which an already-open
     /// document could otherwise remain visible under a newly stricter policy.
     func enforceURLAllowlistPolicy() {
-        navigationDelegate?.enforceURLAllowlistPolicy(
-            in: webView,
-            displayURL: Self.remoteProxyDisplayURL(for: webView.url)
-                ?? webView.url
-                ?? currentURL
-                ?? navigationDelegate?.lastAttemptedURL
-        )
+        enforceChromiumIsolationIfNeeded(reason: "url_allowlist_changed")
+        if isChromiumBacked {
+            // A policy relaxation may happen while this pane is hidden. The
+            // Chromium extension retains the render intent and starts the
+            // child on the next visible mount (or immediately when visible).
+            restoreDeferredChromiumIfNeeded(reason: "url_allowlist_changed")
+        } else {
+            navigationDelegate?.enforceURLAllowlistPolicy(
+                in: webView,
+                displayURL: Self.remoteProxyDisplayURL(for: webView.url)
+                    ?? webView.url
+                    ?? currentURL
+                    ?? navigationDelegate?.lastAttemptedURL
+            )
+        }
         for popup in popupControllers {
             popup.enforceURLAllowlistPolicy()
         }
@@ -5491,6 +5760,23 @@ final class BrowserPanel: Panel, ObservableObject {
                 clearTrustedLocalFileDocumentIfNeeded(for: url)
             }
         }
+        if isChromiumBacked {
+            chromiumIsolationRestoreIntent = false
+            chromiumIsolationRestoreURL = nil
+            if !preserveRestoredSessionHistory {
+                abandonRestoredSessionHistoryIfNeeded()
+            }
+            if recordTypedNavigation {
+                historyStore.recordTypedNavigation(url: url)
+            }
+            currentURL = url
+            shouldRenderWebView = true
+            startChromiumIfNeeded()
+            navigateChromium(to: url)
+            onNavigationStarted?(nil)
+            return nil
+        }
+        cancelHiddenWebViewDiscard()
         if usesRemoteWorkspaceProxy, remoteProxyEndpoint == nil {
             pendingRemoteNavigation?.onNavigationStarted?(nil)
             pendingRemoteNavigation = PendingRemoteNavigation(
@@ -5667,7 +5953,7 @@ final class BrowserPanel: Panel, ObservableObject {
         resolveBrowserNavigableURL(input)
     }
 
-    private func shouldBlockInsecureHTTPNavigation(to url: URL) -> Bool {
+    func shouldBlockInsecureHTTPNavigation(to url: URL) -> Bool {
         if consumeOneTimeInsecureHTTPBypassIfNeeded(for: url) {
             return false
         }
@@ -5722,7 +6008,8 @@ final class BrowserPanel: Panel, ObservableObject {
         intent: BrowserInsecureHTTPNavigationIntent,
         recordTypedNavigation: Bool,
         onResolution: @escaping (BrowserInsecureHTTPNavigationResolution) -> Void = { _ in },
-        onNavigationStarted: ((WKNavigation?) -> Void)? = nil
+        onNavigationStarted: ((WKNavigation?) -> Void)? = nil,
+        deferNavigation: Bool = false
     ) {
         guard let url = request.url else {
             onNavigationStarted?(nil)
@@ -5783,7 +6070,8 @@ final class BrowserPanel: Panel, ObservableObject {
                     intent: intent,
                     recordTypedNavigation: recordTypedNavigation,
                     onResolution: onResolution,
-                    onNavigationStarted: onNavigationStarted
+                    onNavigationStarted: onNavigationStarted,
+                    deferNavigation: deferNavigation
                 )
             }
         )
@@ -5802,7 +6090,8 @@ final class BrowserPanel: Panel, ObservableObject {
                         intent: intent,
                         recordTypedNavigation: recordTypedNavigation,
                         onResolution: onResolution,
-                        onNavigationStarted: onNavigationStarted
+                        onNavigationStarted: onNavigationStarted,
+                        deferNavigation: deferNavigation
                     )
                 }
             },
@@ -5825,7 +6114,8 @@ final class BrowserPanel: Panel, ObservableObject {
         intent: BrowserInsecureHTTPNavigationIntent,
         recordTypedNavigation: Bool, openExternalURL: (URL) -> Bool = { NSWorkspace.shared.open($0) },
         onResolution: (BrowserInsecureHTTPNavigationResolution) -> Void,
-        onNavigationStarted: ((WKNavigation?) -> Void)? = nil
+        onNavigationStarted: ((WKNavigation?) -> Void)? = nil,
+        deferNavigation: Bool = false
     ) {
         if browserShouldPersistInsecureHTTPAllowlistSelection(
             response: response,
@@ -5846,11 +6136,13 @@ final class BrowserPanel: Panel, ObservableObject {
             case .currentTab:
                 onResolution(.proceededInCurrentTab)
                 insecureHTTPBypassHostOnce = host
-                navigateWithoutInsecureHTTPPrompt(
-                    request: request,
-                    recordTypedNavigation: recordTypedNavigation,
-                    onNavigationStarted: onNavigationStarted
-                )
+                if !deferNavigation {
+                    navigateWithoutInsecureHTTPPrompt(
+                        request: request,
+                        recordTypedNavigation: recordTypedNavigation,
+                        onNavigationStarted: onNavigationStarted
+                    )
+                }
             case .newTab:
                 onNavigationStarted?(nil)
                 onResolution(.proceededInNewTab)
@@ -5865,6 +6157,9 @@ final class BrowserPanel: Panel, ObservableObject {
 
     deinit {
         hiddenWebViewDiscardManager.stop()
+        chromiumIsolationTask?.cancel()
+        chromiumMemoryDiscardTask?.cancel()
+        chromiumMemoryDiscardRestoreTask?.cancel()
         detachedDeveloperToolsWindowCloseResolutionTimer?.cancel()
         detachedDeveloperToolsWindowCloseResolutionTimer = nil
         detachedDeveloperToolsWindowCloseResolutionGeneration &+= 1
@@ -5889,25 +6184,30 @@ final class BrowserPanel: Panel, ObservableObject {
 extension BrowserPanel: BrowserHiddenWebViewDiscardManagerDelegate {
     var hiddenWebViewDiscardSnapshot: BrowserHiddenWebViewDiscardManager.BlockerSnapshot {
         BrowserHiddenWebViewDiscardManager.BlockerSnapshot(
+            isChromiumBacked: isChromiumBacked,
             isClosing: isClosingWebViewLifecycle,
             isVisibleInUI: isWebViewVisibleInUI,
             shouldRenderWebView: shouldRenderWebView,
             hasPendingRemoteNavigation: pendingRemoteNavigation != nil,
-            hasCurrentURL: (currentURL ?? Self.remoteProxyDisplayURL(for: webView.url)) != nil,
+            hasCurrentURL: isChromiumBacked
+                ? currentURL != nil
+                : (currentURL ?? Self.remoteProxyDisplayURL(for: webView.url)) != nil,
             isLoading: isLoading,
-            webViewIsLoading: webView.isLoading,
+            webViewIsLoading: isChromiumBacked ? false : webView.isLoading,
             hasActiveMainFrameProvisionalNavigation: isMainFrameProvisionalNavigationActive,
             isDownloading: isDownloading,
             activeDownloadCount: activeDownloadCount,
             preferredDeveloperToolsVisible: preferredDeveloperToolsVisible,
-            isDeveloperToolsVisible: isDeveloperToolsVisible(),
+            isDeveloperToolsVisible: isChromiumBacked ? false : isDeveloperToolsVisible(),
             isElementFullscreenActive: isElementFullscreenActive,
             isReactGrabActive: isReactGrabActive,
-            isDesignModeActive: designModeController.protectsFromDiscard,
+            isDesignModeActive: isChromiumBacked ? false : designModeController.protectsFromDiscard,
             isVisualAutomationCaptureActive: activeVisualAutomationCaptureCount > 0,
             isMobileBrowserStreamActive: !mobileBrowserStreamSignalHandlers.isEmpty,
             hasPopups: !popupControllers.isEmpty,
-            isCapturingMedia: webView.cameraCaptureState != .none || webView.microphoneCaptureState != .none,
+            isCapturingMedia: isChromiumBacked
+                ? false
+                : webView.cameraCaptureState != .none || webView.microphoneCaptureState != .none,
             isPlayingMedia: isPlayingMedia
         )
     }
@@ -5954,6 +6254,7 @@ extension BrowserPanel {
         preferredDeveloperToolsVisible ||
         hasRecoverableWebContentTermination ||
         pendingWebContentRecoveryURL != nil ||
+        chromiumIsolationRestoreIntent ||
         webView.cmuxBrowserViewportAttachmentSuperview != nil
     }
 
@@ -5981,6 +6282,7 @@ extension BrowserPanel {
 #endif
 
         _ = hideDeveloperTools()
+        stopChromiumForContextResetIfNeeded()
         clearBrowserFocusMode(reason: "contextReset")
         preferredDeveloperToolsPresentation = .detached
         clearDeveloperToolsVisibleIntentForHiddenState()
@@ -6003,6 +6305,8 @@ extension BrowserPanel {
         estimatedProgress = 0
         nativeCanGoBack = false
         nativeCanGoForward = false
+        chromiumBackHistoryURLs.removeAll(keepingCapacity: false)
+        chromiumForwardHistoryURLs.removeAll(keepingCapacity: false)
         navigationDelegate?.clearSSLTrustState()
         abandonRestoredSessionHistoryIfNeeded()
 
@@ -6018,6 +6322,8 @@ extension BrowserPanel {
 
         pageTitle = ""
         currentURL = nil
+        chromiumIsolationRestoreIntent = false
+        chromiumIsolationRestoreURL = nil
         trustedLocalFileURL = nil
         pendingTrustedLocalFileURL = nil
         renderedPDFDocumentURL = nil
@@ -6133,6 +6439,49 @@ extension BrowserPanel {
         isMainFrameProvisionalNavigationActive = false
     }
 
+    /// Replays one restored history entry through Chromium instead of asking
+    /// the freshly-started child to traverse its synthetic about:blank entry.
+    private func goBackRestoredChromium() {
+        let decision = restoredSessionHistory.decideGoBack(
+            // The child history is intentionally ignored while replay is
+            // active; it contains the bootstrap target and may lag the stack.
+            isLiveAligned: true,
+            nativeCanGoBack: false,
+            resolvedCurrentURL: resolvedCurrentSessionHistoryURL()
+        )
+        switch decision {
+        case .navigate(let targetURL):
+            refreshNavigationAvailability()
+            navigateWithoutInsecureHTTPPrompt(
+                to: targetURL,
+                recordTypedNavigation: false,
+                preserveRestoredSessionHistory: true
+            )
+        case .nativeGoBack, .nativeGoForward, .refreshOnly:
+            refreshNavigationAvailability()
+        }
+    }
+
+    /// Replays one restored forward entry through Chromium while the panel's
+    /// history stack is still authoritative.
+    private func goForwardRestoredChromium() {
+        let decision = restoredSessionHistory.decideGoForward(
+            nativeCanGoForward: false,
+            resolvedCurrentURL: resolvedCurrentSessionHistoryURL()
+        )
+        switch decision {
+        case .navigate(let targetURL):
+            refreshNavigationAvailability()
+            navigateWithoutInsecureHTTPPrompt(
+                to: targetURL,
+                recordTypedNavigation: false,
+                preserveRestoredSessionHistory: true
+            )
+        case .nativeGoBack, .nativeGoForward, .refreshOnly:
+            refreshNavigationAvailability()
+        }
+    }
+
     private func markTrustedInternalNavigationIfNeeded(for url: URL?) {
         (webView as? CmuxWebView)?.clearTrustedInternalNavigationGrants()
         guard let url,
@@ -6147,6 +6496,9 @@ extension BrowserPanel {
 
     @discardableResult
     func setMuted(_ muted: Bool) -> Bool {
+        guard !isChromiumBacked else {
+            return rejectUnsupportedChromiumMuteChange(muted)
+        }
         let applied = applyMuteState(muted, to: webView, reason: "setMuted")
         if applied, isMuted != muted {
             isMuted = muted
@@ -6162,6 +6514,14 @@ extension BrowserPanel {
 
     /// Go back in history
     func goBack() {
+        if isChromiumBacked {
+            if usesRestoredSessionHistory {
+                goBackRestoredChromium()
+            } else {
+                goBackChromium()
+            }
+            return
+        }
         guard canGoBack else { return }
         reactivateDiscardedWebViewWithoutNavigation(reason: "goBack")
         cancelInFlightNavigationBeforeHistoryTraversal()
@@ -6200,6 +6560,14 @@ extension BrowserPanel {
 
     /// Go forward in history
     func goForward() {
+        if isChromiumBacked {
+            if usesRestoredSessionHistory {
+                goForwardRestoredChromium()
+            } else {
+                goForwardChromium()
+            }
+            return
+        }
         guard canGoForward else { return }
         reactivateDiscardedWebViewWithoutNavigation(reason: "goForward")
         cancelInFlightNavigationBeforeHistoryTraversal()
@@ -6311,6 +6679,7 @@ extension BrowserPanel {
             focus: true,
             preferredProfileID: profileID,
             bypassInsecureHTTPHostOnce: seed.bypassInsecureHTTPHostOnce,
+            engine: engineKind,
             websiteDataStore: explicitEphemeralWebsiteDataStoreForSibling
         ) else {
 #if DEBUG
@@ -6327,7 +6696,10 @@ extension BrowserPanel {
     }
 
     var currentURLForTabDuplication: URL? {
-        resolvedCurrentSessionHistoryURL()
+        if isChromiumBacked {
+            return resolvedCurrentSessionHistoryURL() ?? currentURL
+        }
+        return resolvedCurrentSessionHistoryURL()
             ?? Self.remoteProxyDisplayURL(for: webView.url)
             ?? currentURL
     }
@@ -6337,7 +6709,10 @@ extension BrowserPanel {
     }
 
     func automationReloadTargetURL() -> URL? {
-        restorableDisplayURLForCurrentErrorPage(liveURL: webView.url)
+        if isChromiumBacked {
+            return currentURL ?? restoredHistoryCurrentURL ?? URL(string: "about:blank")
+        }
+        return restorableDisplayURLForCurrentErrorPage(liveURL: webView.url)
             ?? Self.remoteProxyDisplayURL(for: navigationDelegate?.lastAttemptedURL)
             ?? navigationDelegate?.lastAttemptedURL
             ?? resolvedCurrentSessionHistoryURL()
@@ -6376,6 +6751,10 @@ extension BrowserPanel {
     /// Reload the current page
     @discardableResult
     func reload() -> WKNavigation? {
+        if isChromiumBacked {
+            reloadChromium()
+            return nil
+        }
         if prepareForReload(reason: "reload", mode: .soft) {
             return nil
         }
@@ -6385,6 +6764,10 @@ extension BrowserPanel {
 
     /// Reload the current page, bypassing WebKit's cache.
     func hardReload() {
+        if isChromiumBacked {
+            reloadChromium(hard: true)
+            return
+        }
         if prepareForReload(reason: "hardReload", mode: .hard) {
             return
         }
@@ -6396,6 +6779,11 @@ extension BrowserPanel {
     func stopLoading() {
         // Fail closed: a reveal must never blank-shell-heal over an explicit Stop.
         userStoppedLoadSinceWebViewReplacement = true
+        if isChromiumBacked {
+            (browserEngineController.adapter as? (any ChromiumEngineAdapting))?.stopLoadingPage()
+            isLoading = false
+            return
+        }
         webView.stopLoading()
         isMainFrameProvisionalNavigationActive = false
     }
@@ -6552,6 +6940,7 @@ extension BrowserPanel {
         to targetVisible: Bool,
         source: String
     ) -> Bool {
+        guard !isChromiumBacked else { return false }
         if isDeveloperToolsTransitionInFlight {
             pendingDeveloperToolsTransitionTargetVisible = targetVisible
             setPreferredDeveloperToolsVisible(targetVisible)
@@ -7004,6 +7393,13 @@ extension BrowserPanel {
             completion(.failure(BrowserScreenshotError.captureInProgress))
             return
         }
+        if isChromiumBacked {
+            captureChromiumVisibleViewportSnapshot(
+                completion: completion,
+                onFinish: { [visualAutomationCaptureGate] in visualAutomationCaptureGate.end() }
+            )
+            return
+        }
         let timingBudget = BrowserScreenshotTimingBudget()
 
         withVisualAutomationRenderLease(
@@ -7131,7 +7527,10 @@ extension BrowserPanel {
 
     /// Execute JavaScript
     func evaluateJavaScript(_ script: String) async throws -> Any? {
-        try await webView.evaluateJavaScript(script)
+        if isChromiumBacked {
+            return try await evaluateChromiumJavaScript(script).anyValue
+        }
+        return try await webView.evaluateJavaScript(script)
     }
 
     func readSurfaceSelection() async -> SurfaceSelectionReadResult {
@@ -7256,7 +7655,13 @@ extension BrowserPanel {
     }
 
     var canEnterBrowserFocusMode: Bool {
-        shouldRenderWebView &&
+        if isChromiumBacked {
+            return canEnterChromiumFocusMode(
+                searchIsActive: searchState != nil,
+                designModeIsActive: designModeController.isActive
+            )
+        }
+        return shouldRenderWebView &&
             browserInteractiveModalHostWindow(for: webView) != nil &&
             !webView.isHiddenOrHasHiddenAncestor &&
             searchState == nil &&
@@ -7638,6 +8043,7 @@ extension BrowserPanel {
 
     func noteAddressBarFocused() {
         clearBrowserFocusMode(reason: "addressBarFocused")
+        clearChromiumFocusState()
         guard preferredFocusIntent != .addressBar else { return }
         preferredFocusIntent = .addressBar
         invalidateSearchFocusRequests(reason: "addressBarFocused")
@@ -7645,6 +8051,7 @@ extension BrowserPanel {
 
     func noteFindFieldFocused() {
         clearBrowserFocusMode(reason: "findFieldFocused")
+        clearChromiumFocusState()
         guard preferredFocusIntent != .findField else { return }
         preferredFocusIntent = .findField
     }
@@ -7749,7 +8156,8 @@ extension BrowserPanel {
             return .browser(.findField)
         }
 
-        if Self.responderChainContains(responder, target: webView) {
+        if Self.responderChainContains(responder, target: webView) ||
+            (isChromiumBacked && chromiumContentOwnsResponder(responder)) {
             return .browser(.webView)
         }
 
@@ -7783,8 +8191,16 @@ extension BrowserPanel {
 #endif
             return true
         case .webView:
-            guard Self.responderChainContains(window.firstResponder, target: webView) else { return false }
-            return window.makeFirstResponder(nil)
+            let focusWindow = isChromiumBacked ? (browserContentWindow ?? window) : window
+            if isChromiumBacked {
+                guard let firstResponder = focusWindow.firstResponder,
+                      chromiumContentOwnsResponder(firstResponder) else { return false }
+            } else {
+                guard Self.responderChainContains(focusWindow.firstResponder, target: webView) else {
+                    return false
+                }
+            }
+            return focusWindow.makeFirstResponder(nil)
         }
     }
 
@@ -7855,7 +8271,8 @@ extension BrowserPanel {
     /// Returns the most reliable URL string for omnibar-related matching and UI decisions.
     /// `currentURL` can lag behind navigation changes, so prefer the live WKWebView URL.
     func preferredURLStringForOmnibar() -> String? {
-        if let webViewURL = restorableDisplayURLForCurrentErrorPage(liveURL: webView.url)?.absoluteString
+        let liveURL = isChromiumBacked ? currentURL : webView.url
+        if let webViewURL = restorableDisplayURLForCurrentErrorPage(liveURL: liveURL)?.absoluteString
             .trimmingCharacters(in: .whitespacesAndNewlines),
            !webViewURL.isEmpty,
            webViewURL != blankURLString {
@@ -7873,7 +8290,8 @@ extension BrowserPanel {
     }
 
     private func resolvedCurrentSessionHistoryURL() -> URL? {
-        if let displayURL = restorableDisplayURLForCurrentErrorPage(liveURL: webView.url),
+        let liveURL = isChromiumBacked ? currentURL : webView.url
+        if let displayURL = restorableDisplayURLForCurrentErrorPage(liveURL: liveURL),
            Self.serializableSessionHistoryURLString(displayURL) != nil {
             return displayURL
         }
@@ -7885,10 +8303,21 @@ extension BrowserPanel {
     }
 
     func refreshNavigationAvailability() {
-        let availability = restoredSessionHistory.availability(
-            nativeCanGoBack: nativeCanGoBack,
-            nativeCanGoForward: nativeCanGoForward
-        )
+        let availability: NavigationAvailability
+        if isChromiumBacked && usesRestoredSessionHistory {
+            // Ignore the child's bootstrap about:blank entry until the
+            // persisted stack has been replayed. Otherwise the first back at
+            // the restored stack's boundary would navigate to about:blank.
+            availability = NavigationAvailability(
+                canGoBack: !restoredSessionHistory.back.isEmpty,
+                canGoForward: !restoredSessionHistory.forward.isEmpty
+            )
+        } else {
+            availability = restoredSessionHistory.availability(
+                nativeCanGoBack: nativeCanGoBack,
+                nativeCanGoForward: nativeCanGoForward
+            )
+        }
 
         if canGoBack != availability.canGoBack {
             canGoBack = availability.canGoBack
@@ -7929,6 +8358,10 @@ extension BrowserPanel {
 
 extension BrowserPanel {
     private func applyBrowserThemeModeIfNeeded() {
+        if isChromiumBacked {
+            applyChromiumTheme(browserThemeMode)
+            return
+        }
         BrowserThemeSettings.apply(browserThemeMode, to: webView)
     }
 
@@ -8014,6 +8447,9 @@ extension BrowserPanel {
 
 private extension BrowserPanel {
     func applyPageZoom(_ candidate: CGFloat) -> Result<Bool, BrowserAutomationViewportError> {
+        guard !isChromiumBacked else {
+            return .failure(.unsupportedEngine)
+        }
         let clamped = max(minPageZoom, min(maxPageZoom, candidate))
         if abs(webView.pageZoom - clamped) < 0.0001 {
             return .success(false)
@@ -8044,17 +8480,6 @@ private extension BrowserPanel {
         case .failure:
             return false
         }
-    }
-
-    static func responderChainContains(_ start: NSResponder?, target: NSResponder) -> Bool {
-        var r = start
-        var hops = 0
-        while let cur = r, hops < 64 {
-            if cur === target { return true }
-            r = cur.nextResponder
-            hops += 1
-        }
-        return false
     }
 
     static func visibleDescendants(in root: NSView) -> [NSView] {
@@ -8090,6 +8515,10 @@ extension BrowserPanel {
             reason: "portal.\(source)",
             recordIfUnchanged: true
         )
+        // Chromium is rendered by ``ChromiumBrowserHostView`` and never owns
+        // a WebKit portal entry. Keeping this guard at the shared hide seam
+        // protects workspace, dock, and tab-selection callers alike.
+        guard !isChromiumBacked else { return }
         BrowserWindowPortalRegistry.hide(
             webView: webView,
             source: source
@@ -9447,7 +9876,8 @@ enum BrowserDataImporter {
         from browser: InstalledBrowserCandidate,
         plan: RealizedBrowserImportExecutionPlan,
         scope: BrowserImportScope,
-        domainFilters: [String]
+        domainFilters: [String],
+        destinationEngine: BrowserEngineKind = .webkit
     ) async -> BrowserImportOutcome {
         var outcomeEntries: [BrowserImportOutcomeEntry] = []
         var warnings: [String] = []
@@ -9460,7 +9890,8 @@ enum BrowserDataImporter {
                 destinationProfileID: entry.destinationProfileID,
                 destinationProfileName: entry.destinationProfileName,
                 scope: scope,
-                domainFilters: domainFilters
+                domainFilters: domainFilters,
+                destinationEngine: destinationEngine
             )
             outcomeEntries.append(outcomeEntry)
             for warning in outcomeEntry.warnings where seenWarnings.insert(warning).inserted {
@@ -9494,17 +9925,28 @@ enum BrowserDataImporter {
         destinationProfileID: UUID,
         destinationProfileName: String,
         scope: BrowserImportScope,
-        domainFilters: [String]
+        domainFilters: [String],
+        destinationEngine: BrowserEngineKind
     ) async -> BrowserImportOutcomeEntry {
         let resolvedSourceProfiles = sourceProfiles.isEmpty ? browser.profiles : sourceProfiles
         var cookieResult = CookieImportResult()
         if scope.includesCookies {
-            cookieResult = await importCookies(
-                from: browser,
-                sourceProfiles: resolvedSourceProfiles,
-                destinationProfileID: destinationProfileID,
-                domainFilters: domainFilters
-            )
+            if destinationEngine == .chromium {
+                cookieResult = CookieImportResult(
+                    warnings: [String(
+                        localized: "browser.import.warning.chromiumCookiesUnsupported",
+                        defaultValue: "Cookies were not imported because Chromium uses an isolated cookie store. Select WebKit as the destination engine and try again."
+                    )]
+                )
+            } else {
+                cookieResult = await importCookies(
+                    from: browser,
+                    sourceProfiles: resolvedSourceProfiles,
+                    destinationProfileID: destinationProfileID,
+                    domainFilters: domainFilters,
+                    destinationEngine: destinationEngine
+                )
+            }
         }
 
         var historyResult = HistoryImportResult()
@@ -9533,7 +9975,8 @@ enum BrowserDataImporter {
         from browser: InstalledBrowserCandidate,
         sourceProfiles: [InstalledBrowserProfile],
         destinationProfileID: UUID,
-        domainFilters: [String]
+        domainFilters: [String],
+        destinationEngine: BrowserEngineKind
     ) async -> CookieImportResult {
         switch browser.family {
         case .firefox:
@@ -9541,14 +9984,16 @@ enum BrowserDataImporter {
                 from: browser,
                 sourceProfiles: sourceProfiles,
                 destinationProfileID: destinationProfileID,
-                domainFilters: domainFilters
+                domainFilters: domainFilters,
+                destinationEngine: destinationEngine
             )
         case .chromium:
             return await importChromiumCookies(
                 from: browser,
                 sourceProfiles: sourceProfiles,
                 destinationProfileID: destinationProfileID,
-                domainFilters: domainFilters
+                domainFilters: domainFilters,
+                destinationEngine: destinationEngine
             )
         case .webkit:
             if browser.descriptor.id == "safari" {
@@ -9614,7 +10059,8 @@ enum BrowserDataImporter {
         from browser: InstalledBrowserCandidate,
         sourceProfiles: [InstalledBrowserProfile],
         destinationProfileID: UUID,
-        domainFilters: [String]
+        domainFilters: [String],
+        destinationEngine: BrowserEngineKind
     ) async -> CookieImportResult {
         let fileManager = FileManager.default
         var cookies: [HTTPCookie] = []
@@ -9671,7 +10117,11 @@ enum BrowserDataImporter {
         }
 
         let dedupedCookies = dedupeCookies(cookies)
-        let importedCount = await setCookiesInStore(dedupedCookies, destinationProfileID: destinationProfileID)
+        let importedCount = await setCookiesInStore(
+            dedupedCookies,
+            destinationProfileID: destinationProfileID,
+            destinationEngine: destinationEngine
+        )
         return CookieImportResult(importedCount: importedCount, skippedCount: max(0, dedupedCookies.count - importedCount), warnings: warnings)
     }
 
@@ -9679,7 +10129,8 @@ enum BrowserDataImporter {
         from browser: InstalledBrowserCandidate,
         sourceProfiles: [InstalledBrowserProfile],
         destinationProfileID: UUID,
-        domainFilters: [String]
+        domainFilters: [String],
+        destinationEngine: BrowserEngineKind
     ) async -> CookieImportResult {
         let fileManager = FileManager.default
         var cookies: [HTTPCookie] = []
@@ -9751,7 +10202,11 @@ enum BrowserDataImporter {
         }
 
         let dedupedCookies = dedupeCookies(cookies)
-        let importedCount = await setCookiesInStore(dedupedCookies, destinationProfileID: destinationProfileID)
+        let importedCount = await setCookiesInStore(
+            dedupedCookies,
+            destinationProfileID: destinationProfileID,
+            destinationEngine: destinationEngine
+        )
         if let warning = decryptor.warningMessage(
             browserName: browser.displayName,
             skippedCount: skippedEncryptedCookies
@@ -9984,8 +10439,13 @@ enum BrowserDataImporter {
         }
     }
 
-    private static func setCookiesInStore(_ cookies: [HTTPCookie], destinationProfileID: UUID) async -> Int {
+    private static func setCookiesInStore(
+        _ cookies: [HTTPCookie],
+        destinationProfileID: UUID,
+        destinationEngine: BrowserEngineKind
+    ) async -> Int {
         guard !cookies.isEmpty else { return 0 }
+        guard destinationEngine == .webkit else { return 0 }
         let store = await MainActor.run {
             BrowserProfileStore.shared.websiteDataStore(for: destinationProfileID).httpCookieStore
         }
@@ -10027,18 +10487,56 @@ enum BrowserDataImporter {
         return Array(dedupedByKey.values)
     }
 
-    private static func domainMatches(host: String, filters: [String]) -> Bool {
+    /// Matches a host against one or more normalized domain selectors while
+    /// respecting label boundaries (so `badexample.com` never matches
+    /// `example.com`). Shared by browser-data import and cookie clearing.
+    static func domainMatches(host: String, filters: [String]) -> Bool {
         if filters.isEmpty { return true }
         var normalizedHost = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         while normalizedHost.hasPrefix(".") {
             normalizedHost.removeFirst()
         }
         guard !normalizedHost.isEmpty else { return false }
-        for filter in filters {
+        for rawFilter in filters {
+            var filter = rawFilter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if filter.hasPrefix("*.") { filter.removeFirst(2) }
+            while filter.hasPrefix(".") { filter.removeFirst() }
+            guard !filter.isEmpty else { continue }
             if normalizedHost == filter { return true }
             if normalizedHost.hasSuffix(".\(filter)") { return true }
         }
         return false
+    }
+
+    /// Matches a cookie domain against a URL host using RFC cookie scope:
+    /// the request host may equal the cookie domain or be one of its
+    /// subdomains, but a parent-domain cookie must never match in reverse.
+    static func cookieDomainMatches(cookieDomain: String, host: String) -> Bool {
+        let normalizedCookieDomain = cookieDomain
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+            .lowercased()
+        let normalizedHost = host
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+            .lowercased()
+        guard !normalizedCookieDomain.isEmpty, !normalizedHost.isEmpty else { return false }
+        return normalizedHost == normalizedCookieDomain
+            || normalizedHost.hasSuffix(".\(normalizedCookieDomain)")
+    }
+
+    /// Applies RFC-style cookie path matching without treating `/foo` as a
+    /// prefix of the unrelated path `/foobar`.
+    static func cookiePathMatches(cookiePath: String, urlPath: String) -> Bool {
+        let normalizedCookiePath = cookiePath.isEmpty ? "/" : cookiePath
+        let normalizedURLPath = urlPath.isEmpty ? "/" : urlPath
+        guard normalizedCookiePath != "/" else { return true }
+        return normalizedURLPath == normalizedCookiePath
+            || normalizedURLPath.hasPrefix(
+                normalizedCookiePath.hasSuffix("/")
+                    ? normalizedCookiePath
+                    : "\(normalizedCookiePath)/"
+            )
     }
 
     private static func chromiumDate(fromWebKitMicroseconds rawValue: Int64) -> Date? {
@@ -10256,12 +10754,14 @@ final class BrowserDataImportCoordinator {
 
     func presentImportDialog(
         defaultDestinationProfileID: UUID? = nil,
-        defaultScope: BrowserImportScope? = nil
+        defaultScope: BrowserImportScope? = nil,
+        defaultDestinationEngine: BrowserEngineKind? = nil
     ) {
         presentImportDialog(
             prefilledBrowsers: nil,
             defaultDestinationProfileID: defaultDestinationProfileID,
-            defaultScope: defaultScope
+            defaultScope: defaultScope,
+            defaultDestinationEngine: defaultDestinationEngine
         )
     }
 
@@ -10275,7 +10775,8 @@ final class BrowserDataImportCoordinator {
     private func presentImportDialog(
         prefilledBrowsers: [InstalledBrowserCandidate]?,
         defaultDestinationProfileID: UUID?,
-        defaultScope: BrowserImportScope?
+        defaultScope: BrowserImportScope?,
+        defaultDestinationEngine: BrowserEngineKind?
     ) {
         guard !importInProgress else { return }
 #if DEBUG
@@ -10309,6 +10810,11 @@ final class BrowserDataImportCoordinator {
             defaultDestinationProfileID: defaultDestinationProfileID,
             defaultScope: defaultScope
         ) else { return }
+
+        let destinationEngine = defaultDestinationEngine ??
+            BrowserEngineSettingsStore(defaults: .standard).defaultEngineValue(
+                systemDefaultBrowserIsChromium: SystemDefaultBrowserDetector.isChromiumFamily()
+            )
 
 #if DEBUG
         if captureSelectionIfRequested(selection, destinationProfiles: fixtureDestinationProfiles) {
@@ -10352,7 +10858,8 @@ final class BrowserDataImportCoordinator {
                 from: selection.browser,
                 plan: realizedPlan,
                 scope: selection.scope,
-                domainFilters: selection.domainFilters
+                domainFilters: selection.domainFilters,
+                destinationEngine: destinationEngine
             )
 
             await MainActor.run {
@@ -11588,5 +12095,17 @@ extension BrowserPanel {
 #else
         return nil
 #endif
+    }
+}
+extension BrowserPanel {
+    static func responderChainContains(_ start: NSResponder?, target: NSResponder) -> Bool {
+        var r = start
+        var hops = 0
+        while let cur = r, hops < 64 {
+            if cur === target { return true }
+            r = cur.nextResponder
+            hops += 1
+        }
+        return false
     }
 }
