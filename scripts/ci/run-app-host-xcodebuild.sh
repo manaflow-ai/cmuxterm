@@ -49,6 +49,12 @@ fi
 # that prefix when it launches the test runner, so the app host receives the
 # redirects without exposing them to the xcodebuild driver.
 app_host_test_runner_environment=("TEST_RUNNER_CMUX_TEST_PROCESS=1")
+if [ -n "${CMUX_TEST_NODE_PATH:-}" ]; then
+  # XCTest test hosts do not inherit job-level environment variables. Carry
+  # the absolute Node path through Xcode's TEST_RUNNER_ handoff instead of
+  # relying on the host's intentionally minimal PATH.
+  app_host_test_runner_environment+=("TEST_RUNNER_CMUX_TEST_NODE_PATH=$CMUX_TEST_NODE_PATH")
+fi
 app_host_home=""
 app_host_key=""
 app_host_receipt_dir=""
