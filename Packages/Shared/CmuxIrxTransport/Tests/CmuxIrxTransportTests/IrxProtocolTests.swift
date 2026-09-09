@@ -128,6 +128,21 @@ struct IrxRelayCredentialPolicyTests {
         #expect(rateLimited == .seconds(45))
     }
 
+    @Test("capped retries and server floors keep jitter without overflowing")
+    func retryJitterAndLargeFloors() {
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        for serverFloor in [0, 600, Int.max] {
+            let base = IrxRelayCredentialPolicy.retryDelay(
+                expiresAt: now, now: now, retryAfterSeconds: serverFloor,
+                failureCount: 20, jitterUnitInterval: 0)
+            let jittered = IrxRelayCredentialPolicy.retryDelay(
+                expiresAt: now, now: now, retryAfterSeconds: serverFloor,
+                failureCount: 20, jitterUnitInterval: 1)
+            #expect(base >= .seconds(serverFloor))
+            #expect(jittered == base + .seconds(30))
+        }
+    }
+
     @Test("usability requires margin over expiry")
     func usability() {
         let now = Date(timeIntervalSince1970: 3_000_000)

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
   generateKeyPairSync,
   verify as edVerify,
@@ -90,6 +90,16 @@ function request(
 }
 
 describe("POST /api/relay/token", () => {
+  let previousVercelEnv: string | undefined;
+  beforeEach(() => {
+    previousVercelEnv = process.env.VERCEL_ENV;
+    process.env.VERCEL_ENV = "test";
+  });
+  afterEach(() => {
+    if (previousVercelEnv === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = previousVercelEnv;
+  });
+
   test("rate limits invalid binding proofs before database and signature work", async () => {
     let authorizations = 0;
     let policyReads = 0;
@@ -516,7 +526,7 @@ describe("POST /api/relay/token", () => {
     expect(key).toBe(
       `test:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:credential`,
     );
-    expect(limited.headers.get("retry-after")).toBe("400");
+    expect(limited.headers.get("retry-after")).toBe("600");
 
     // Malformed requests are rejected before the limiter and never consume
     // the per-device budget.
@@ -608,7 +618,7 @@ describe("POST /api/relay/token", () => {
       protocolDeps,
     );
     expect(duplicate.status).toBe(429);
-    expect(duplicate.headers.get("retry-after")).toBe("400");
+    expect(duplicate.headers.get("retry-after")).toBe("600");
 
     nowSeconds += 600;
     const renewal = await handleRelayTokenRequest(
