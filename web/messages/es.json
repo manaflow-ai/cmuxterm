@@ -2921,7 +2921,7 @@
       "ohMyClaudeCode": "oh-mi-claudecode",
       "changelog": "Registro de cambios",
       "dock": "Muelle",
-      "textBox": "Cuadro de texto (Beta)",
+      "textBox": "TextBox (beta)",
       "ios": "App para iOS",
       "vault": "Bóveda",
       "taskManager": "Administrador de tareas"
@@ -2962,8 +2962,8 @@
       "agentPrompt": "Configure los controles del Dock de cmux para el contexto actual.\n\nPrimero, aprenda la función antes de editarla:\n1. Ejecute `cmux docs dock` si la CLI de cmux está disponible. Si no es así, lea https://cmux.com/docs/dock.\n2. Inspeccione el repositorio o directorio actual para comprender el tipo de proyecto, los scripts, el administrador de paquetes, los servidores de desarrollo, los registros, los ejecutores de tareas, los comandos de prueba y cualquier herramienta TUI existente.\n3. Si el Dock deseado es ambiguo, pregunte al usuario qué desea monitorear o controlar antes de escribir archivos.\n\nDock es el terminal de la barra lateral derecha de cmux y el área de control del navegador. Una configuración de Dock es JSON con una matriz `controls` de nivel superior. Los controles de terminal ejecutan comandos en secciones respaldadas por Ghostty utilizando el shell de inicio de sesión del usuario; Los controles del navegador insertan URL. Los controles son útiles para paneles de proyectos, vistas de git/status, servidor de desarrollo o estado de compilación, observadores de pruebas, colas de registros, colas, servicios locales o paneles web fijos.\n\nElija dónde escribir la configuración:\n- En un repositorio o directorio de proyecto, cree o edite `.cmux/dock.json` para que los compañeros de equipo puedan compartirlo.\n- Para un valor predeterminado personal fuera de un repositorio, cree o edite `~/.config/cmux/dock.json`.\n- Si ambos existen, el proyecto `.cmux/dock.json` es más específico para ese proyecto. Las configuraciones de proyecto anidadas se aplican a ese árbol de directorios; utilice la configuración de proyecto relevante más cercana en lugar de escribir controles no relacionados globalmente.\n- Si no hay un repositorio ni una raíz de proyecto clara, use la configuración global solo después de confirmar que el usuario quiere un Dock personal.\n\nEsquema:\n{\n  \"controls\": [\n    {\n      \"id\": \"short-stable-id\",\n      \"title\": \"Human label\",\n      \"command\": \"safe command to run\",\n      \"cwd\": \"optional/path\",\n      \"height\": 220,\n      \"env\": { \"NAME\": \"value\" }\n    },\n    {\n      \"id\": \"dashboard\",\n      \"title\": \"Dashboard\",\n      \"type\": \"browser\",\n      \"url\": \"http://127.0.0.1:3000\",\n      \"chrome\": false\n    }\n  ]\n}\n\nReglas:\n- Mantenga los identificadores estables, en minúsculas y únicos.\n- `type` es opcional: `terminal` es el valor predeterminado o utilice `browser`.\n- Los controles de terminal requieren `command`; Los controles del navegador requieren `url`.\n- Los controles del navegador están predeterminados en `chrome: true`. Configure `chrome: false` para ocultar el navegador Chrome, incluidas la barra de direcciones y la barra de herramientas; La barra de direcciones de enfoque no hace nada para ese panel, mientras `cmux browser goto` y `cmux browser reload` permanecen disponibles.\n- Utilice `cwd` para subdirectorios; Las rutas relativas se resuelven desde la base de configuración.\n- Utilice `height` sólo cuando un control necesite una cantidad fija de espacio vertical.\n- Utilice `env` solo para valores no secretos necesarios para un control.\n- No coloque secretos, tokens ni rutas privadas específicas de la máquina en una configuración de proyecto compartida.\n- Prefiere comandos que sean seguros para iniciarse repetidamente y que tengan sentido en una terminal.\n- No inventes guiones no disponibles. Lea primero los archivos de paquetes, Makefiles, Procfiles, documentos README, archivos de configuración y herramientas existentes.\n- Mantenga los Docks de proyectos compartidos portátiles para los compañeros de equipo. Coloque controles personales o específicos de la máquina en el Dock global.\n\nEntregable:\n- Cree o actualice el dock.json apropiado.\n- Preservar los controles útiles existentes a menos que el usuario solicite reemplazarlos.\n- Validar que el JSON analiza.\n- Resuma lo que hace cada control y los comandos que el usuario debe revisar antes de confiar en la configuración del Dock."
     },
     "textBox": {
-      "title": "Cuadro de texto (Beta)",
-      "metaTitle": "Cuadro de texto (Beta)",
+      "title": "TextBox (beta)",
+      "metaTitle": "TextBox (beta)",
       "metaDescription": "Configura la entrada TextBox beta de cmux para nuevas pestañas, divisiones y espacios de trabajo de terminal.",
       "intro": "TextBox es la superficie de entrada enriquecida de cmux para componer prompts antes de enviarlos a una terminal.",
       "betaCallout": "TextBox es una función beta. Sus valores predeterminados y su comportamiento pueden cambiar durante las pruebas.",
@@ -5051,7 +5051,7 @@
     "done": "Listo"
   },
   "enterprise": {
-    "metaTitle": "Enterprise | cmux",
+    "metaTitle": "Para empresas | cmux",
     "metaDescription": "Hable con cmux sobre implementación empresarial, SSO, máquinas virtuales en la nube autohospedadas, registros de auditoría y uso comprometido.",
     "section": "Empresa",
     "title": "Lleve cmux Cloud VM, SSO y controles de auditoría a su equipo.",
