@@ -212,14 +212,20 @@ import Testing
         #expect(restored.id != original.id)
     }
 
-    @Test func retryFindsRestoredWorkspaceBeforeFreshCacheWithoutLaunchingCommand() throws {
+    @Test(arguments: [false, true])
+    func retryFindsRestoredWorkspaceBeforeFreshCacheWithoutLaunchingCommand(
+        reservesSourceIdentity: Bool
+    ) throws {
         let operationID = UUID()
         let sourceManager = TabManager()
         let sourceWorkspace = try #require(sourceManager.selectedWorkspace)
         sourceWorkspace.taskCreateOperationID = operationID
         let snapshot = sourceManager.sessionSnapshot(includeScrollback: false)
         let manager = TabManager()
-        manager.restoreSessionSnapshot(snapshot)
+        manager.restoreSessionSnapshot(
+            snapshot,
+            excludingWorkspaceIds: reservesSourceIdentity ? [sourceWorkspace.id] : []
+        )
         let restored = try #require(manager.selectedWorkspace)
         let initialIDs = Set(manager.tabs.map(\.id))
         let cache = Self.makeCache()
@@ -230,7 +236,11 @@ import Testing
         ], tabManager: manager, idempotencyCache: cache)
 
         #expect(Set(manager.tabs.map(\.id)) == initialIDs)
-        #expect(restored.id != sourceWorkspace.id)
+        if reservesSourceIdentity {
+            #expect(restored.id != sourceWorkspace.id)
+        } else {
+            #expect(restored.id == sourceWorkspace.id)
+        }
         #expect(restored.taskCreateOperationID == operationID)
         #expect(restored.panels.values.compactMap { $0 as? TerminalPanel }
             .allSatisfy { $0.surface.debugInitialCommand() != "must-not-launch" })
