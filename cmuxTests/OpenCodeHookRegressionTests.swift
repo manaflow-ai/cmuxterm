@@ -27,9 +27,13 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         let harnessURL = root.appendingPathComponent("harness.js")
         try Self.openCodeFeedEventHarness.write(to: harnessURL, atomically: true, encoding: .utf8)
 
+        let nodeExecutable = ProcessInfo.processInfo.environment["CMUX_TEST_NODE_BIN"] ?? "/usr/bin/env"
+        let nodeArguments = nodeExecutable == "/usr/bin/env"
+            ? ["node", harnessURL.path, pluginURL.path, socketPath]
+            : [harnessURL.path, pluginURL.path, socketPath]
         let result = runProcess(
-            executablePath: "/usr/bin/env",
-            arguments: ["node", harnessURL.path, pluginURL.path, socketPath],
+            executablePath: nodeExecutable,
+            arguments: nodeArguments,
             environment: ProcessInfo.processInfo.environment,
             timeout: 5
         )
