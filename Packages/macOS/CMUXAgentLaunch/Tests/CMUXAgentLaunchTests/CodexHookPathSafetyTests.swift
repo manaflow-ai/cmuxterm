@@ -20,9 +20,10 @@ struct CodexHookPathSafetyTests {
 
     @Test("Strips canonical quoted hooks with boundary whitespace in path components")
     func stripsCanonicalQuotedHooksWithBoundaryWhitespaceInPathComponents() {
-        let path = "/Volumes/ Home /Example $HOME/O'Reilly/.cmux/hooks/cmux-codex-hook-0123456789abcdef-stop.sh"
-        let quotedPath = CodexHookScriptName.shellCommand(forScriptPath: path)
-        let arguments = ["codex"] + codexWrapperHookArguments { _ in quotedPath } + ["--model", "gpt-5.5"]
+        let arguments = ["codex"] + codexWrapperHookArguments { subcommand in
+            let path = "/Volumes/ Home /Example $HOME/O'Reilly/.cmux/hooks/cmux-codex-hook-0123456789abcdef-\(subcommand).sh"
+            return CodexHookScriptName.shellCommand(forScriptPath: path)
+        } + ["--model", "gpt-5.5"]
 
         #expect(
             AgentLaunchSanitizer.sanitizedLaunchArguments(
