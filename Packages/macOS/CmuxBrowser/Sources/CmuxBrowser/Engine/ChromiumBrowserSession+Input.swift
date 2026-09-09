@@ -100,11 +100,11 @@ extension ChromiumBrowserSession {
     /// - Throws: A CDP transport, command, or JavaScript evaluation error.
     public func evaluateJavaScript(_ script: String, awaitPromise: Bool = true) async throws -> CDPValue {
         if let owlRuntime {
-            let raw = try owlRuntime.evaluate(script)
-            if let data = raw.data(using: .utf8), let object = try? JSONSerialization.jsonObject(with: data) {
-                return CDPValue(any: object)
-            }
-            return .string(raw)
+            return try await evaluateOwlJavaScript(
+                script,
+                runtime: owlRuntime,
+                awaitPromise: awaitPromise
+            )
         }
         let parameters: CDPValue = .object([
             "expression": .string(script),
@@ -121,6 +121,71 @@ extension ChromiumBrowserSession {
             return .null
         }
         return remoteObject["value"] ?? .null
+    }
+
+    private func evaluateOwlJavaScript(
+        _ script: String,
+        runtime: OwlFreshRuntime,
+        awaitPromise: Bool
+    ) async throws -> CDPValue {
+        if !awaitPromise {
+            return Self.owlValue(from: try runtime.evaluate(script))
+        }
+
+        let token = "__cmux_owl_eval_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let quotedToken = "\"\(token)\""
+        let startScript = """
+        (() => {
+          const key = \(quotedToken);
+          try {
+            const value = (async () => {
+              return await (\(script));
+            })();
+            globalThis[key] = { state: "pending" };
+            Promise.resolve(value).then(
+              resolved => { globalThis[key] = { state: "fulfilled", value: resolved }; },
+              error => { globalThis[key] = { state: "rejected", error: String(error) }; }
+            );
+          } catch (error) {
+            globalThis[key] = { state: "rejected", error: String(error) };
+          }
+          return globalThis[key];
+        })()
+        """
+        _ = try runtime.evaluate(startScript)
+        defer {
+            _ = try? runtime.evaluate("delete globalThis[\(quotedToken)]")
+        }
+
+        for _ in 0..<750 {
+            try Task.checkCancellation()
+            let raw = try runtime.evaluate("globalThis[\(quotedToken)] || { state: 'pending' }")
+            guard let data = raw.data(using: .utf8),
+                  let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let state = object["state"] as? String else {
+                try await Task.sleep(for: .milliseconds(20))
+                continue
+            }
+            switch state {
+            case "fulfilled":
+                return CDPValue(any: object["value"])
+            case "rejected":
+                throw CDPError.commandFailed(
+                    object["error"] as? String ?? ChromiumBrowserDiagnostic.javaScriptEvaluationFailed.message
+                )
+            default:
+                try await Task.sleep(for: .milliseconds(20))
+            }
+        }
+        throw ChromiumBrowserDiagnostic.javascriptTimedOut
+    }
+
+    private static func owlValue(from raw: String) -> CDPValue {
+        guard let data = raw.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) else {
+            return .string(raw)
+        }
+        return CDPValue(any: object)
     }
 
     /// Captures the current Chromium viewport as PNG bytes.

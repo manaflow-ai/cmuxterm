@@ -27,9 +27,10 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         let harnessURL = root.appendingPathComponent("harness.js")
         try Self.openCodeFeedEventHarness.write(to: harnessURL, atomically: true, encoding: .utf8)
 
+        let nodeInvocation = makeNodeInvocation(arguments: [harnessURL.path, pluginURL.path, socketPath])
         let result = runProcess(
-            executablePath: "/usr/bin/env",
-            arguments: ["node", harnessURL.path, pluginURL.path, socketPath],
+            executablePath: nodeInvocation.executablePath,
+            arguments: nodeInvocation.arguments,
             environment: ProcessInfo.processInfo.environment,
             timeout: 5
         )
@@ -176,6 +177,14 @@ const fs = require("node:fs");
   process.exit(1);
 });
 """#
+
+    private func makeNodeInvocation(arguments: [String]) -> (executablePath: String, arguments: [String]) {
+        if let nodePath = ProcessInfo.processInfo.environment["CMUX_NODE_BINARY"],
+           FileManager.default.isExecutableFile(atPath: nodePath) {
+            return (nodePath, arguments)
+        }
+        return ("/usr/bin/env", ["node"] + arguments)
+    }
 
     private func runProcess(
         executablePath: String,

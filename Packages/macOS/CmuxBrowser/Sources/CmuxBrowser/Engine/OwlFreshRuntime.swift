@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import OwlFreshRuntimeShim
 
 /// Owns one OWL Content Shell session and translates its native compositor events.
@@ -19,6 +20,44 @@ final class OwlFreshRuntime: @unchecked Sendable {
     private final class UnmanagedCallbackBox: @unchecked Sendable {
         let handler: EventHandler
         init(_ handler: @escaping EventHandler) { self.handler = handler }
+    }
+
+    /// Returns a sibling launcher that adds the validated unpacked-extension
+    /// allowlist before the OWL runtime's positional initial URL argument.
+    /// The launcher stays beside Content Shell so the runtime dylib lookup
+    /// remains relative to the extracted, signed runtime tree.
+    static func shellExecutable(
+        for shell: URL,
+        extensionDirectories: [URL]
+    ) throws -> URL {
+        let paths = extensionDirectories
+            .map { $0.standardizedFileURL.path }
+            .filter { !$0.isEmpty && !$0.contains(",") }
+        guard !paths.isEmpty else { return shell }
+
+        let joined = paths.joined(separator: ",")
+        let digest = SHA256.hash(data: Data(joined.utf8))
+            .prefix(8)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let wrapper = shell
+            .deletingLastPathComponent()
+            .appendingPathComponent(".cmux-owl-shell-\(digest)", isDirectory: false)
+        let quote: (String) -> String = { value in
+            "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        }
+        let script = "#!/bin/sh\nexec \(quote(shell.path)) \(quote("--disable-extensions-except=\(joined)")) \(quote("--load-extension=\(joined)")) \"$@\"\n"
+        let data = Data(script.utf8)
+        if let existing = try? Data(contentsOf: wrapper), existing != data {
+            try data.write(to: wrapper, options: .atomic)
+        } else if !FileManager.default.fileExists(atPath: wrapper.path) {
+            try data.write(to: wrapper, options: .atomic)
+        }
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: 0o755)],
+            ofItemAtPath: wrapper.path
+        )
+        return wrapper
     }
 
     init(shell: URL, initialURL: URL, profile: URL, handler: @escaping EventHandler) throws {

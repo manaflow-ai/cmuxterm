@@ -38,6 +38,9 @@ public actor ChromiumBrowserSession {
     var owlNavigationSawLoadingEvent = false
     var owlNavigationBaselineDocumentEpoch: Double?
     var owlCurrentDocumentEpoch: Double?
+    /// Whether the most recent completed OWL destination may resolve to a
+    /// redirected URL when a caller supplied the requested URL.
+    var owlLastNavigationAllowsRedirect = false
     var nativeSurfaceContextID: UInt32?
     var connection: ChromiumCDPConnection?
     var state: ChromiumSessionState = .stopped
@@ -142,6 +145,7 @@ public actor ChromiumBrowserSession {
         owlNavigationSawLoadingEvent = false
         owlNavigationBaselineDocumentEpoch = nil
         owlCurrentDocumentEpoch = nil
+        owlLastNavigationAllowsRedirect = false
         for child in pendingProcesses.values {
             child.terminate()
         }
@@ -363,8 +367,12 @@ public actor ChromiumBrowserSession {
         generation: UInt64
     ) async throws {
         let initialURL = currentURL ?? URL(string: "about:blank")!
+        let owlShell = try OwlFreshRuntime.shellExecutable(
+            for: executable,
+            extensionDirectories: extensionDirectoriesProvider()
+        )
         let runtime = try OwlFreshRuntime(
-            shell: executable,
+            shell: owlShell,
             initialURL: initialURL,
             profile: profileDirectory
         ) { [weak self] event in

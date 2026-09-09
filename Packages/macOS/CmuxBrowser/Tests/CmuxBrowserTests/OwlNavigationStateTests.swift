@@ -23,6 +23,35 @@ struct OwlNavigationStateTests {
         #expect(OwlFreshMouseKind(cdpType: "mouseWheel") == .wheel)
     }
 
+    @Test("OWL extension launcher preserves the runtime layout")
+    func owlExtensionLauncher() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-owl-wrapper-\(UUID().uuidString)", isDirectory: true)
+        let shell = root
+            .appendingPathComponent("Content Shell.app/Contents/MacOS/Content Shell", isDirectory: false)
+        let extensionOne = root.appendingPathComponent("extension-one", isDirectory: true)
+        let extensionTwo = root.appendingPathComponent("extension-two", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: shell.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(at: extensionOne, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: extensionTwo, withIntermediateDirectories: true)
+        try Data().write(to: shell)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let wrapper = try OwlFreshRuntime.shellExecutable(
+            for: shell,
+            extensionDirectories: [extensionOne, extensionTwo]
+        )
+        #expect(wrapper.deletingLastPathComponent() == shell.deletingLastPathComponent())
+        #expect(wrapper != shell)
+        #expect(FileManager.default.isExecutableFile(atPath: wrapper.path))
+        let script = try String(contentsOf: wrapper, encoding: .utf8)
+        #expect(script.contains("--disable-extensions-except=\(extensionOne.path),\(extensionTwo.path)"))
+        #expect(script.contains("--load-extension=\(extensionOne.path),\(extensionTwo.path)"))
+    }
+
     @Test("OWL history reports no-op traversal at either edge")
     func historyNoOps() {
         let first = URL(string: "https://one.example")!

@@ -183,7 +183,7 @@ extension ChromiumBrowserSession {
         let targetMatchesCurrent = targetURL.map { matchesCurrentURL($0) } ?? true
         if navigationRevision > revision,
            !isLoading,
-           targetMatchesCurrent {
+           (targetMatchesCurrent || (usesNativeOWL() && owlLastNavigationAllowsRedirect)) {
             return
         }
         let stream = snapshots()
@@ -200,7 +200,7 @@ extension ChromiumBrowserSession {
             let targetMatchesValue = targetURL.map { Self.matches(url: value.currentURL, target: $0) } ?? true
             if value.navigationRevision > revision,
                !value.isLoading,
-               targetMatchesValue {
+               (targetMatchesValue || (usesNativeOWL() && owlLastNavigationAllowsRedirect)) {
                 return
             }
         }
@@ -243,6 +243,7 @@ extension ChromiumBrowserSession {
         baselineDocumentEpoch: Double? = nil
     ) {
         owlNavigationIntent = intent
+        owlLastNavigationAllowsRedirect = false
         owlNavigationSawLoadingEvent = false
         owlNavigationBaselineDocumentEpoch = baselineDocumentEpoch
         isLoading = true
@@ -253,6 +254,7 @@ extension ChromiumBrowserSession {
         owlNavigationReadinessTask?.cancel()
         owlNavigationReadinessTask = nil
         owlNavigationIntent = nil
+        owlLastNavigationAllowsRedirect = false
         owlNavigationSawLoadingEvent = false
         owlNavigationBaselineDocumentEpoch = nil
         failNavigation()
@@ -260,6 +262,7 @@ extension ChromiumBrowserSession {
 
     func completeOwlNoOpNavigation() {
         owlNavigationIntent = nil
+        owlLastNavigationAllowsRedirect = false
         owlNavigationSawLoadingEvent = false
         owlNavigationBaselineDocumentEpoch = nil
         isLoading = false
@@ -289,6 +292,10 @@ extension ChromiumBrowserSession {
 
     func commitOwlNavigation(_ intent: OwlNavigationIntent, eventURL: URL?) {
         let committedURL = eventURL ?? intent.expectedURL
+        owlLastNavigationAllowsRedirect = switch intent {
+        case .destination, .reload: true
+        case .rendererDestination, .back, .forward: false
+        }
         if let committedURL {
             switch intent {
             case .destination, .rendererDestination:
@@ -620,6 +627,7 @@ extension ChromiumBrowserSession {
     }
 
     func beginNavigation() {
+        owlLastNavigationAllowsRedirect = false
         navigationRevision &+= 1
         isLoading = true
         publish()
