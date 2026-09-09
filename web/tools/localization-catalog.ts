@@ -118,21 +118,16 @@ const identityAllowedValues = new Set([
   "iOS TestFlight",
   "iTerm2",
   "Node.js",
-  "OSC 777 (simple)",
   "PreToolUse",
   "PreToolUse, PermissionRequest",
   "PreToolUse, PostToolUse",
-  "Swift/AppKit plus libghostty",
   "WebAuthn",
   "WezTerm",
   "Windsurf",
   "Zed",
   "macOS + Linux + Windows",
   "macOS, Linux",
-  "cmux TUI · open source",
   "macOS, Linux, Windows",
-  "02 / AGENTS",
-  "04 / MACHINES",
   "pre_tool_call, post_tool_call, pre_approval_request, post_approval_response",
   "beforeShellExecution",
   "Pi",
@@ -146,7 +141,6 @@ const identityAllowedValues = new Set([
   "Amazon Bedrock",
   "OpenCode Go",
   "© {year} Manaflow",
-  "Enterprise | cmux",
   "Ghostty VT",
   "Kitty",
   "TextBox (Beta)",
@@ -277,7 +271,7 @@ function hasMatchingIcuStructure(source: string, translation: string): boolean {
 
 export function isEnglishIdentityAllowed(pathname: string, value: string): boolean {
   if (identityAllowedValues.has(value)) return true;
-  if (/^(?:https?:\/\/|mailto:|tel:|[\w.+-]+@[\w.-]+\.[a-z]{2,})/iu.test(value)) {
+  if (/^(?:https?:\/\/\S+|mailto:\S+|tel:\S+|[\w.+-]+@[\w.-]+\.[a-z]{2,})$/iu.test(value)) {
     return true;
   }
   if (/^[\d\s$,+./:#?=&%()\[\]{}<>_@-]+$/u.test(value)) return true;
@@ -301,6 +295,12 @@ export function isEnglishIdentityAllowed(pathname: string, value: string): boole
 
 function hasForbiddenTranslationMarker(value: string): boolean {
   return forbiddenTranslationMarkerPatterns.some((pattern) => pattern.test(value));
+}
+
+function hasMatchingLeafValue(source: JsonValue, translation: JsonValue): boolean {
+  return typeof source === "string"
+    ? typeof translation === "string"
+    : source === translation;
 }
 
 export async function readCatalog(locale: string): Promise<JsonValue> {
@@ -334,6 +334,16 @@ export async function validateCatalog(
         path: englishLeaf.path,
         message: "missing key",
         source: typeof englishLeaf.value === "string" ? englishLeaf.value : undefined,
+      });
+      continue;
+    }
+    if (!hasMatchingLeafValue(englishLeaf.value, translatedLeaf.value)) {
+      issues.push({
+        locale,
+        path: englishLeaf.path,
+        message: "invalid message value",
+        source: typeof englishLeaf.value === "string" ? englishLeaf.value : undefined,
+        value: translatedLeaf.value,
       });
       continue;
     }
