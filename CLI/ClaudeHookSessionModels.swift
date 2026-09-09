@@ -1,4 +1,5 @@
 import Foundation
+import CMUXAgentLaunch
 
 struct ClaudeHookActiveSessionRecord: Codable {
     var sessionId: String
