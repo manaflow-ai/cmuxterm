@@ -4,6 +4,27 @@ import SwiftUI
 import Testing
 @testable import cmux_DEV
 
+@MainActor
+struct SidebarRowTextAccessibilityTreeTests {
+    @Test(arguments: [1, 2])
+    func plainTextExposesItsValueWithoutRecursiveChildren(lines: Int) {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 100),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        defer { window.close() }
+        let label = SidebarRowTextView(lines: lines)
+        label.frame = NSRect(x: 0, y: 0, width: 280, height: 80)
+        label.configurePlainText("Workspace", font: .systemFont(ofSize: 12), color: .labelColor)
+        window.contentView?.addSubview(label)
+
+        #expect(label.accessibilityValue() as? String == "Workspace")
+        #expect((label.accessibilityChildren() ?? []).isEmpty)
+    }
+}
+
 /// Behavior tests for the pure-AppKit workspace row cell: hover enforcement
 /// (authoritative sweep) and optimistic selection paint semantics.
 @Suite(.serialized)
