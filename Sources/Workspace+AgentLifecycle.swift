@@ -301,7 +301,6 @@ extension Workspace {
             ? .observedAgentCommandRunning
             : .manualResumeAvailable
     }
-
     func updateRestoredAgentResumeState(
         panelId: UUID,
         restoredAgent: SessionRestorableAgentSnapshot,
@@ -334,7 +333,6 @@ extension Workspace {
             break
         }
     }
-
     func updateBindingOnlyRestoredAgentResumeState(
         panelId: UUID,
         shellState: PanelShellActivityState
@@ -354,7 +352,6 @@ extension Workspace {
             break
         }
     }
-
     /// Grace period between a restored launch's shell settling at an idle prompt
     /// and replaying its startup input. Long enough for a prompt-then-command
     /// sequence to report `commandRunning`, short enough that a lost restore
@@ -1019,6 +1016,9 @@ extension Workspace {
             }
         }
     }
+#if DEBUG
+    func resolveDeferredAgentResumeRestoresForTesting(using index: RestorableAgentSessionIndex) { resolveDeferredAgentResumeRestores(using: index) }
+#endif
     func removeDeferredAgentResumeRestore(panelId: UUID) {
         deferredAgentResumeRestoresByPanelId.removeValue(forKey: panelId)
         if let claim = deferredAgentResumeClaimsByPanelId.removeValue(forKey: panelId) {
@@ -1144,8 +1144,8 @@ extension Workspace {
                     restoredAgentLifecycle.clearSessionRestore(panelId: panelId)
                 }
                 removeDeferredAgentResumeRestore(panelId: panelId)
+            }
         }
-    }
         deferredAgentResumeRestoresByPanelId.removeAll()
     }
     func agentHibernationLifecycleState(
@@ -1167,5 +1167,5 @@ extension Workspace {
             workspaceId: id,
             panelId: panelId
         )
-        }
     }
+}
