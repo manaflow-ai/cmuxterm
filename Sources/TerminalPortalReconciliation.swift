@@ -17,27 +17,31 @@ struct TerminalPortalReconciliationReasons: OptionSet {
 /// binding reparents and resizes the real terminal view, so doing it from those
 /// callbacks can synchronously re-enter `NSHostingView` layout on macOS 15.
 ///
-/// Each representable coordinator owns one scheduler. Repeated callbacks retain the
-/// latest reconciliation closure while accumulating required work, then flush after
-/// the originating framework callback has returned.
+/// Each representable coordinator owns one scheduler. Repeated callbacks only
+/// accumulate required work; the coordinator owns the latest reconciliation state,
+/// then flushes it after the originating framework callback has returned.
 @MainActor
 final class TerminalPortalReconciliationScheduler {
+    typealias FlushHandler = @MainActor (TerminalPortalReconciliationReasons) -> Void
+
+    private let flushHandler: FlushHandler
     private var pendingReasons: TerminalPortalReconciliationReasons = []
-    private var pendingReconciliation: (@MainActor (TerminalPortalReconciliationReasons) -> Void)?
+    private var hasPendingReconciliation = false
     private var isFlushScheduled = false
 
-    func stage(
-        reasons: TerminalPortalReconciliationReasons = [],
-        reconciliation: @escaping @MainActor (TerminalPortalReconciliationReasons) -> Void
-    ) {
+    init(flushHandler: @escaping FlushHandler) {
+        self.flushHandler = flushHandler
+    }
+
+    func stage(reasons: TerminalPortalReconciliationReasons = []) {
         pendingReasons.formUnion(reasons)
-        pendingReconciliation = reconciliation
+        hasPendingReconciliation = true
         scheduleFlushIfNeeded()
     }
 
     func cancel() {
         pendingReasons = []
-        pendingReconciliation = nil
+        hasPendingReconciliation = false
     }
 
     private func scheduleFlushIfNeeded() {
@@ -55,11 +59,12 @@ final class TerminalPortalReconciliationScheduler {
     /// Flushes the staged reconciliation at a caller-owned safe boundary.
     func flushPendingReconciliation() {
         let reasons = pendingReasons
-        let reconciliation = pendingReconciliation
+        let shouldFlush = hasPendingReconciliation
         pendingReasons = []
-        pendingReconciliation = nil
+        hasPendingReconciliation = false
         isFlushScheduled = false
-        reconciliation?(reasons)
+        guard shouldFlush else { return }
+        flushHandler(reasons)
     }
 }
 
@@ -86,6 +91,54 @@ struct TerminalPortalReconciliationSnapshot {
 }
 
 extension GhosttyTerminalView {
+    @MainActor
+    final class Coordinator {
+        var attachGeneration: Int = 0
+        lazy var portalReconciliationScheduler = TerminalPortalReconciliationScheduler { [weak self] reasons in
+            guard let self else { return }
+            let host = self.pendingPortalReconciliationHost
+            let hostedView = self.hostedView
+            let terminalSurface = self.pendingPortalReconciliationSurface
+            let snapshot = self.pendingPortalReconciliationSnapshot
+            let reason = self.pendingPortalReconciliationReason
+            self.pendingPortalReconciliationHost = nil
+            self.pendingPortalReconciliationSurface = nil
+            self.pendingPortalReconciliationSnapshot = nil
+            self.pendingPortalReconciliationReason = nil
+            guard let host, let hostedView, let terminalSurface, let snapshot, let reason else { return }
+            GhosttyTerminalView.performPortalReconciliation(
+                hostedView: hostedView,
+                host: host,
+                coordinator: self,
+                terminalSurface: terminalSurface,
+                snapshot: snapshot,
+                reasons: reasons,
+                reason: reason
+            )
+        }
+        weak var pendingPortalReconciliationHost: HostContainerView?
+        weak var pendingPortalReconciliationSurface: TerminalSurface?
+        var pendingPortalReconciliationSnapshot: TerminalPortalReconciliationSnapshot?
+        var pendingPortalReconciliationReason: String?
+        // Track the latest desired state so attach retries can re-apply focus after re-parenting.
+        var desiredIsActive: Bool = true
+        var desiredIsVisibleInUI: Bool = true
+        var desiredShowsUnreadNotificationRing: Bool = false
+        var desiredPortalZPriority: Int = 0
+        var lastBoundHostId: ObjectIdentifier?
+        var lastPaneDropZone: DropZone?
+        var lastSynchronizedHostGeometryRevision: UInt64 = 0
+        weak var hostedView: GhosttySurfaceScrollView?
+        /// The owner-death wake-up. The surface's vacancy registry holds only
+        /// a weak trampoline into this coordinator, so the real retry (and
+        /// everything it captures) dies with the representable.
+        var vacancyRetry: (() -> Void)?
+        /// The surface this representable last parked a wake-up on; dismantle
+        /// removes the park through this because `hostedView` is weak and can
+        /// already be gone by then.
+        weak var vacancyParkedSurface: TerminalSurface?
+    }
+
     static func stagePortalReconciliation(
         hostedView: GhosttySurfaceScrollView,
         host: HostContainerView,
@@ -95,131 +148,143 @@ extension GhosttyTerminalView {
         reasons: TerminalPortalReconciliationReasons,
         reason: String
     ) {
-        coordinator.portalReconciliationScheduler.stage(reasons: reasons) {
-            [weak host, weak hostedView, weak coordinator, weak terminalSurface] reasons in
-            guard let host, let hostedView, let coordinator, let terminalSurface else { return }
-            guard coordinator.attachGeneration == snapshot.attachGeneration else { return }
-            guard coordinator.hostedView === hostedView else { return }
+        coordinator.pendingPortalReconciliationHost = host
+        coordinator.pendingPortalReconciliationSurface = terminalSurface
+        coordinator.pendingPortalReconciliationSnapshot = snapshot
+        coordinator.pendingPortalReconciliationReason = reason
+        coordinator.portalReconciliationScheduler.stage(reasons: reasons)
+    }
 
-            let portalBindingLive = terminalSurface.canAcceptPortalBinding(
-                expectedSurfaceId: snapshot.expectedSurfaceId,
-                expectedGeneration: snapshot.expectedSurfaceGeneration
+    static func performPortalReconciliation(
+        hostedView: GhosttySurfaceScrollView,
+        host: HostContainerView,
+        coordinator: Coordinator,
+        terminalSurface: TerminalSurface,
+        snapshot: TerminalPortalReconciliationSnapshot,
+        reasons: TerminalPortalReconciliationReasons,
+        reason: String
+    ) {
+        guard coordinator.attachGeneration == snapshot.attachGeneration else { return }
+        guard coordinator.hostedView === hostedView else { return }
+
+        let portalBindingLive = terminalSurface.canAcceptPortalBinding(
+            expectedSurfaceId: snapshot.expectedSurfaceId,
+            expectedGeneration: snapshot.expectedSurfaceGeneration
+        )
+        let ownsCurrentPane = snapshot.isCurrentPaneOwner()
+        let hostOwnsPortal =
+            portalBindingLive &&
+            ownsCurrentPane &&
+            terminalSurface.claimPortalHost(
+                hostId: ObjectIdentifier(host),
+                paneId: snapshot.paneId,
+                instanceSerial: host.instanceSerial,
+                ownershipGeneration: snapshot.ownershipGeneration,
+                inWindow: host.window != nil,
+                bounds: host.bounds,
+                allowsAuthorityAcquisition: ownsCurrentPane,
+                reason: reason
             )
-            let ownsCurrentPane = snapshot.isCurrentPaneOwner()
-            let hostOwnsPortal =
-                portalBindingLive &&
-                ownsCurrentPane &&
-                terminalSurface.claimPortalHost(
-                    hostId: ObjectIdentifier(host),
-                    paneId: snapshot.paneId,
-                    instanceSerial: host.instanceSerial,
-                    ownershipGeneration: snapshot.ownershipGeneration,
-                    inWindow: host.window != nil,
-                    bounds: host.bounds,
-                    allowsAuthorityAcquisition: ownsCurrentPane,
-                    reason: reason
-                )
 
-            if hostOwnsPortal {
-                configureHostedView(
-                    hostedView,
-                    terminalSurface: terminalSurface,
-                    coordinator: coordinator,
-                    snapshot: snapshot
-                )
-            }
-
-            let hostId = ObjectIdentifier(host)
-            let wasBoundToHost = TerminalWindowPortalRegistry.isHostedView(
+        if hostOwnsPortal {
+            configureHostedView(
                 hostedView,
-                boundTo: host
+                terminalSurface: terminalSurface,
+                coordinator: coordinator,
+                snapshot: snapshot
             )
-            if host.window != nil, hostOwnsPortal {
-                let bindingRequired =
-                    reasons.contains(.bindingRequired) ||
-                    coordinator.lastBoundHostId != hostId ||
-                    hostedView.superview == nil ||
-                    !wasBoundToHost
-                if bindingRequired {
-                    TerminalWindowPortalRegistry.bind(
-                        hostedView: hostedView,
-                        to: host,
-                        visibleInUI: coordinator.desiredIsVisibleInUI,
-                        zPriority: coordinator.desiredPortalZPriority,
-                        expectedSurfaceId: snapshot.expectedSurfaceId,
-                        expectedGeneration: snapshot.expectedSurfaceGeneration
-                    )
-                    coordinator.lastBoundHostId = hostId
-                    coordinator.lastSynchronizedHostGeometryRevision = host.geometryRevision
-                } else if coordinator.lastSynchronizedHostGeometryRevision != host.geometryRevision {
-                    TerminalWindowPortalRegistry.synchronizeForAnchor(host, syncLayout: false)
-                    coordinator.lastSynchronizedHostGeometryRevision = host.geometryRevision
-                }
-            } else if hostOwnsPortal,
-                      TerminalWindowPortalRegistry.hasEntry(for: hostedView, boundTo: host) {
-                // Preserve the latest visibility intent while the SwiftUI host
-                // is temporarily detached. Its next move-to-window callback
-                // stages the authoritative rebind.
-                TerminalWindowPortalRegistry.updateEntryVisibility(
-                    for: hostedView,
-                    visibleInUI: coordinator.desiredIsVisibleInUI
-                )
-            }
+        }
 
-            let isBoundToCurrentHost = TerminalWindowPortalRegistry.isHostedView(
-                hostedView,
-                boundTo: host
-            )
-            let hasCurrentHostEntry = TerminalWindowPortalRegistry.hasEntry(
+        let hostId = ObjectIdentifier(host)
+        let wasBoundToHost = TerminalWindowPortalRegistry.isHostedView(
+            hostedView,
+            boundTo: host
+        )
+        if host.window != nil, hostOwnsPortal {
+            let bindingRequired =
+                reasons.contains(.bindingRequired) ||
+                coordinator.lastBoundHostId != hostId ||
+                hostedView.superview == nil ||
+                !wasBoundToHost
+            if bindingRequired {
+                TerminalWindowPortalRegistry.bind(
+                    hostedView: hostedView,
+                    to: host,
+                    visibleInUI: coordinator.desiredIsVisibleInUI,
+                    zPriority: coordinator.desiredPortalZPriority,
+                    expectedSurfaceId: snapshot.expectedSurfaceId,
+                    expectedGeneration: snapshot.expectedSurfaceGeneration
+                )
+                coordinator.lastBoundHostId = hostId
+                coordinator.lastSynchronizedHostGeometryRevision = host.geometryRevision
+            } else if coordinator.lastSynchronizedHostGeometryRevision != host.geometryRevision {
+                TerminalWindowPortalRegistry.synchronizeForAnchor(host, syncLayout: false)
+                coordinator.lastSynchronizedHostGeometryRevision = host.geometryRevision
+            }
+        } else if hostOwnsPortal,
+                  TerminalWindowPortalRegistry.hasEntry(for: hostedView, boundTo: host) {
+            // Preserve the latest visibility intent while the SwiftUI host
+            // is temporarily detached. Its next move-to-window callback
+            // stages the authoritative rebind.
+            TerminalWindowPortalRegistry.updateEntryVisibility(
                 for: hostedView,
-                boundTo: host
+                visibleInUI: coordinator.desiredIsVisibleInUI
             )
-            let isCurrentPortalHost = terminalSurface.ownsPortalHost(
-                hostId: hostId,
-                instanceSerial: host.instanceSerial
+        }
+
+        let isBoundToCurrentHost = TerminalWindowPortalRegistry.isHostedView(
+            hostedView,
+            boundTo: host
+        )
+        let hasCurrentHostEntry = TerminalWindowPortalRegistry.hasEntry(
+            for: hostedView,
+            boundTo: host
+        )
+        let isCurrentPortalHost = terminalSurface.ownsPortalHost(
+            hostId: hostId,
+            instanceSerial: host.instanceSerial
+        )
+        // Only the current portal owner may publish a ring. A host that is
+        // still the bound owner may also publish a hide, which clears a
+        // stale ring during a hand-off without allowing an old coordinator
+        // to resurrect one on the replacement host.
+        if hostOwnsPortal || (
+            !coordinator.desiredShowsUnreadNotificationRing
+                && isCurrentPortalHost
+        ) {
+            hostedView.setNotificationRing(visible: coordinator.desiredShowsUnreadNotificationRing)
+        }
+
+        if !coordinator.desiredIsVisibleInUI,
+           hasCurrentHostEntry,
+           isCurrentPortalHost {
+            TerminalWindowPortalRegistry.updateEntryVisibility(
+                for: hostedView,
+                visibleInUI: false
             )
-            // Only the current portal owner may publish a ring. A host that is
-            // still the bound owner may also publish a hide, which clears a
-            // stale ring during a hand-off without allowing an old coordinator
-            // to resurrect one on the replacement host.
-            if hostOwnsPortal || (
-                !coordinator.desiredShowsUnreadNotificationRing
-                    && isCurrentPortalHost
-            ) {
-                hostedView.setNotificationRing(visible: coordinator.desiredShowsUnreadNotificationRing)
-            }
+        }
 
-            if !coordinator.desiredIsVisibleInUI,
-               hasCurrentHostEntry,
-               isCurrentPortalHost {
-                TerminalWindowPortalRegistry.updateEntryVisibility(
-                    for: hostedView,
-                    visibleInUI: false
-                )
-            }
-
-            switch immediateHostedStateAction(
-                hostOwnsPortal: hostOwnsPortal,
-                portalBindingLive: portalBindingLive,
-                desiredVisibleInUI: coordinator.desiredIsVisibleInUI,
-                hostedViewHasSuperview: hostedView.superview != nil,
-                isBoundToCurrentHost: isBoundToCurrentHost
-            ) {
-            case .applyVisibleAndActive:
-                hostedView.setVisibleInUI(coordinator.desiredIsVisibleInUI)
-                hostedView.setActive(coordinator.desiredIsActive)
-            case .hideOnly:
-                TerminalWindowPortalRegistry.updateEntryVisibility(
-                    for: hostedView,
-                    visibleInUI: false
-                )
-                hostedView.setVisibleInUI(false)
-            case .deferred:
-                break
-            }
-            if hostOwnsPortal, reasons.contains(.flushPendingManualSizeReport) {
-                terminalSurface.flushPendingManualSizeReportIfAttached()
-            }
+        switch immediateHostedStateAction(
+            hostOwnsPortal: hostOwnsPortal,
+            portalBindingLive: portalBindingLive,
+            desiredVisibleInUI: coordinator.desiredIsVisibleInUI,
+            hostedViewHasSuperview: hostedView.superview != nil,
+            isBoundToCurrentHost: isBoundToCurrentHost
+        ) {
+        case .applyVisibleAndActive:
+            hostedView.setVisibleInUI(coordinator.desiredIsVisibleInUI)
+            hostedView.setActive(coordinator.desiredIsActive)
+        case .hideOnly:
+            TerminalWindowPortalRegistry.updateEntryVisibility(
+                for: hostedView,
+                visibleInUI: false
+            )
+            hostedView.setVisibleInUI(false)
+        case .deferred:
+            break
+        }
+        if hostOwnsPortal, reasons.contains(.flushPendingManualSizeReport) {
+            terminalSurface.flushPendingManualSizeReportIfAttached()
         }
     }
 
@@ -235,9 +300,10 @@ extension GhosttyTerminalView {
         hostedView.attachSurface(terminalSurface)
         hostedView.setWorkspaceAttentionColor(snapshot.workspaceAttentionColor)
         hostedView.setSessionContentWidthPresentation(snapshot.sessionContentWidthPresentation)
+        let onFocus = snapshot.onFocus
         hostedView.setFocusHandler { [weak terminalSurface] in
             guard let terminalSurface else { return }
-            snapshot.onFocus?(terminalSurface.id)
+            onFocus?(terminalSurface.id)
         }
         hostedView.setTriggerFlashHandler(snapshot.onTriggerFlash)
         hostedView.setPaneDropContext(TerminalPaneDropContext(

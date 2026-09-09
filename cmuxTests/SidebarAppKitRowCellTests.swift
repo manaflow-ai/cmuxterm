@@ -52,7 +52,8 @@ struct SidebarAppKitRowCellTests {
             checklistItems: [],
             checklistCompletedCount: 0,
             checklistTotalCount: 0,
-            checklistFirstUncheckedText: nil
+            checklistFirstUncheckedText: nil, remoteReconnectHelpText: "", loadingTooltip: "",
+            taskStatusCompactLabel: nil, taskStatusTooltip: nil
         )
     }
 
@@ -155,8 +156,7 @@ struct SidebarAppKitRowCellTests {
                 canMarkUnread: false,
                 hasLatestNotification: false,
                 allNotificationsMuted: false,
-                notifications: []
-            )
+                notifications: []), accessibilityTitle: "Workspace, workspace 1 of 1"
         )
     }
 

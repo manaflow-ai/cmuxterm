@@ -14108,29 +14108,6 @@ struct GhosttyTerminalView: NSViewRepresentable {
         }
     }
 
-    @MainActor
-    final class Coordinator {
-        var attachGeneration: Int = 0
-        let portalReconciliationScheduler = TerminalPortalReconciliationScheduler()
-        // Track the latest desired state so attach retries can re-apply focus after re-parenting.
-        var desiredIsActive: Bool = true
-        var desiredIsVisibleInUI: Bool = true
-        var desiredShowsUnreadNotificationRing: Bool = false
-        var desiredPortalZPriority: Int = 0
-        var lastBoundHostId: ObjectIdentifier?
-        var lastPaneDropZone: DropZone?
-        var lastSynchronizedHostGeometryRevision: UInt64 = 0
-        weak var hostedView: GhosttySurfaceScrollView?
-        /// The owner-death wake-up. The surface's vacancy registry holds only
-        /// a weak trampoline into this coordinator, so the real retry (and
-        /// everything it captures) dies with the representable.
-        var vacancyRetry: (() -> Void)?
-        /// The surface this representable last parked a wake-up on; dismantle
-        /// removes the park through this because `hostedView` is weak and can
-        /// already be gone by then.
-        weak var vacancyParkedSurface: TerminalSurface?
-    }
-
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     static func shouldApplyImmediateHostedStateUpdate(
@@ -14436,6 +14413,10 @@ struct GhosttyTerminalView: NSViewRepresentable {
         coordinator.desiredPortalZPriority = 0
         coordinator.lastBoundHostId = nil
         coordinator.portalReconciliationScheduler.cancel()
+        coordinator.pendingPortalReconciliationHost = nil
+        coordinator.pendingPortalReconciliationSurface = nil
+        coordinator.pendingPortalReconciliationSnapshot = nil
+        coordinator.pendingPortalReconciliationReason = nil
         let hostedView = coordinator.hostedView
         let host = nsView as? HostContainerView
         let wasBoundToDismantledHost: Bool = {

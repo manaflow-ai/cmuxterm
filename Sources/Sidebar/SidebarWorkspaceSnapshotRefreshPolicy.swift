@@ -81,7 +81,13 @@ extension SidebarWorkspaceSnapshotBuilder.Snapshot {
             checklistItems: snapshot.checklistItems,
             checklistCompletedCount: snapshot.checklistCompletedCount,
             checklistTotalCount: snapshot.checklistTotalCount,
-            checklistFirstUncheckedText: snapshot.checklistFirstUncheckedText
+            checklistFirstUncheckedText: snapshot.checklistFirstUncheckedText,
+            remoteReconnectHelpText: remoteReconnectHelpText,
+            loadingTooltip: SidebarWorkspaceRowLocalizedStrings.loadingTooltip(
+                count: snapshot.activeCodingAgentCount
+            ),
+            taskStatusCompactLabel: snapshot.taskStatusCompactLabel,
+            taskStatusTooltip: snapshot.taskStatusTooltip
         )
     }
 }

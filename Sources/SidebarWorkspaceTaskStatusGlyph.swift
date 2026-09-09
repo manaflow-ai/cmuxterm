@@ -7,18 +7,7 @@ import SwiftUI
 extension WorkspaceTaskStatus {
     /// The localized lane name shown in menus, palette entries, and tooltips.
     var displayName: String {
-        switch self {
-        case .todo:
-            return String(localized: "sidebar.status.todo", defaultValue: "Todo")
-        case .working:
-            return String(localized: "sidebar.status.working", defaultValue: "Working")
-        case .needsAttention:
-            return String(localized: "sidebar.status.needsAttention", defaultValue: "Needs Attention")
-        case .review:
-            return String(localized: "sidebar.status.review", defaultValue: "In Review")
-        case .done:
-            return String(localized: "sidebar.status.done", defaultValue: "Done")
-        }
+        SidebarWorkspaceRowLocalizedStrings.statusDisplayName(self)
     }
 }
 
@@ -76,23 +65,10 @@ struct SidebarWorkspaceTaskStatusGlyphModel: Equatable {
     }
 
     /// Localized format strings resolved once, not per render.
-    private static let manualTooltipFormat = String(
-        localized: "sidebar.status.tooltip.manual",
-        defaultValue: "%@ — set manually"
-    )
-    private static let inferredTooltipFormat = String(
-        localized: "sidebar.status.tooltip.inferred",
-        defaultValue: "%@ — inferred"
-    )
-
     /// The localized tooltip: lane name plus whether it was set manually or
     /// inferred from live signals.
     static func tooltip(status: WorkspaceTaskStatus, hasOverride: Bool) -> String {
-        String(
-            format: hasOverride ? manualTooltipFormat : inferredTooltipFormat,
-            locale: .current,
-            status.displayName
-        )
+        SidebarWorkspaceRowLocalizedStrings.statusTooltip(status: status, hasOverride: hasOverride)
     }
 }
 
@@ -124,12 +100,10 @@ struct SidebarWorkspaceManualStatusIndicatorMenu: View {
     let monochromeColor: Color
     let neutralColor: Color
     let fontScale: CGFloat
+    let statusLabel: String
+    let statusTooltip: String
 
     @State private var isStatusPopoverPresented = false
-
-    private var labelText: String {
-        String(localized: "sidebar.status.compactLabel", defaultValue: "Status: \(status.displayName)")
-    }
 
     var body: some View {
         Button {
@@ -141,7 +115,8 @@ struct SidebarWorkspaceManualStatusIndicatorMenu: View {
                 usesMonochrome: usesMonochrome,
                 monochromeColor: monochromeColor,
                 neutralColor: neutralColor,
-                fontScale: fontScale
+                fontScale: fontScale,
+                tooltip: statusTooltip
             )
             .padding(.horizontal, 2)
             .padding(.vertical, 2)
@@ -172,8 +147,8 @@ struct SidebarWorkspaceManualStatusIndicatorMenu: View {
             }
         )
         .fixedSize(horizontal: true, vertical: true)
-        .safeHelp(String(localized: "sidebar.status.compactTooltip", defaultValue: "Change workspace status"))
-        .accessibilityLabel(labelText)
+        .safeHelp(SidebarWorkspaceRowLocalizedStrings.statusCompactTooltip)
+        .accessibilityLabel(statusLabel)
         .accessibilityIdentifier("SidebarWorkspaceManualStatusIndicatorMenu")
     }
 }
@@ -198,11 +173,33 @@ struct SidebarWorkspaceTaskStatusGlyph: View {
     /// The secondary color used for the todo outline.
     let neutralColor: Color
     let fontScale: CGFloat
+    let tooltip: String
 
     private static let baseSize: CGFloat = 9
     private static let slotWidth: CGFloat = 11
     private static let strokeWidth: CGFloat = 1
     private static let attentionStrokeWidth: CGFloat = 1.4
+
+    init(
+        status: WorkspaceTaskStatus,
+        hasOverride: Bool,
+        usesMonochrome: Bool,
+        monochromeColor: Color,
+        neutralColor: Color,
+        fontScale: CGFloat,
+        tooltip: String? = nil
+    ) {
+        self.status = status
+        self.hasOverride = hasOverride
+        self.usesMonochrome = usesMonochrome
+        self.monochromeColor = monochromeColor
+        self.neutralColor = neutralColor
+        self.fontScale = fontScale
+        self.tooltip = tooltip ?? SidebarWorkspaceTaskStatusGlyphModel.tooltip(
+            status: status,
+            hasOverride: hasOverride
+        )
+    }
 
     private var model: SidebarWorkspaceTaskStatusGlyphModel {
         SidebarWorkspaceTaskStatusGlyphModel(status: status)
@@ -232,7 +229,6 @@ struct SidebarWorkspaceTaskStatusGlyph: View {
 
     var body: some View {
         let size = Self.baseSize * fontScale
-        let tooltip = SidebarWorkspaceTaskStatusGlyphModel.tooltip(status: status, hasOverride: hasOverride)
         ZStack {
             Circle()
                 .stroke(statusColor, lineWidth: strokeWidth)

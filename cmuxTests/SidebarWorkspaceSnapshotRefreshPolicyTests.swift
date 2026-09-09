@@ -223,7 +223,11 @@ import Testing
             checklistItems: [],
             checklistCompletedCount: 0,
             checklistTotalCount: 0,
-            checklistFirstUncheckedText: nil
+            checklistFirstUncheckedText: nil,
+            remoteReconnectHelpText: "",
+            loadingTooltip: SidebarWorkspaceRowLocalizedStrings.loadingTooltip(count: activeCodingAgentCount),
+            taskStatusCompactLabel: nil,
+            taskStatusTooltip: nil
         )
     }
 

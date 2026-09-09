@@ -98,6 +98,11 @@ struct SidebarWorkspaceRowInput {
                 hasLatestNotification: targetAggregate.hasLatestNotification,
                 allNotificationsMuted: targetAggregate.allNotificationsMuted,
                 notifications: targetAggregate.notifications
+            ),
+            accessibilityTitle: SidebarWorkspaceRowLocalizedStrings.workspacePosition(
+                title: workspace.title,
+                index: index + 1,
+                count: workspaceCount
             )
         )
     }
