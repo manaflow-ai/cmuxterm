@@ -29,7 +29,7 @@ final class OpenCodeHookRegressionTests: XCTestCase {
 
         let result = runProcess(
             executablePath: "/usr/bin/env",
-            arguments: ["node", harnessURL.path, pluginURL.path, socketPath],
+            arguments: ["bun", harnessURL.path, pluginURL.path, socketPath],
             environment: ProcessInfo.processInfo.environment,
             timeout: 5
         )
