@@ -381,6 +381,20 @@ extension RemoteResumeBindingTests {
             agentEventTime: delayedBinding.updatedAt
         ))
         #expect(restoredWorkspace.surfaceResumeBinding(panelId: restoredSurfaceID) == nil)
+
+        let newerBinding = SurfaceResumeBindingSnapshot(
+            kind: "codex",
+            command: "codex resume newer-session",
+            checkpointId: "newer-session",
+            source: "agent-hook",
+            updatedAt: 1_893_456_400
+        )
+        #expect(restoredWorkspace.setSurfaceResumeBinding(
+            newerBinding,
+            panelId: restoredSurfaceID,
+            agentEventTime: newerBinding.updatedAt
+        ))
+        #expect(restoredWorkspace.surfaceResumeBinding(panelId: restoredSurfaceID)?.checkpointId == "newer-session")
     }
 
 }

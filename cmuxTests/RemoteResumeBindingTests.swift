@@ -609,7 +609,7 @@ struct RemoteResumeBindingTests {
         let forbidden = rewriter.rewriteRemoteRelayCommandLine(
             try requestData([
                 "id": "relay-forbidden",
-                "method": "surface.send_text",
+                "method": "workspace.close",
                 "params": [
                     "workspace_id": workspace.id.uuidString,
                     "surface_id": surfaceID.uuidString,
@@ -732,6 +732,7 @@ struct RemoteResumeBindingTests {
             remotePTYSessionID: remotePTYSessionID,
             restoredPanelId: surfaceID
         )
+        workspace.trackRemoteTerminalSurface(surfaceID)
 
         let hook = try runBundledKiroSessionStart(
             workspaceID: relayedWorkspaceID,
@@ -1199,6 +1200,7 @@ struct RemoteResumeBindingTests {
             remotePTYSessionID: remotePTYSessionID,
             restoredPanelId: surfaceID
         )
+        workspace.trackRemoteTerminalSurface(surfaceID)
 
         let relayedRequest: [String: Any] = [
             "id": "relayed-resume-set",
@@ -1267,28 +1269,6 @@ struct RemoteResumeBindingTests {
             persistentDaemonSlot: persistentDaemonSlot,
             skipDaemonBootstrap: skipDaemonBootstrap
         )
-    }
-
-    private func remoteResumeParams(
-        workspaceID: UUID,
-        surfaceID: UUID,
-        command: String
-    ) -> [String: Any] {
-        [
-            "workspace_id": workspaceID.uuidString,
-            "surface_id": surfaceID.uuidString,
-            "name": "Codex",
-            "kind": "codex",
-            "checkpoint_id": "session-remote-7989",
-            "source": "agent-hook",
-            "command": command,
-            "cwd": "/srv/remote project",
-            "environment": [
-                "REMOTE_FLAG": "value with spaces",
-                "ANTHROPIC_API_KEY": "must-not-persist",
-            ],
-            "auto_resume": true,
-        ]
     }
 
     private func requestData(_ request: [String: Any]) throws -> Data {

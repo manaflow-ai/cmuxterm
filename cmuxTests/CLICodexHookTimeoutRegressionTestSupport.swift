@@ -19,6 +19,8 @@ struct CodexHookProcessRunResult {
     let timedOut: Bool
 }
 
+private let codexHookFixtureWorkspaceId = "11111111-1111-1111-1111-111111111111"
+
 func codexHookTestEnvironment(root: URL, codexHome: URL) -> [String: String] {
     [
         "HOME": root.path,
@@ -55,8 +57,6 @@ func makeCodexHookExecutableShellFile(at url: URL, lines: [String]) throws {
     try lines.joined(separator: "\n").appending("\n").write(to: url, atomically: true, encoding: .utf8)
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
 }
-
-
 
 func makeCodexHookSocketPath(_ name: String) -> String {
     let shortID = UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(8)
@@ -106,6 +106,7 @@ func startCodexHookMockSocketServerAccepting(
     listenerFD: Int32,
     commands: CodexHookCapturedSocketCommands,
     surfaceId: String,
+    workspaceId: String = codexHookFixtureWorkspaceId,
     connectionLimit: Int
 ) {
     DispatchQueue.global(qos: .userInitiated).async {
@@ -124,7 +125,7 @@ func startCodexHookMockSocketServerAccepting(
             }
             accepted += 1
             DispatchQueue.global(qos: .userInitiated).async {
-                handleCodexHookMockSocketClient(fd: clientFD, commands: commands, surfaceId: surfaceId)
+                handleCodexHookMockSocketClient(fd: clientFD, commands: commands, workspaceId: workspaceId, surfaceId: surfaceId)
             }
         }
     }
@@ -133,9 +134,11 @@ func startCodexHookMockSocketServerAccepting(
 func handleCodexHookMockSocketClient(
     fd clientFD: Int32,
     commands: CodexHookCapturedSocketCommands,
+    workspaceId: String,
     surfaceId: String
 ) {
     defer { Darwin.close(clientFD) }
+    let responseFixture = CodexHookSocketResponseFixture(workspaceId: workspaceId, surfaceId: surfaceId)
     var pending = Data()
     var buffer = [UInt8](repeating: 0, count: 4096)
     while true {
@@ -151,27 +154,12 @@ func handleCodexHookMockSocketClient(
             pending.removeSubrange(0...newlineRange.lowerBound)
             guard let line = String(data: lineData, encoding: .utf8) else { continue }
             commands.append(line)
-            let response = codexHookMockSocketResponse(for: line, surfaceId: surfaceId) + "\n"
+            let response = responseFixture.response(for: line) + "\n"
             _ = response.withCString { ptr in
                 Darwin.write(clientFD, ptr, strlen(ptr))
             }
         }
     }
-}
-
-func codexHookMockSocketResponse(for line: String, surfaceId: String) -> String {
-    guard let payload = codexHookJSONObject(line),
-          let id = payload["id"] as? String else {
-        return "OK"
-    }
-    if payload["method"] as? String == "surface.list" {
-        return codexHookV2Response(
-            id: id,
-            ok: true,
-            result: ["surfaces": [["id": surfaceId, "ref": surfaceId, "focused": true]]]
-        )
-    }
-    return codexHookV2Response(id: id, ok: true, result: [:])
 }
 
 func codexHookV2Response(

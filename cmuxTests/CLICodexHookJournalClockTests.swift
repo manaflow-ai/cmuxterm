@@ -65,7 +65,7 @@ extension CLICodexHookTimeoutRegressionTests {
     }
 
     @Test
-    func installedSynchronousHooksReserveDistinctJournalMilliseconds() throws {
+    func installedAsyncHooksReserveDistinctJournalMilliseconds() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("cmux-clock-precision-\(UUID().uuidString)", isDirectory: true)
         let codexHome = root.appendingPathComponent(".codex", isDirectory: true)
@@ -95,7 +95,7 @@ extension CLICodexHookTimeoutRegressionTests {
         let seed = (Int64(Date.now.timeIntervalSince1970) + 60) * 1_000_000 + 111
         try "\(seed)\n".write(to: clockDirectory.appendingPathComponent("state"),
                               atomically: true, encoding: .utf8)
-        for _ in 0..<2 {
+        for invocation in 0..<2 {
             let result = runCodexHookProcess(
                 executablePath: "/bin/sh", arguments: ["-c", command],
                 environment: [
@@ -110,6 +110,13 @@ extension CLICodexHookTimeoutRegressionTests {
             )
             #expect(!result.timedOut, Comment(rawValue: result.stderr))
             #expect(result.status == 0, Comment(rawValue: result.stderr))
+            let expectedCaptureCount = invocation + 1
+            #expect(waitForConditionBlocking(timeout: 2) {
+                guard let content = try? String(contentsOf: captureFile, encoding: .utf8) else {
+                    return false
+                }
+                return content.split(whereSeparator: \.isNewline).count >= expectedCaptureCount
+            }, "Detached PermissionRequest hook did not append capture \(expectedCaptureCount)")
         }
         let values = try String(contentsOf: captureFile, encoding: .utf8)
             .split(separator: "\n").compactMap { Double($0) }
