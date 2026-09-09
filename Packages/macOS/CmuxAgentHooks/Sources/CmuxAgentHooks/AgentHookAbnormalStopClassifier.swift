@@ -353,12 +353,12 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
     }
 
     private func containsUserInitiatedStopCue(_ lowercasedText: String) -> Bool {
-        let hasStructuredUserRequestedReason = lowercasedText.range(
+        let foldedText = lowercasedText.lowercased()
+        let hasStructuredUserRequestedReason = foldedText.range(
             of: #"(?<![a-z0-9])user[_-]requested(?![a-z0-9])"#,
             options: .regularExpression
         ) != nil
-        let normalized = lowercasedText
-            .lowercased()
+        let normalized = foldedText
             .replacingOccurrences(of: "_", with: " ")
             .replacingOccurrences(of: "-", with: " ")
             .replacingOccurrences(of: "+", with: " ")
@@ -398,9 +398,7 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
     private func containsStrongProviderFailureCue(_ lowercasedText: String) -> Bool {
         lowercasedText.contains("■")
             || containsExplicitAPIErrorCue(lowercasedText)
-            || lowercasedText.contains("error:")
-            || lowercasedText.contains("failed:")
-            || lowercasedText.contains("failure:")
+            || containsProviderScopedFailureLabel(lowercasedText)
             || lowercasedText.contains("overloaded error")
             || lowercasedText.contains("rate limit error")
             || lowercasedText.contains("authentication error")
@@ -455,14 +453,28 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
             return false
         }
         return containsExplicitAPIErrorCue(lowercasedText)
-            || lowercasedText.contains("error:")
-            || lowercasedText.contains("failed:")
-            || lowercasedText.contains("failure:")
+            || containsProviderScopedFailureLabel(lowercasedText)
             || lowercasedText.contains("exception:")
             || lowercasedText.contains("fatal:")
             || lowercasedText.contains("fatal error")
             || lowercasedText.contains("stop failure")
             || lowercasedText.contains("stopfailure")
+    }
+
+    /// Requires provider context around generic failure labels so ordinary prose
+    /// such as "Fixed the error: ..." stays out of provider notifications.
+    private func containsProviderScopedFailureLabel(_ lowercasedText: String) -> Bool {
+        let labels: Set<Substring> = ["error", "failed", "failure"]
+        let providerContext: Set<Substring> = ["api", "auth", "authentication", "capacity", "connection", "endpoint", "gateway", "http", "limit", "model", "network", "provider", "quota", "rate", "request", "response", "server", "service", "status", "stream", "timeout"]
+        let tokens = Self.notificationCueTokens(lowercasedText)
+        for index in tokens.indices where labels.contains(tokens[index]) {
+            let lowerBound = max(tokens.startIndex, index - 4)
+            let upperBound = min(tokens.endIndex, index + 5)
+            if tokens[lowerBound..<upperBound].contains(where: { providerContext.contains($0) }) {
+                return true
+            }
+        }
+        return false
     }
 
     private func containsExplicitAPIErrorCue(_ lowercasedText: String) -> Bool {

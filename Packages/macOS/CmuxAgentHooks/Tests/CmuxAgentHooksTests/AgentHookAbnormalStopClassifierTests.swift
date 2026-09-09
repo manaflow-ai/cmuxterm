@@ -135,4 +135,30 @@ struct AgentHookAbnormalStopClassifierTests {
         #expect(classifier.isSensitiveProviderDetail("API error request_id=abc123") == true)
         #expect(classifier.isSensitiveProviderDetail("The provider stopped unexpectedly") == false)
     }
+
+    @Test func ignoresUnqualifiedFailureProse() {
+        #expect(classifier.abnormalStopClass(
+            signal: "Stop",
+            message: "Fixed the error: missing import"
+        ) == nil)
+        #expect(classifier.abnormalStopClass(
+            signal: "Stop",
+            message: "The tests failed: exit 1"
+        ) == nil)
+        #expect(classifier.abnormalStopClass(
+            signal: "Stop",
+            message: "The API request failed: timeout"
+        ) == .generic)
+    }
+
+    @Test func matchesStructuredUserRequestedReasonCaseInsensitively() {
+        #expect(classifier.isUserInitiatedStop(
+            signal: "Stop capacity USER_REQUESTED",
+            message: ""
+        ))
+        #expect(classifier.abnormalStopClass(
+            signal: "Stop capacity USER_REQUESTED",
+            message: ""
+        ) == nil)
+    }
 }
