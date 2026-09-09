@@ -172,7 +172,7 @@
       "accountGroup": "アカウント",
       "billing": "請求",
       "team": "チーム",
-      "testflight": "iOS テストフライト"
+      "testflight": "iOS TestFlight"
     },
     "home": {
       "title": "ダッシュボード",
@@ -389,7 +389,7 @@
     },
     "testflight": {
       "eyebrow": "アカウント",
-      "title": "iOS テストフライト",
+      "title": "iOS TestFlight",
       "description": "有効なサブスクリプションでcmux iOSベータに参加します。",
       "banners": {
         "joined": "AppleからTestFlightの招待メールがまもなく届きます。",
@@ -450,7 +450,7 @@
       "eyebrow": "cmux ボールト",
       "title": "CLIアクセスを承認",
       "description": "cmux-vaultに表示されたコードを確認し、このデバイスをサインイン中のcmuxアカウントに接続します。",
-      "coderouterEyebrow": "コードルーター",
+      "coderouterEyebrow": "CodeRouter",
       "coderouterTitle": "CodeRouterアクセスを承認",
       "coderouterDescription": "crに表示されたコードを確認し、このデバイスをサインイン中のcmuxチームに接続します。",
       "codeLabel": "ユーザーコード",
@@ -542,7 +542,7 @@
     "terms": "利用規約",
     "eula": "EULA",
     "github": "GitHub",
-    "twitter": "X / ツイッター",
+    "twitter": "X / Twitter",
     "discord": "Discord",
     "contact": "お問い合わせ",
     "nightly": "ナイトリー",
@@ -1183,14 +1183,14 @@
       "metaDescription": "cmuxでCodexとClaude Codeを並行実行し、Cmd+Shift+Uで完了通知を確認することで、30日間に3670億トークンを使いました。",
       "metaKeywords": [
         "3670億トークン",
-        "GPT5.6ソル",
+        "GPT 5.6 Sol",
         "コーデックス CLI",
         "Claude Code",
         "cmux",
         "AIコーディングエージェント",
         "並列コーディングエージェント",
         "Cmd+Shift+U",
-        "コーデックスバー"
+        "CodexBar"
       ]
     },
     "passkeyAuth": {
@@ -1238,10 +1238,10 @@
         "Claude Code",
         "Codex",
         "OpenCode",
-        "オープンコード",
+        "opencode",
         "ジェミニ CLI",
         "反重力 CLI",
-        "Grok ビルド CLI",
+        "Grok Build CLI",
         "AIコーディングエージェント"
       ]
     },
@@ -2466,7 +2466,7 @@
       "copilotCliRepoHooks": "リポジトリレベルのフックには、同じ構造で.github/hooks/notify.jsonファイルを作成してください：",
       "integrationExamples": "連携の例",
       "notifyAfterLong": "長時間コマンド後の通知",
-      "python": "パイソン",
+      "python": "Python",
       "nodejs": "Node.js",
       "tmuxPassthrough": "tmuxパススルー",
       "tmuxDesc": "cmux内でtmuxを使用する場合、パススルーを有効にしてください：",
@@ -2712,7 +2712,7 @@
     },
     "claudeCodeTeams": {
       "title": "クロードコードチーム",
-      "metaTitle": "クロード コード チーム - cmux",
+      "metaTitle": "Claude Code Teams - cmux",
       "metaDescription": "cmux内でClaude Codeのエージェントチームを実行。チームメイトエージェントはtmuxペインではなくネイティブのcmuxスプリットとして表示されます。",
       "nightlyWarning": "<nightly>ナイトリービルド</nightly>でのみ利用可能です。",
       "intro": "cmux claude-teamsはエージェントチームを有効にしてClaude Codeを起動します。Claudeがチームメイトエージェントを生成すると、tmuxペインではなくネイティブのcmuxスプリットとして表示され、サイドバーのメタデータや通知が利用できます。",
@@ -3264,9 +3264,9 @@
       "ghosttyBody": "Ghostty は高速なネイティブターミナルで、そのエンジン libghostty が cmux を支えています。古い CPU レンダリング型ターミナルや重い Electron 系ターミナルと比べると、Ghostty の強みは低遅延の GPU レンダリング、鮮明なフォントとカラー処理、高いターミナル互換性、シンプルなファイルベース設定、クラウドアカウント不要の設計です。これらの描画上の利点を備えたクリーンな単一ターミナルウィンドウが欲しく、ワークスペースや自動化レイヤーが不要なら Ghostty 単体で非常に優秀です。同じ Ghostty の描画上の利点に、ワークスペース、通知、スクリプト、自動化、エージェント実行の整理を加えたいなら cmux を使ってください。",
       "iterm2Title": "iTerm2",
       "iterm2Body": "成熟した、果てしなくカスタマイズできる macOS ターミナル。深いプロファイル、トリガー、tmux 連携。最大限の機能が欲しく、多くのタスクを同時にオーケストレーションするわけではないなら、安全な定番です。",
-      "warpTitle": "ワープ",
+      "warpTitle": "Warp",
       "warpBody": "AI アシスタントとブロック型コマンド UI を組み込んだ Rust 製ターミナル。アカウントが必要で、macOS 以外でも利用できます。ターミナル自体に AI を組み込みたい、または Linux や Windows も必要な場合に向いています。",
-      "terminalAppTitle": "ターミナルアプリ",
+      "terminalAppTitle": "Terminal.app",
       "terminalAppBody": "macOS に組み込まれたターミナル。常にそこにあり、セットアップ不要。軽い用途には十分ですが、多くのパワーユーザーはいずれもっと多くを求めるようになります。",
       "otherTitle": "Alacritty、kitty、WezTerm",
       "otherBody": "すべてをファイルで設定するのが好きな人向けの高速 GPU ターミナル。Alacritty はあえてミニマル、kitty は多機能でスクリプト可能、WezTerm は独自のマルチプレクサを同梱しています。いずれもクロスプラットフォームで、高度にチューニングした単一のターミナルが欲しいなら好適です。",
@@ -3426,19 +3426,19 @@
                 "ソースから入手可能な Electron アプリとより独自のワークフロー"
               ],
               [
-                "ヘルドル",
+                "Herdr",
                 "ターミナルネイティブエージェントの多重化",
                 "多くの CLI エージェント",
                 "Mac アプリではなく、別のターミナル内で実行されます"
               ],
               [
-                "オープンコード",
+                "OpenCode",
                 "オープンソースコーディングエージェント",
                 "ターミナル、デスクトップ、IDE にわたる OpenCode 自体",
                 "これはエージェントであり、端末のコントロール プレーンではありません"
               ],
               [
-                "カーソル",
+                "Cursor",
                 "AI 編集とホスト型エージェントのワークフロー",
                 "カーソル中心のエージェントワークフローと統合",
                 "エディターとアカウント中心のワークフロー"
@@ -3456,13 +3456,13 @@
                 "ターミナルエージェントの監視はエディター画面内に留まります"
               ],
               [
-                "ゼッド",
+                "Zed",
                 "高速な共同編集",
                 "エディターに統合された AI ワークフロー",
                 "ターミナルエージェントの監視は編集者と結びついたままになる"
               ],
               [
-                "ワープ",
+                "Warp",
                 "エージェント型ターミナルとクラウドオーケストレーション",
                 "Warp Agent、Oz、持ち込みのCLIエージェント",
                 "オープンソースのクライアントはマネージドなWarp/Ozサービスと結び付いている"
@@ -3480,19 +3480,19 @@
                 "エージェントのステータスは手動のままです"
               ],
               [
-                "キティ",
+                "Kitty",
                 "高速機能が豊富な GPU ターミナル",
                 "任意の CLI エージェント",
                 "エージェントレビューキューが組み込まれていない"
               ],
               [
-                "アラクリティ",
+                "Alacritty",
                 "高速でシンプルな OpenGL ターミナル",
                 "任意の CLI エージェント",
                 "最小限のアプリレベルのワークフロー機能"
               ],
               [
-                "ウェズターム",
+                "WezTerm",
                 "クロスプラットフォームのターミナルとマルチプレクサ",
                 "任意の CLI エージェント",
                 "エージェントの注意には依然としてカスタム配線が必要です"
@@ -3546,7 +3546,7 @@
             "headers": [
               "項目",
               "cmux",
-              "アラクリティ"
+              "Alacritty"
             ],
             "rows": [
               [
@@ -3867,7 +3867,7 @@
             "headers": [
               "項目",
               "cmux",
-              "カーソル"
+              "Cursor"
             ],
             "rows": [
               [
@@ -3944,7 +3944,7 @@
             "headers": [
               "寸法",
               "cmux",
-              "デビン"
+              "Devin"
             ],
             "rows": [
               [
@@ -4106,7 +4106,7 @@
             "headers": [
               "項目",
               "cmux",
-              "キティ"
+              "Kitty"
             ],
             "rows": [
               [
@@ -4187,7 +4187,7 @@
             "headers": [
               "項目",
               "cmux",
-              "ヘルドル"
+              "Herdr"
             ],
             "rows": [
               [
@@ -4269,7 +4269,7 @@
             "headers": [
               "項目",
               "cmux",
-              "オープンコード"
+              "OpenCode"
             ],
             "rows": [
               [
@@ -4576,7 +4576,7 @@
             "headers": [
               "項目",
               "cmux",
-              "ゼッド"
+              "Zed"
             ],
             "rows": [
               [
@@ -4653,7 +4653,7 @@
             "headers": [
               "項目",
               "cmux",
-              "ワープ"
+              "Warp"
             ],
             "rows": [
               [
@@ -4735,7 +4735,7 @@
             "headers": [
               "項目",
               "cmux",
-              "ウェズターム"
+              "WezTerm"
             ],
             "rows": [
               [
