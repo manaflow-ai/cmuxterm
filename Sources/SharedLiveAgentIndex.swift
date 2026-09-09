@@ -111,14 +111,6 @@ final class SharedLiveAgentIndex {
     private var activeForkSupportValidationRequestIdentities: [ForkProbeKey: Set<String>] = [:]
     private var processScopeFingerprint: Set<String> = []
     private var changePending = false
-    /// On-disk identity of every hook-store file when each in-flight loader
-    /// started, keyed by loader generation, and the identities behind the most
-    /// recently applied load. A scoped ownership refresh judges "settled" by
-    /// comparing only the requested kinds' files against the latter, so hook
-    /// writes from unrelated agents sharing the directory cannot fail a
-    /// restore closed (#12084).
-    private var hookStoreFingerprintsByLoaderGeneration: [UUID: [String: HookStoreFileFingerprint]] = [:]
-    private var completedLoadHookStoreFingerprints: [String: HookStoreFileFingerprint]?
     private var deferredReloadTimer: DispatchSourceTimer?
     private var forkSupportValidationExpiryTimer: DispatchSourceTimer?
 
@@ -134,10 +126,9 @@ final class SharedLiveAgentIndex {
     // Floor between event-driven reloads so chatty hook stores cannot keep the
     // measured ~350ms-1.8s loader running at near-continuous duty cycle.
     private static let minEventReloadInterval: TimeInterval = 5.0
-    // Ownership-sensitive restore may retry once when a hook event lands during
-    // the first scan, but it must fail closed instead of waiting forever for a
-    // continuously changing hook store to become quiescent.
-    private static let maximumOwnershipSensitiveRefreshPasses = 2
+    // An ownership-sensitive restore waits for one scan that started after its
+    // request. The deadline keeps an uncooperative loader from holding a
+    // restored terminal behind admission indefinitely.
     private static let ownershipRefreshTimeoutNanoseconds: UInt64 = 10_000_000_000
 
     nonisolated private static func remainingOwnershipRefreshNanoseconds(
@@ -525,130 +516,39 @@ final class SharedLiveAgentIndex {
     }
 
     /// Returns a freshly loaded index, coalescing with any refresh already in flight.
-    /// How many ownership-sensitive refreshes a deferred restore waits for
-    /// before giving up, and the pause between them. Right after a relaunch
-    /// the restored panes' session-start hooks keep the hook stores changing
-    /// for a few seconds; each attempt already fails closed after two passes,
-    /// so the pause lets that churn subside instead of scanning back to back.
-    static let deferredRestoreSettleAttempts = 5
-    static let deferredRestoreSettlePauseNanoseconds: UInt64 = 1_500_000_000
-
-    /// `indexRefreshingNow(relevantKinds:)` repeated up to `settleAttempts`
-    /// times with `pauseNanoseconds` between attempts, for callers that would
-    /// otherwise cancel a restore because the hook stores were momentarily
-    /// unsettled. `relevantKinds` is re-read on every attempt.
-    func indexRefreshingNow(
-        settleAttempts: Int,
-        pauseNanoseconds: UInt64,
-        relevantKinds: @MainActor () -> Set<String>? = { nil }
-    ) async -> RestorableAgentSessionIndex? {
-        await Self.settledIndex(
-            attempts: settleAttempts,
-            pause: { try? await Task.sleep(nanoseconds: pauseNanoseconds) },
-            refresh: { await self.indexRefreshingNow(relevantKinds: relevantKinds()) }
-        )
-    }
-
-    /// Identity of one hook-store file's on-disk state.
-    struct HookStoreFileFingerprint: Equatable, Sendable {
-        let inode: UInt64
-        let size: Int64
-        let modifiedNanoseconds: Int64
-    }
-
-    nonisolated static let hookStoreFilenameSuffix = "-hook-sessions.json"
-
-    /// The hook-store filenames that carry evidence for `kinds`.
-    nonisolated static func hookStoreFilenames(forKinds kinds: Set<String>) -> Set<String> {
-        Set(kinds.map { kind in
-            (RestorableAgentKind(rawValue: kind) ?? .custom(kind)).hookStoreFileURL().lastPathComponent
-        })
-    }
-
-    /// Fingerprints for `filenames` in `directory`, or for every hook-store file
-    /// there when `filenames` is `nil`. Missing files have no entry.
-    nonisolated static func hookStoreFingerprints(
-        directory: String,
-        filenames: Set<String>? = nil
-    ) -> [String: HookStoreFileFingerprint] {
-        let names: [String]
-        if let filenames {
-            names = Array(filenames)
-        } else {
-            names = ((try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? [])
-                .filter { $0.hasSuffix(hookStoreFilenameSuffix) }
-        }
-        var fingerprints: [String: HookStoreFileFingerprint] = [:]
-        for name in names {
-            var fileStatus = stat()
-            let path = (directory as NSString).appendingPathComponent(name)
-            // Unqualified: `Darwin.stat` resolves to the struct, not the syscall.
-            let statResult: Int32 = path.withCString { pointer in
-                stat(pointer, &fileStatus)
-            }
-            guard statResult == 0 else { continue }
-            fingerprints[name] = HookStoreFileFingerprint(
-                inode: UInt64(fileStatus.st_ino),
-                size: Int64(fileStatus.st_size),
-                modifiedNanoseconds: Int64(fileStatus.st_mtimespec.tv_sec) * 1_000_000_000
-                    + Int64(fileStatus.st_mtimespec.tv_nsec)
-            )
-        }
-        return fingerprints
-    }
-
-    /// Whether the hook stores for `kinds` still match the state the most
-    /// recently applied load started from. Missing on both sides counts as
-    /// unchanged; no applied load yet counts as changed.
-    private func hookStoresUnchangedSinceCompletedLoad(kinds: Set<String>) -> Bool {
-        guard let completed = completedLoadHookStoreFingerprints else { return false }
-        let filenames = Self.hookStoreFilenames(forKinds: kinds)
-        let current = Self.hookStoreFingerprints(
-            directory: hookStoreDirectoryProvider(),
-            filenames: filenames
-        )
-        return filenames.allSatisfy { completed[$0] == current[$0] }
-    }
-
-    /// Runs `refresh` until it yields an index or `attempts` are spent, pausing
-    /// between attempts. Cancellation ends the wait without another attempt.
-    static func settledIndex(
-        attempts: Int,
-        pause: () async -> Void,
-        refresh: () async -> RestorableAgentSessionIndex?
-    ) async -> RestorableAgentSessionIndex? {
-        let attempts = max(attempts, 1)
-        for attempt in 0..<attempts {
-            if let index = await refresh() {
-                return index
-            }
-            guard !Task.isCancelled, attempt + 1 < attempts else { return nil }
-            await pause()
-            guard !Task.isCancelled else { return nil }
+    func indexRefreshingNow() async -> RestorableAgentSessionIndex? {
+        if case .index(let index) = await indexForOwnershipDecision() {
+            return index
         }
         return nil
     }
 
-    /// - Parameter relevantKinds: when given, the refresh counts as settled as
-    ///   soon as a completed load reflects the current on-disk hook stores of
-    ///   exactly these agent kinds; hook writes for other kinds (routine on a
-    ///   Mac running several agents) never force another pass or fail closed.
-    ///   `nil` keeps the whole-directory quiescence rule.
-    func indexRefreshingNow(
-        relevantKinds: Set<String>? = nil
-    ) async -> RestorableAgentSessionIndex? {
+    /// Waits for an index whose scan started after this request, and names the
+    /// reason when no such scan can finish.
+    ///
+    /// A scan that begins after the request has read every hook record written
+    /// before the caller asked. Hook-store events that land while it runs are
+    /// left to the ordinary coalesced refresh instead of restarting the wait:
+    /// the admission boundary revalidates the recorded owner's PID generation
+    /// and argv itself, and `AgentResumeLaunchGuard` serialises cmux's own
+    /// launches, so a later scan could not make this point-in-time answer
+    /// safer. Requiring the shared hook-store directory to stay quiet for a
+    /// whole scan made admission fail on any Mac where other agents keep
+    /// rewriting their hook stores (#12158).
+    func indexForOwnershipDecision() async -> SharedLiveAgentIndexRefreshOutcome {
         ensureWatchingHookStoreDirectory()
-        var completedRefreshPasses = 0
+        var requestedRefreshGeneration: UUID?
         let ownershipRefreshDeadline = DispatchTime.now().uptimeNanoseconds
             &+ Self.ownershipRefreshTimeoutNanoseconds
         while true {
-            guard !Task.isCancelled else { return nil }
+            guard !Task.isCancelled else { return .cancelled }
             guard DispatchTime.now().uptimeNanoseconds < ownershipRefreshDeadline else {
                 abandonOwnershipRefreshTasks()
                 preservePendingHookChangeAfterOwnershipRefreshFailure()
-                return nil
+                return .timedOut
             }
             if let refreshTask {
+                let awaitedRefreshGeneration = refreshTaskGeneration
                 guard await awaitOwnershipRefreshTask(
                     refreshTask,
                     kind: .full,
@@ -656,32 +556,37 @@ final class SharedLiveAgentIndex {
                         until: ownershipRefreshDeadline
                     )
                 ) else {
-                    guard !Task.isCancelled else { return nil }
+                    guard !Task.isCancelled else { return .cancelled }
                     abandonOwnershipRefreshTasks()
                     preservePendingHookChangeAfterOwnershipRefreshFailure()
-                    return nil
+                    return .timedOut
                 }
-                guard !Task.isCancelled else { return nil }
+                guard !Task.isCancelled else { return .cancelled }
+                if let index,
+                   let requestedRefreshGeneration,
+                   awaitedRefreshGeneration == requestedRefreshGeneration {
+                    // The scan this request started is fresh by construction.
+                    // Any hook event it overlapped was already queued for the
+                    // coalesced refresh by the reload completion handler.
+                    return .index(index)
+                }
                 guard DispatchTime.now().uptimeNanoseconds < ownershipRefreshDeadline else {
                     abandonOwnershipRefreshTasks()
                     preservePendingHookChangeAfterOwnershipRefreshFailure()
-                    return nil
+                    return .timedOut
                 }
-                completedRefreshPasses += 1
-                if let relevantKinds {
-                    if hookStoresUnchangedSinceCompletedLoad(kinds: relevantKinds) {
-                        return index
-                    }
-                } else if self.refreshTask == nil,
+                if let index,
+                   self.refreshTask == nil,
                    forkAvailabilityRefreshTask == nil,
                    !changePending,
                    deferredReloadTimer == nil {
-                    return index
+                    // A scan that was already running when the request arrived
+                    // is only as fresh as its start. With no event observed
+                    // since then, no newer hook record can exist.
+                    return .index(index)
                 }
-                guard completedRefreshPasses < Self.maximumOwnershipSensitiveRefreshPasses else {
-                    preservePendingHookChangeAfterOwnershipRefreshFailure()
-                    return nil
-                }
+                // The in-flight scan predates this request and a hook event
+                // overlapped it, so this request needs one scan of its own.
                 continue
             }
             if let forkAvailabilityRefreshTask {
@@ -692,20 +597,19 @@ final class SharedLiveAgentIndex {
                         until: ownershipRefreshDeadline
                     )
                 ) else {
-                    guard !Task.isCancelled else { return nil }
+                    guard !Task.isCancelled else { return .cancelled }
                     abandonOwnershipRefreshTasks()
                     preservePendingHookChangeAfterOwnershipRefreshFailure()
-                    return nil
+                    return .timedOut
                 }
                 guard DispatchTime.now().uptimeNanoseconds < ownershipRefreshDeadline else {
                     abandonOwnershipRefreshTasks()
                     preservePendingHookChangeAfterOwnershipRefreshFailure()
-                    return nil
+                    return .timedOut
                 }
                 // Fork availability reloads may intentionally retain an
                 // unchanged index. Ownership-sensitive callers need the full
-                // refresh task below as well, so this pass must not consume the
-                // bounded full-refresh retry budget.
+                // refresh below as well.
                 continue
             }
             if changePending || deferredReloadTimer != nil {
@@ -715,10 +619,9 @@ final class SharedLiveAgentIndex {
                 deferredReloadTimer?.cancel()
                 deferredReloadTimer = nil
                 changePending = false
-                startReload()
-                continue
             }
             startReload()
+            requestedRefreshGeneration = refreshTaskGeneration
         }
     }
 
@@ -942,15 +845,6 @@ final class SharedLiveAgentIndex {
 
         let indexLoader = self.indexLoader
         let generation = UUID()
-        // Capture before the loader can read: a write between this capture
-        // and the read is reflected in the result yet still reported as a
-        // change, which only costs a scoped caller one conservative extra pass.
-        hookStoreFingerprintsByLoaderGeneration = hookStoreFingerprintsByLoaderGeneration.filter {
-            $0.key == retiredIndexLoaderTaskGeneration
-        }
-        hookStoreFingerprintsByLoaderGeneration[generation] = Self.hookStoreFingerprints(
-            directory: hookStoreDirectoryProvider()
-        )
         let task = Task.detached(priority: .utility) {
             indexLoader()
         }
@@ -1604,11 +1498,6 @@ final class SharedLiveAgentIndex {
         guard !Task.isCancelled else {
             removeOrMarkCancelledForkValidationRequests(pendingRequestIDsToRemoveOnCancellation)
             return (false, [:])
-        }
-        if let fingerprints = hookStoreFingerprintsByLoaderGeneration.removeValue(
-            forKey: loader.generation
-        ) {
-            completedLoadHookStoreFingerprints = fingerprints
         }
         let loadedAt = dateProvider()
         let hasPendingForkValidations = !pendingForkValidationPanels.isEmpty
@@ -2592,6 +2481,70 @@ final class SharedLiveAgentIndex {
             changePending = true
         }
     }
+
+    static let deferredRestoreSettleAttempts = 5
+    static let deferredRestoreSettlePauseNanoseconds: UInt64 = 1_500_000_000
+
+    static func settledIndex(
+        attempts: Int,
+        pause: () async -> Void,
+        refresh: () async -> RestorableAgentSessionIndex?
+    ) async -> RestorableAgentSessionIndex? {
+        let attempts = max(attempts, 1)
+        for attempt in 0..<attempts {
+            if let index = await refresh() { return index }
+            guard !Task.isCancelled, attempt + 1 < attempts else { return nil }
+            await pause()
+        }
+        return nil
+    }
+
+    func indexRefreshingNow(
+        settleAttempts: Int,
+        pauseNanoseconds: UInt64,
+        relevantKinds: @MainActor () -> Set<String>? = { nil }
+    ) async -> RestorableAgentSessionIndex? {
+        await Self.settledIndex(
+            attempts: settleAttempts,
+            pause: { try? await Task.sleep(nanoseconds: pauseNanoseconds) },
+            refresh: { await self.indexRefreshingNow() }
+        )
+    }
+
+    struct HookStoreFileFingerprint: Equatable, Sendable {
+        let inode: UInt64
+        let size: Int64
+        let modifiedNanoseconds: Int64
+    }
+
+    nonisolated static let hookStoreFilenameSuffix = "-hook-sessions.json"
+
+    nonisolated static func hookStoreFilenames(forKinds kinds: Set<String>) -> Set<String> {
+        Set(kinds.map { kind in
+            (RestorableAgentKind(rawValue: kind) ?? .custom(kind)).hookStoreFileURL().lastPathComponent
+        })
+    }
+
+    nonisolated static func hookStoreFingerprints(
+        directory: String,
+        filenames: Set<String>? = nil
+    ) -> [String: HookStoreFileFingerprint] {
+        let names = filenames ?? Set((try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? [])
+            .filter { $0.hasSuffix(hookStoreFilenameSuffix) }
+        var result: [String: HookStoreFileFingerprint] = [:]
+        for name in names {
+            var status = stat()
+            let path = (directory as NSString).appendingPathComponent(name)
+            guard path.withCString({ stat($0, &status) }) == 0 else { continue }
+            result[name] = HookStoreFileFingerprint(
+                inode: UInt64(status.st_ino),
+                size: Int64(status.st_size),
+                modifiedNanoseconds: Int64(status.st_mtimespec.tv_sec) * 1_000_000_000 + Int64(status.st_mtimespec.tv_nsec)
+            )
+        }
+        return result
+    }
+
 }
 
 extension Notification.Name {
