@@ -158,6 +158,8 @@ jobs:
           set -euo pipefail
           SOURCE_PACKAGES_DIR="$PWD/.ci-source-packages"
           run_unit_suite() {
+            # Xcode forwards TEST_RUNNER_ variables to the XCTest host after
+            # stripping the prefix; the host's PATH is intentionally minimal.
             TEST_RUNNER_CMUX_TEST_NODE_PATH="$CMUX_TEST_NODE_PATH" \
             scripts/ci/xcodebuild_noninteractive.py \
               xcodebuild -project cmux.xcodeproj -scheme cmux-unit -configuration Debug \
