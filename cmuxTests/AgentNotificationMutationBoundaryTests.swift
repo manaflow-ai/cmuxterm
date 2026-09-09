@@ -41,7 +41,7 @@ extension AgentNotificationRegressionTests {
         """.write(to: initialScript, atomically: true, encoding: .utf8)
         try """
         export CMUX_SURFACE_ID='\(fixture.panelId.uuidString)'
-        exec /bin/sh -c 'touch "\(execMarker.path)"; exec sleep 30'
+        exec /usr/bin/python3 -c 'import pathlib,time; pathlib.Path("\(execMarker.path)").touch(); time.sleep(30)'
         """.write(to: scopedScript, atomically: true, encoding: .utf8)
 
         let process = Process()
@@ -75,11 +75,11 @@ extension AgentNotificationRegressionTests {
         #expect(await waitForMarker(at: execMarker))
 
         #expect(
-            fixture.appDelegate.liveAgentDeliveryTarget(forAgentPID: process.processIdentifier)
-                == AgentDeliveryTargetCandidate(
-                    workspaceId: fixture.source.id,
-                    surfaceId: fixture.panelId
-                )
+            await waitForDeliveryTarget(
+                fixture.appDelegate,
+                pid: process.processIdentifier,
+                expected: AgentDeliveryTargetCandidate(workspaceId: fixture.source.id, surfaceId: fixture.panelId)),
+            "The post-exec process must resolve through its live environment despite the stale negative cache"
         )
     }
 

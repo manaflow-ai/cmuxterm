@@ -15,6 +15,8 @@ on:
       - Resources/bin/cmux-hermes-agent-wrapper
       - tests/test_hermes_wrapper_hooks.py
       - tests/test_ci_change_areas.py
+      - scripts/ci/validate-cla-policy.rb
+      - tests/test_cla_policy_stale_head.rb
       - .github/workflows/ci.yml
   workflow_dispatch:
 
@@ -152,6 +154,9 @@ jobs:
 
       - name: Validate docs deployment authentication guard
         run: python3 tests/test_docs_deploy_auth_guard.py
+
+      - name: Validate CLA policy superseded-run behavior
+        run: ruby tests/test_cla_policy_stale_head.rb
 
       - name: Validate Python test harness syntax
         run: git ls-files 'tests/*.py' 'tests_v2/*.py' 'scripts/*.py' | xargs python3 -m py_compile

@@ -9,6 +9,14 @@ import Testing
 #endif
 
 extension AgentNotificationRegressionTests {
+    func waitForDeliveryTarget(_ appDelegate: AppDelegate, pid: pid_t, expected: AgentDeliveryTargetCandidate, timeout: Duration = .seconds(15)) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline, appDelegate.liveAgentDeliveryTarget(forAgentPID: pid) != expected {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return appDelegate.liveAgentDeliveryTarget(forAgentPID: pid) == expected
+    }
+
     @Test("Local PID bindings use the live Ghostty TTY without a shell report")
     func localTTYBindingsUseLiveGhosttyTTYWithoutShellReport() async throws {
         let fixture = try makeFixture()
