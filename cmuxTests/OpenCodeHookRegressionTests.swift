@@ -119,6 +119,8 @@ const fs = require("node:fs");
   const [pluginPath, socketPath] = process.argv.slice(2);
   try { fs.unlinkSync(socketPath); } catch (_) {}
   const frames = [];
+  let resolveFrames;
+  const framesReady = new Promise((resolve) => { resolveFrames = resolve; });
   const sockets = new Set();
   const server = net.createServer((conn) => {
     sockets.add(conn);
@@ -133,6 +135,7 @@ const fs = require("node:fs");
         if (!line.trim()) continue;
         const frame = JSON.parse(line);
         frames.push(frame);
+        if (frames.length === 4) resolveFrames();
         conn.write(JSON.stringify({ id: frame.id, ok: true, result: { status: "acknowledged" } }) + "\n");
       }
     });
@@ -163,7 +166,7 @@ const fs = require("node:fs");
     type: "session.status",
     properties: { session_id: "ses-feed-shape", status: "idle" }
   } });
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  await framesReady;
   for (const socket of sockets) socket.destroy();
   await new Promise((resolve) => server.close(resolve));
   try { fs.unlinkSync(socketPath); } catch (_) {}
