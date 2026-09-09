@@ -55,13 +55,7 @@ extension CmuxPluginRuntime {
             pluginID = nil
         }
         if let storedIdentity = processAuthorizationIdentities[processID] {
-            if revokedPluginProcessGroups.count >= 512 {
-                revokedPluginProcessGroups.removeValue(
-                    forKey: revokedPluginProcessGroups.keys.first!
-                )
-            }
-            revokedPluginProcessGroups[storedIdentity.processGroupID] =
-                storedIdentity.startMicroseconds
+            retainRevokedProcessGroupLocked(storedIdentity)
             if revokedPluginContainmentMarkers.count >= 512 {
                 revokedPluginContainmentMarkers.removeValue(
                     forKey: revokedPluginContainmentMarkers.keys.first!
@@ -80,8 +74,8 @@ extension CmuxPluginRuntime {
         }
     }
 
-    /// Retires a root identity after exit, retaining a deny marker if an
-    /// inherited descendant still holds the containment lease.
+    /// Retires a root identity after exit while retaining deny-only lineage
+    /// state for any process group that may still contain a descendant.
     func processDidExit(
         _ processID: pid_t,
         generation: UUID,
@@ -112,6 +106,7 @@ extension CmuxPluginRuntime {
         }
         processAuthorizations.removeValue(forKey: processID)
         processAuthorizationIdentities.removeValue(forKey: processID)
+        retainRevokedProcessGroupLocked(storedIdentity)
         if markerIsHeld {
             if revokedPluginContainmentMarkers.count >= 512 {
                 revokedPluginContainmentMarkers.removeValue(
@@ -123,8 +118,11 @@ extension CmuxPluginRuntime {
                 storedIdentity.startMicroseconds
             )
         } else {
+            // Keep the deny-only group identity even when a descendant closed
+            // the inherited marker before the root exit callback ran. The
+            // group liveness/start-time check retires it once the group is
+            // actually gone or its leader identity is reused.
             revokedPluginContainmentMarkers.removeValue(forKey: markerURL.path)
-            revokedPluginProcessGroups.removeValue(forKey: storedIdentity.processGroupID)
         }
         let detached = detachSubscriptionsLocked(pluginID: pluginID)
         lock.unlock()
@@ -324,6 +322,17 @@ extension CmuxPluginRuntime {
             .map { Array($0.values) } ?? []
         let actionSubscriptions = actionSubscriptionIDsByPluginID.removeValue(forKey: pluginID)
         return (subscriptions, actionSubscriptions?.isEmpty == false)
+    }
+
+    /// Retains one bounded deny-only process-group identity after revocation.
+    private func retainRevokedProcessGroupLocked(_ identity: CmuxPluginProcessIdentity) {
+        if revokedPluginProcessGroups.count >= 512,
+           revokedPluginProcessGroups[identity.processGroupID] == nil {
+            revokedPluginProcessGroups.removeValue(
+                forKey: revokedPluginProcessGroups.keys.first!
+            )
+        }
+        revokedPluginProcessGroups[identity.processGroupID] = identity.startMicroseconds
     }
 
     /// A sendable Darwin lookup closure supplied to the package authorization
