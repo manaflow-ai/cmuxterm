@@ -15,11 +15,13 @@ import Testing
 struct WorkspaceCreationWorkingDirectorySpawnPolicyTests {
     @Test("ready terminal configuration creates the first window workspace synchronously")
     func readyConfigurationCreatesInitialWorkspaceSynchronously() async throws {
-        let appDelegate = try #require(AppDelegate.shared)
-        let runtime = try #require(appDelegate.settingsRuntime)
+        let runtime = try makeWindowSettingsRuntime()
         await runtime.declarativeTerminalConfigurationModel.waitForInitialSnapshot()
-
+        let appDelegate = try #require(AppDelegate.shared)
+        let originalRuntime = appDelegate.settingsRuntime
+        appDelegate.settingsRuntime = runtime
         let windowID = appDelegate.createMainWindow(shouldActivate: false)
+        appDelegate.settingsRuntime = originalRuntime
         defer { appDelegate.mainWindow(for: windowID)?.close() }
         let manager = try #require(appDelegate.tabManagerFor(windowId: windowID))
         #expect(manager.tabs.count == 1)
@@ -30,14 +32,8 @@ struct WorkspaceCreationWorkingDirectorySpawnPolicyTests {
     @Test("a window stays hidden while its initial terminal configuration loads")
     func unreadyConfigurationDoesNotPresentAnEmptyWindow() async throws {
         let appDelegate = try #require(AppDelegate.shared)
-        let originalRuntime = try #require(appDelegate.settingsRuntime)
-        let loadingRuntime = SettingsRuntime(
-            catalog: originalRuntime.catalog,
-            userDefaultsStore: originalRuntime.userDefaultsStore,
-            jsonStore: originalRuntime.jsonStore,
-            secretStore: originalRuntime.secretStore,
-            errorLog: SettingsErrorLog()
-        )
+        let originalRuntime = appDelegate.settingsRuntime
+        let loadingRuntime = try makeWindowSettingsRuntime()
         appDelegate.settingsRuntime = loadingRuntime
         let windowID = appDelegate.createMainWindow(shouldActivate: false)
         appDelegate.settingsRuntime = originalRuntime
@@ -62,14 +58,8 @@ struct WorkspaceCreationWorkingDirectorySpawnPolicyTests {
     )
     func activationDoesNotPresentAnEmptyWindow(reason: MainWindowVisibilityController.Reason) async throws {
         let appDelegate = try #require(AppDelegate.shared)
-        let originalRuntime = try #require(appDelegate.settingsRuntime)
-        let loadingRuntime = SettingsRuntime(
-            catalog: originalRuntime.catalog,
-            userDefaultsStore: originalRuntime.userDefaultsStore,
-            jsonStore: originalRuntime.jsonStore,
-            secretStore: originalRuntime.secretStore,
-            errorLog: SettingsErrorLog()
-        )
+        let originalRuntime = appDelegate.settingsRuntime
+        let loadingRuntime = try makeWindowSettingsRuntime()
         appDelegate.settingsRuntime = loadingRuntime
         let windowID = appDelegate.createMainWindow(shouldActivate: false)
         appDelegate.settingsRuntime = originalRuntime
@@ -82,6 +72,20 @@ struct WorkspaceCreationWorkingDirectorySpawnPolicyTests {
         #expect(!window.isVisible)
         await manager.waitForInitialWorkspace()
         #expect(manager.tabs.count == 1)
+    }
+
+    private func makeWindowSettingsRuntime() throws -> SettingsRuntime {
+        let identifier = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: "WindowReadiness.\(identifier)"))
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-window-readiness-\(identifier)", isDirectory: true)
+        return SettingsRuntime(
+            catalog: SettingCatalog(),
+            userDefaultsStore: UserDefaultsSettingsStore(defaults: defaults),
+            jsonStore: JSONConfigStore(fileURL: directory.appendingPathComponent("cmux.json")),
+            secretStore: SecretFileStore(baseDirectory: directory),
+            errorLog: SettingsErrorLog()
+        )
     }
 
     @Test("deferred focus retains request-time activation permission", arguments: [false, true])
