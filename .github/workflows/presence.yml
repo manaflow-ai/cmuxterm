@@ -58,6 +58,10 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Install shared web dependencies
+        working-directory: web
+        run: bun install --frozen-lockfile
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
