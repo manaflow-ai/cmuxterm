@@ -577,7 +577,7 @@ extension DockSplitStore {
                     terminal: terminal,
                     noticeInput: AgentRestoreLiveOwnerNotice(
                         processID: liveSessionOwner.processID
-                    ).startupInput(dialect: Self.deferredNoticeDialect(for: restore))
+                    ).startupInput(dialect: restore.noticeDialect)
                 )
                 AgentRestoreSuppressionJournal().record(
                     kind: liveSessionOwner.kind,
