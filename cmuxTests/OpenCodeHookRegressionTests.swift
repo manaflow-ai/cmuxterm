@@ -28,10 +28,10 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         try Self.openCodeFeedEventHarness.write(to: harnessURL, atomically: true, encoding: .utf8)
 
         let environment = ProcessInfo.processInfo.environment
-        let jsRuntime = try Self.javascriptRuntime(in: environment)
+        let jsRuntimePath = try Self.javascriptRuntimePath(in: environment)
         let result = runProcess(
-            executablePath: "/usr/bin/env",
-            arguments: [jsRuntime, harnessURL.path, pluginURL.path, socketPath],
+            executablePath: jsRuntimePath,
+            arguments: [harnessURL.path, pluginURL.path, socketPath],
             environment: environment,
             timeout: 5
         )
@@ -113,15 +113,20 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         try BundledCLITestSupport.bundledCLIPath(for: Self.self)
     }
 
-    private static func javascriptRuntime(in environment: [String: String]) throws -> String {
+    private static func javascriptRuntimePath(in environment: [String: String]) throws -> String {
+        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser.path
         let searchPaths = (environment["PATH"] ?? "").split(separator: ":").map(String.init)
+            + ["\(homeDirectory)/.bun/bin", "/opt/homebrew/bin", "/usr/local/bin"]
         for runtime in ["bun", "node"] {
-            if searchPaths.contains(where: { FileManager.default.isExecutableFile(atPath: "\($0)/\(runtime)") }) {
-                return runtime
+            for directory in searchPaths where directory.hasPrefix("/") {
+                let executablePath = "\(directory)/\(runtime)"
+                if FileManager.default.isExecutableFile(atPath: executablePath) {
+                    return executablePath
+                }
             }
         }
         throw NSError(domain: "OpenCodeHookRegressionTests", code: 1, userInfo: [
-            NSLocalizedDescriptionKey: "Neither bun nor node is available on PATH"
+            NSLocalizedDescriptionKey: "Neither bun nor node is available in PATH or standard runtime locations"
         ])
     }
 
