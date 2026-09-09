@@ -102,6 +102,14 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Record Node executable for XCTest hosts
+        if: ${{ !inputs.skip_unit_tests }}
+        run: |
+          set -euo pipefail
+          node_binary="$(command -v node)"
+          test -x "$node_binary"
+          echo "CMUX_TEST_NODE_PATH=$node_binary" >> "$GITHUB_ENV"
+
       - name: Create virtual display
         run: |
           set -euo pipefail

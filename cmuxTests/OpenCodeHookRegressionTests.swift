@@ -27,10 +27,21 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         let harnessURL = root.appendingPathComponent("harness.js")
         try Self.openCodeFeedEventHarness.write(to: harnessURL, atomically: true, encoding: .utf8)
 
+        let environment = ProcessInfo.processInfo.environment
+        // XCTest app hosts can intentionally receive a minimal PATH. CI records
+        // the setup-node executable explicitly so this test does not depend on
+        // PATH surviving the test-manager handoff; local runs retain the env
+        // lookup fallback.
+        let nodeInvocation: (executablePath: String, prefixArguments: [String])
+        if let nodePath = environment["CMUX_TEST_NODE_PATH"], !nodePath.isEmpty {
+            nodeInvocation = (nodePath, [])
+        } else {
+            nodeInvocation = ("/usr/bin/env", ["node"])
+        }
         let result = runProcess(
-            executablePath: "/usr/bin/env",
-            arguments: ["node", harnessURL.path, pluginURL.path, socketPath],
-            environment: ProcessInfo.processInfo.environment,
+            executablePath: nodeInvocation.executablePath,
+            arguments: nodeInvocation.prefixArguments + [harnessURL.path, pluginURL.path, socketPath],
+            environment: environment,
             timeout: 5
         )
         XCTAssertFalse(result.timedOut, result.stderr)
