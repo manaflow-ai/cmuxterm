@@ -26,10 +26,10 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         let vault = app.buttons["RightSidebarModeButton.sessions"]
         XCTAssertTrue(vault.waitForExistence(timeout: 10))
         vault.click()
-        // SwiftUI propagates the sidebar container's accessibility identifier
-        // over these children; their localized labels remain exposed in AX.
-        let sessions = app.buttons["Sessions"].firstMatch
-        let history = app.buttons["History"].firstMatch
+        // The Vault container must preserve its children's identifiers in
+        // both sidebar and standalone-pane mounts.
+        let sessions = app.buttons["VaultPaneTabButton.sessions"].firstMatch
+        let history = app.buttons["VaultPaneTabButton.history"].firstMatch
         XCTAssertTrue(sessions.waitForExistence(timeout: 10))
         XCTAssertTrue(history.waitForExistence(timeout: 10))
         // A launch-argument override would pin this AppStorage value even
@@ -39,9 +39,9 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         addKeptScreenshot(app.windows.firstMatch.screenshot(), name: "vault-sessions-before")
 
         history.click()
-        // The picker exposes its purpose as its accessible label and the
-        // selected grouping as its value, independently of inherited IDs.
-        let picker = app.menuButtons["Group history by"].firstMatch
+        // Query the stable identifier, not a localized label or the Menu's
+        // platform-dependent title/description mapping.
+        let picker = app.menuButtons["VaultHistoryGroupPicker"].firstMatch
         XCTAssertTrue(picker.waitForExistence(timeout: 10), app.debugDescription)
         for grouping in ["Workspace", "Window", "Agent", "Type", "Date"] {
             picker.click()
@@ -68,7 +68,7 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         popout.click()
         let mountedTwice = XCTNSPredicateExpectation(
             predicate: NSPredicate { _, _ in
-                app.buttons.matching(NSPredicate(format: "label == %@", "History")).count == 2
+                app.buttons.matching(identifier: "VaultPaneTabButton.history").count == 2
             },
             object: nil
         )
@@ -79,15 +79,15 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         closeSidebar.click()
         let paneOnly = XCTNSPredicateExpectation(
             predicate: NSPredicate { _, _ in
-                app.buttons.matching(NSPredicate(format: "label == %@", "History")).count == 1
+                app.buttons.matching(identifier: "VaultPaneTabButton.history").count == 1
                     && !closeSidebar.exists
             },
             object: nil
         )
         XCTAssertEqual(XCTWaiter.wait(for: [paneOnly], timeout: 10), .completed)
-        app.buttons["Sessions"].click()
+        app.buttons["VaultPaneTabButton.sessions"].click()
         XCTAssertTrue(app.buttons["Folder"].waitForExistence(timeout: 5))
-        app.buttons["History"].click()
+        app.buttons["VaultPaneTabButton.history"].click()
         XCTAssertTrue(picker.waitForExistence(timeout: 5))
         addKeptScreenshot(app.windows.firstMatch.screenshot(), name: "vault-history-standalone-pane")
     }
