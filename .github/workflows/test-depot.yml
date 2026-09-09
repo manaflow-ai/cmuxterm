@@ -148,6 +148,9 @@ jobs:
         run: |
           set -euo pipefail
           SOURCE_PACKAGES_DIR="$PWD/.ci-source-packages"
+          # Xcode app-hosted tests do not inherit the shell PATH. Forward the
+          # provisioned toolchain path so subprocess fixtures can find Node/Bun.
+          export TEST_RUNNER_PATH="$PATH"
           run_unit_suite() {
             scripts/ci/xcodebuild_noninteractive.py \
               xcodebuild -project cmux.xcodeproj -scheme cmux-unit -configuration Debug \
