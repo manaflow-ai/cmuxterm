@@ -739,6 +739,53 @@ struct AgentPromptSubmissionServiceTests {
     }
 
     @MainActor
+    @Test func idleWorkspaceBypassesGlobalPendingQueueBound() {
+        let queuedWorkspaceID = UUID()
+        let readyWorkspaceID = UUID()
+        let queuedSurfaceID = UUID()
+        let readySurfaceID = UUID()
+        let service = AgentPromptSubmissionService(maximumPendingRequests: 1)
+        let busy: AgentPromptSubmissionService.Delivery = { _ in
+            .rejectedComposerBusy(
+                workspaceID: queuedWorkspaceID,
+                surfaceID: queuedSurfaceID
+            )
+        }
+
+        let queued = service.submit(
+            workspaceID: queuedWorkspaceID,
+            requestedSurfaceID: queuedSurfaceID,
+            text: "held",
+            delivery: busy
+        )
+        #expect(queued.result == .queued(
+            workspaceID: queuedWorkspaceID,
+            surfaceID: queuedSurfaceID,
+            reason: "human_composer_busy"
+        ))
+
+        let submitted = service.submit(
+            workspaceID: readyWorkspaceID,
+            requestedSurfaceID: readySurfaceID,
+            text: "ready",
+            delivery: { _ in
+                .submitted(
+                    workspaceID: readyWorkspaceID,
+                    surfaceID: readySurfaceID,
+                    queued: false
+                )
+            }
+        )
+        #expect(submitted.result == .submitted(
+            workspaceID: readyWorkspaceID,
+            surfaceID: readySurfaceID,
+            queued: false
+        ))
+        #expect(service.pendingCount == 1)
+        #expect(service.pendingByteCount == "held".utf8.count)
+    }
+
+    @MainActor
     @Test func byteBudgetRejectsTheNinthMaximumSizedPendingPrompt() {
         let workspaceID = UUID()
         let surfaceID = UUID()

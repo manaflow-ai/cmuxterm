@@ -124,16 +124,6 @@ public final class AgentPromptSubmissionService {
         )
         expireStaleInFlight(workspaceID: workspaceID)
 
-        if pendingCount >= maximumPendingRequests {
-            return Receipt(
-                messageID: messageID,
-                result: .submissionQueueFull(
-                    workspaceID: workspaceID,
-                    surfaceID: requestedSurfaceID
-                )
-            )
-        }
-
         if deliveryInProgressWorkspaces.contains(workspaceID)
             || pendingByWorkspace[workspaceID]?.isEmpty == false {
             // Preserve nil for auto-resolve requests. The target must be
