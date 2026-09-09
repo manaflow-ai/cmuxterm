@@ -440,7 +440,8 @@ void ghostty_surface_free_text(void) {}
 bool ghostty_surface_read_selection_clipboard_text(
     void *surface,
     uintptr_t max_bytes,
-    void *selection) {
+    void *selection
+) {
     (void)surface;
     (void)max_bytes;
     (void)selection;

@@ -466,13 +466,13 @@ final class MachinesPanelViewModel: ObservableObject {
     private static let statsInterval: Duration = .seconds(20)
 
     init(createCoordinator: MachineCreateCoordinator? = nil) {
-        let createCoordinator = createCoordinator ?? .shared
-        self.createCoordinator = createCoordinator
-        pendingCreates = createCoordinator.operations
+        let coordinator = createCoordinator ?? MachineCreateCoordinator.shared
+        self.createCoordinator = coordinator
+        pendingCreates = coordinator.operations
         let finishedUserInfoKey = MachineCreateCoordinator.finishedUserInfoKey
         createChangeObserver = NotificationCenter.default.addObserver(
             forName: MachineCreateCoordinator.didChangeNotification,
-            object: createCoordinator,
+            object: coordinator,
             queue: .main
         ) { [weak self] notification in
             let finished = notification.userInfo?[finishedUserInfoKey] as? MachineCreateCoordinator.Finished
