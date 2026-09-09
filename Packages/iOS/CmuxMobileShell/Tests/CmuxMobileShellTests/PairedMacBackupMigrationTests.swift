@@ -7,9 +7,6 @@ import CmuxMobilePairedMac
 @Suite(.serialized)
 struct PairedMacBackupMigrationTests {
     @Test func appStoreRestoreMigratesOnlyTailscaleFromBothBackupCollections() async throws {
-        let defaultsSuite = "paired-mac-migration-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: defaultsSuite))
-        defer { defaults.removePersistentDomain(forName: defaultsSuite) }
         let tailscale = try CmxAttachRoute(
             id: "tailscale", kind: .tailscale,
             endpoint: .hostPort(host: "100.64.0.20", port: 8443)
@@ -52,7 +49,7 @@ struct PairedMacBackupMigrationTests {
             tokenSource: PresenceTokenSource(accessToken: { "token" }, currentUserID: { "user-1" }),
             clientScopeProvider: { currentScope }, legacyClientScopeProvider: { nil },
             restoreRouteFilter: { $0.kind == .tailscale },
-            session: URLSession(configuration: configuration), migrationDefaults: defaults
+            session: URLSession(configuration: configuration)
         )
         let snapshot = try #require(await client.fetchSnapshot(teamID: "team-1", expectedUserID: "user-1"))
         #expect(snapshot.records.map(\.macDeviceID) == ["current-mixed", "legacy-mixed"])
