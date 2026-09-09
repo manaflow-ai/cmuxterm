@@ -44,12 +44,12 @@ struct TerminalSurfaceViewFactory: TerminalSurfaceViewProviding {
 
 // MARK: Spawn policy
 
-/// Live settings/control-plane reads for spawn assembly (the legacy inline
-/// reads of the integration-settings enums, `sidebarShellIntegration`,
-/// `SidebarWorkspaceDetailDefaults`, and `TerminalController`'s socket path).
+/// Per-surface declarative defaults and live control-plane reads for spawn
+/// assembly. Pin startup defaults when the surface is created, alongside its
+/// working directory, rather than combining revisions at deferred attachment.
 @MainActor
 final class TerminalSurfaceSpawnPolicyBridge: TerminalSurfaceSpawnPolicyProviding {
-    private let declarativeTerminalConfigurationSource: any DeclarativeTerminalConfigurationProviding
+    private let declarativeTerminalSettings: DeclarativeTerminalConfiguration.Snapshot
     private let computerUseConfigStore: JSONConfigStore
     private let computerUseEnabledKey = SettingCatalog().computerUse.enabled
 
@@ -57,13 +57,12 @@ final class TerminalSurfaceSpawnPolicyBridge: TerminalSurfaceSpawnPolicyProvidin
         declarativeTerminalConfigurationSource: any DeclarativeTerminalConfigurationProviding,
         computerUseConfigStore: JSONConfigStore
     ) {
-        self.declarativeTerminalConfigurationSource = declarativeTerminalConfigurationSource
+        self.declarativeTerminalSettings = declarativeTerminalConfigurationSource.snapshot
         self.computerUseConfigStore = computerUseConfigStore
     }
 
     func currentSpawnPolicy() -> TerminalSurfaceSpawnPolicy {
         let integrations = AgentIntegrationSettingsStore(defaults: .standard)
-        let declarativeTerminalSettings = declarativeTerminalConfigurationSource.snapshot
         let shellStartupMode: TerminalShellStartupMode = switch declarativeTerminalSettings.shellStartupMode {
         case .login:
             .login
