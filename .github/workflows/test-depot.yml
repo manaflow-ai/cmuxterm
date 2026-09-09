@@ -156,7 +156,8 @@ jobs:
           set -euo pipefail
           SOURCE_PACKAGES_DIR="$PWD/.ci-source-packages"
           run_unit_suite() {
-            scripts/ci/xcodebuild_noninteractive.py \
+            TEST_RUNNER_CMUX_TEST_NODE_BIN="${CMUX_TEST_NODE_BIN:-}" \
+              scripts/ci/xcodebuild_noninteractive.py \
               xcodebuild -project cmux.xcodeproj -scheme cmux-unit -configuration Debug \
               -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
               -disableAutomaticPackageResolution \
