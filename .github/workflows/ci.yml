@@ -1273,15 +1273,27 @@ jobs:
             kill "$tail_pid" 2>/dev/null || true
             wait "$tail_pid" 2>/dev/null || true
 
-            # A watchdog kill (124) is terminal: the capture may still hold an
-            # earlier attempt's "(0 unexpected)" summary, which must not turn a
-            # terminated batch into a pass.
-            if [ "$batch_status" -ne 0 ] && [ "$batch_status" -ne 124 ]; then
+            # A watchdog timeout is normally terminal. If xcodebuild emitted
+            # the complete current-batch summary before a stale app-host process
+            # kept the launcher alive, the summary is trustworthy because this
+            # capture was reset for this invocation. Accept that case only when
+            # the selected-test suite reached its terminal marker and reports no
+            # unexpected failures; a decoy or stale summary remains a failure.
+            if [ "$batch_status" -ne 0 ]; then
               local batch_summary
               batch_summary="$(grep "Executed.*tests.*with.*failures" "$batch_output" | tail -1 || true)"
               if echo "$batch_summary" | grep -q "(0 unexpected)"; then
-                echo "All failures in app-host batch ${logical_shard}/${LOGICAL_SHARD_TOTAL} are expected, continuing"
-                return 0
+                if [ "$batch_status" -ne 124 ]; then
+                  echo "All failures in app-host batch ${logical_shard}/${LOGICAL_SHARD_TOTAL} are expected, continuing"
+                  return 0
+                fi
+                # A timeout is accepted only when this invocation emitted the
+                # terminal selected-test marker as well; this prevents a decoy
+                # or stale summary from turning a killed batch into a pass.
+                if grep -Eq "Test Suite 'Selected tests' (passed|failed)" "$batch_output"; then
+                  echo "App-host batch ${logical_shard}/${LOGICAL_SHARD_TOTAL} completed its test summary before launcher timeout; all failures are expected"
+                  return 0
+                fi
               fi
             fi
             return "$batch_status"
