@@ -633,7 +633,7 @@
     "metaDescriptionNoVault": "cmux ist ein kostenloses Open-Source-MacOS-Terminal für KI-Codierungsagenten. Upgrade auf Pro für isolierte Cloud-VMs. Enterprise fügt SSO und Selbsthosting hinzu.",
     "metaDescriptionNoVaultShort": "cmux ist ein kostenloses Open-Source-MacOS-Terminal. Pro fügt isolierte Cloud-VMs hinzu; Enterprise fügt SSO und Selbsthosting hinzu.",
     "title": "Preise",
-    "alreadyPaid": "Bereits bezahlt? Connect Founder's Edition",
+    "alreadyPaid": "Bereits bezahlt? Founder's Edition verknüpfen",
     "perMonth": "/Mo",
     "perMonthBilledYearly": "/Monat, jährliche Abrechnung",
     "perUserMonth": "/Nutzer/Monat",
@@ -648,10 +648,10 @@
     "currentPlan": "Aktueller Plan",
     "manageBilling": "Abrechnung verwalten",
     "free": {
-      "name": "Frei",
+      "name": "Kostenlos",
       "price": "0 $",
       "cta": "Für Mac herunterladen",
-      "featuresLead": "Beinhaltet:",
+      "featuresLead": "Enthalten:",
       "features": [
         "Natives macOS-Terminal basierend auf Ghostty, vollständig Open Source",
         "Führen Sie Claude Code, Codex, Gemini und jeden CLI-Agenten mit Ihren eigenen Schlüsseln aus",
@@ -663,8 +663,8 @@
     },
     "pro": {
       "name": "Pro",
-      "cta": "Holen Sie sich Pro",
-      "featuresLead": "Alles kostenlos, plus:",
+      "cta": "Pro abonnieren",
+      "featuresLead": "Alles aus dem kostenlosen Tarif, plus:",
       "features": [
         "Cloud-Agenten auf Cloud-VMs in isolierten Remote-Sandboxen",
         "Bis zu 50 Cloud-VMs, jede mit ihren eigenen Ressourcen; Standardgröße 8 GB RAM und 32 GB Festplatte, wobei 4 bis 64 GB RAM verfügbar sind",
@@ -681,8 +681,8 @@
     },
     "team": {
       "name": "Teamtarif",
-      "cta": "Holen Sie sich Teams",
-      "featuresLead": "Alles in Pro, plus:",
+      "cta": "Teamtarif wählen",
+      "featuresLead": "Alles aus Pro, plus:",
       "features": [
         "Zentralisierte Abrechnung für Ihr gesamtes Team",
         "Vorrangiger Support"
@@ -690,9 +690,9 @@
     },
     "enterprise": {
       "name": "Unternehmen",
-      "price": "Brauch",
+      "price": "Individuell",
       "cta": "Kontaktieren Sie den Vertrieb",
-      "featuresLead": "Alles im Team, plus:",
+      "featuresLead": "Alles aus dem Teamtarif, plus:",
       "features": [
         "Selbstgehostete Cloud-Ausführung und Vernetzung, sodass nichts Ihr Netzwerk verlässt",
         "SSO- und SAML-Anmeldung",
@@ -762,14 +762,14 @@
           "free": "false",
           "pro": "50",
           "team": "50 pro Benutzer",
-          "enterprise": "Benutzerdefiniert"
+          "enterprise": "Individuell"
         },
         {
           "label": "Ressourcen pro Cloud-VM",
           "free": "false",
           "pro": "Standardmäßig 8 GB RAM und 32 GB Festplatte; 4 bis 64 GB RAM, Festplatte bis 256 GB",
           "team": "Standardmäßig 8 GB RAM und 32 GB Festplatte; 4 bis 64 GB RAM, Festplatte bis 256 GB",
-          "enterprise": "Benutzerdefiniert"
+          "enterprise": "Individuell"
         },
         {
           "label": "Arbeitsbereiche",
@@ -786,8 +786,8 @@
           "enterprise": "true"
         },
         {
-          "label": "Netzwerk, um Ihren Mac zu erreichen",
-          "free": "Bringen Sie Ihr eigenes mit",
+          "label": "Netzwerkverbindung zu Ihrem Mac",
+          "free": "Eigenes Netzwerk",
           "pro": "Gehostet",
           "team": "Gehostet",
           "enterprise": "Selbst gehostet",
@@ -801,7 +801,7 @@
           "enterprise": "true"
         },
         {
-          "label": "Selbstgehostete und Air-Gap-Ausführung",
+          "label": "Selbst gehostete und vollständig netzwerkisolierte Ausführung",
           "free": "false",
           "pro": "false",
           "team": "false",
@@ -830,10 +830,10 @@
         },
         {
           "label": "Unterstützung",
-          "free": "Gemeinschaft",
+          "free": "Community-Hilfe",
           "pro": "E-Mail",
-          "team": "Priorität",
-          "enterprise": "Gewidmet"
+          "team": "Bevorzugter Support",
+          "enterprise": "Persönlicher Support"
         }
       ]
     },
@@ -847,28 +847,28 @@
         },
         {
           "q": "Was sind Cloud-VMs?",
-          "a": "Persistente Linux-Maschinen in der Cloud: Haustiere, kein Vieh. Dem Zen von cmux folgend ist eine Maschine eine primitive, keine verwaltete Lösung: Sie behält ihre Dateien, installierten Tools und ihren Status, und was Sie darauf aufbauen, gehört Ihnen. Agenten klonen dort Repositorys, führen Befehle aus und öffnen Pull-Anfragen, ohne Ihren Mac zu berühren. Pro umfasst bis zu 50 Maschinen. Das Team umfasst bis zu 50 Cloud-VMs pro Benutzer. Jede Maschine verfügt über eine eigene CPU, einen eigenen Speicher und eine eigene Festplatte. Die Standardgröße beträgt 8 GB RAM und 32 GB Festplatte; Es stehen Größen von 4 bis 64 GB RAM zur Verfügung. Festplatten können bis zu 256 GB groß werden. Es gibt keine Messung oder Überschreitungsabrechnung."
+          "a": "Dauerhafte Linux-Rechner in der Cloud: wie Haustiere, nicht wie austauschbare Nutztiere. Nach der Philosophie von cmux ist ein Rechner ein grundlegender Baustein, keine verwaltete Komplettlösung: Dateien, installierte Werkzeuge und Zustand bleiben erhalten, und was Sie darauf aufbauen, gehört Ihnen. Agenten klonen dort Repositorys, führen Befehle aus und öffnen Pull Requests, ohne Ihren Mac zu verändern. Pro umfasst bis zu 50 Rechner, der Teamtarif bis zu 50 Cloud-VMs pro Benutzer. Jeder Rechner hat eine eigene CPU, eigenen Arbeitsspeicher und eigenen Speicherplatz. Standardmäßig sind es 8 GB RAM und 32 GB Speicherplatz; 4 bis 64 GB RAM stehen zur Auswahl. Der Speicherplatz lässt sich auf bis zu 256 GB erweitern. Es gibt weder nutzungsabhängige Abrechnung noch Mehrverbrauchsgebühren."
         },
         {
           "q": "Was ist cmux Vault?",
-          "a": "Vault sichert jede Terminalsitzung in der Cloud und ermöglicht Ihnen die Suche in allen Terminalsitzungen mit unbegrenztem Verlauf auf Ihren Computern. Free speichert den Verlauf lokal auf jedem Computer; Pro fügt Cloud-Backup und -Suche hinzu.",
+          "a": "Vault sichert jede Terminalsitzung in der Cloud und macht alle Sitzungen durchsuchbar, mit unbegrenztem Verlauf über Ihre Rechner hinweg. Im kostenlosen Tarif bleibt der Verlauf lokal auf dem jeweiligen Rechner; Pro ergänzt Cloud-Sicherung und Suche.",
           "vault": true
         },
         {
           "q": "Benötige ich Tailscale weiterhin für die iOS-App?",
-          "a": "Nein. Die iOS-App koppelt sich über das integrierte cmux iroh-Netzwerk mit Ihrem Mac. Sie können auch Ihr eigenes Netzwerk wie Tailscale mitbringen. Unternehmen können sich selbst hosten."
+          "a": "Nein. Die iOS-App wird über das integrierte cmux-iroh-Netzwerk mit Ihrem Mac gekoppelt. Sie können auch ein eigenes Netzwerk wie Tailscale verwenden. Im Unternehmenstarif ist Selbsthosting möglich."
         },
         {
           "q": "Wie funktioniert die Abrechnung?",
-          "a": "Pro kostet 50 $/Monat bzw. 40 $/Monat bei jährlicher Abrechnung (eine Ersparnis von 20 %). Das Team kostet 60 $/Benutzer/Monat bzw. 48 $/Benutzer/Monat bei jährlicher Abrechnung. Bezahlte Pläne beinhalten bis zu 50 Cloud-VMs pro Benutzer. Jede Maschine verfügt über eine eigene CPU, einen eigenen Arbeitsspeicher und eine eigene Festplatte, ohne dass eine Messung oder Überschussabrechnung erfolgt. Das Terminal und die örtlichen Agenten bleiben kostenlos."
+          "a": "Pro kostet 50 $ pro Monat oder bei jährlicher Abrechnung umgerechnet 40 $ pro Monat (20 % Ersparnis). Der Teamtarif kostet 60 $ pro Benutzer und Monat oder bei jährlicher Abrechnung 48 $ pro Benutzer und Monat. Die kostenpflichtigen Tarife enthalten bis zu 50 Cloud-VMs pro Benutzer. Jeder Rechner verfügt über eine eigene CPU, eigenen Arbeitsspeicher und eigenen Speicherplatz. Es gibt weder nutzungsabhängige Abrechnung noch Mehrverbrauchsgebühren. Das Terminal und lokale Agenten bleiben kostenlos."
         },
         {
           "q": "Kann ich die Cloud selbst hosten?",
-          "a": "Ja, auf Enterprise. Führen Sie die Agentenausführung auf Ihrer eigenen Infrastruktur oder vollständig Air Gap aus, sodass der Quellcode niemals Ihr Netzwerk verlässt."
+          "a": "Ja, im Unternehmenstarif. Führen Sie Agenten auf Ihrer eigenen Infrastruktur oder vollständig vom externen Netzwerk getrennt aus, sodass Ihr Quellcode Ihr Netzwerk niemals verlässt."
         },
         {
-          "q": "Haben Sie einen Teamplan?",
-          "a": "Ja. Team kostet 60 $/Benutzer/Monat oder 48 $/Benutzer/Monat bei jährlicher Abrechnung, mit zentraler Abrechnung für Ihr gesamtes Team und vorrangigem Support."
+          "q": "Gibt es einen Tarif für Teams?",
+          "a": "Ja. Der Teamtarif kostet 60 $ pro Benutzer und Monat oder bei jährlicher Abrechnung 48 $ pro Benutzer und Monat. Er bietet eine zentrale Abrechnung für das gesamte Team und bevorzugten Support."
         }
       ]
     },
