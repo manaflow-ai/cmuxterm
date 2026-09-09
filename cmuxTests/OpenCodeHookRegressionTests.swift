@@ -28,14 +28,11 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         XCTAssertLessThan(socketPath.utf8.count, MemoryLayout.size(ofValue: sockaddr_un().sun_path))
         let harnessURL = root.appendingPathComponent("harness.js")
         try Self.openCodeFeedEventHarness.write(to: harnessURL, atomically: true, encoding: .utf8)
+        let bunURL = try Self.bunExecutableURL()
 
-        let nodeExecutable = ProcessInfo.processInfo.environment["CMUX_TEST_NODE_BIN"] ?? "/usr/bin/env"
-        let nodeArguments = nodeExecutable == "/usr/bin/env"
-            ? ["node", harnessURL.path, pluginURL.path, socketPath]
-            : [harnessURL.path, pluginURL.path, socketPath]
         let result = runProcess(
-            executablePath: nodeExecutable,
-            arguments: nodeArguments,
+            executablePath: bunURL.path,
+            arguments: [harnessURL.path, pluginURL.path, socketPath],
             environment: ProcessInfo.processInfo.environment,
             timeout: 5
         )
@@ -115,6 +112,23 @@ final class OpenCodeHookRegressionTests: XCTestCase {
 
     private func bundledCLIPath() throws -> String {
         try BundledCLITestSupport.bundledCLIPath(for: Self.self)
+    }
+
+    private static func bunExecutableURL() throws -> URL {
+        let fileManager = FileManager.default
+        var candidates: [String] = []
+        if let install = ProcessInfo.processInfo.environment["BUN_INSTALL"], !install.isEmpty {
+            candidates.append(URL(fileURLWithPath: install).appendingPathComponent("bin/bun").path)
+        }
+        candidates += [
+            fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".bun/bin/bun").path,
+            "/opt/homebrew/bin/bun",
+            "/usr/local/bin/bun",
+        ]
+        if let path = candidates.first(where: { fileManager.isExecutableFile(atPath: $0) }) {
+            return URL(fileURLWithPath: path)
+        }
+        throw XCTSkip("Bun runtime is required for the OpenCode plugin harness")
     }
 
     private static let openCodeFeedEventHarness = #"""
