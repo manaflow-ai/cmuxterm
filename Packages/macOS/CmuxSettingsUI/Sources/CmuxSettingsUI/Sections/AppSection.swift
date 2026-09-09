@@ -8,7 +8,7 @@ import SwiftUI
 /// Keep Workspace Open When Closing Last Surface, Focus Pane on
 /// First Click, File Drops, Open Files With, Open Supported Files in
 /// cmux, Terminal Config link, Open Markdown in cmux Viewer,
-/// Markdown Viewer typography, iMessage Mode, Reorder on Notification, Dock Badge, Menu Bar
+/// Markdown Viewer typography, iMessage Mode, Dock Badge, Menu Bar
 /// Only, Show in Menu Bar, Unread Pane Ring, Pane Flash, Desktop
 /// Notifications, Notification Sound, Notification Command, Send
 /// anonymous telemetry, Warn Before Quit, Warn Before Closing Tab /
@@ -48,7 +48,6 @@ public struct AppSection: View {
     @State private var fileEditorCurrentLineHighlight: DefaultsValueModel<Bool>
     @State private var fileEditorTabWidth: DefaultsValueModel<Int>
     @State private var iMessage: DefaultsValueModel<Bool>
-    @State private var reorder: DefaultsValueModel<Bool>
     @State private var dockBadge: DefaultsValueModel<Bool>
     @State private var menuBarOnly: DefaultsValueModel<Bool>
     @State private var showInMenuBar: DefaultsValueModel<Bool>
@@ -110,7 +109,6 @@ public struct AppSection: View {
         _fileEditorCurrentLineHighlight = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileEditor.currentLineHighlight))
         _fileEditorTabWidth = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileEditor.tabWidth))
         _iMessage = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.app.iMessageMode))
-        _reorder = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.app.reorderOnNotification))
         _dockBadge = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.notifications.dockBadge))
         _menuBarOnly = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.app.menuBarOnly))
         _showInMenuBar = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.notifications.showInMenuBar))
@@ -155,7 +153,7 @@ public struct AppSection: View {
             mainCard
         }
         .task {
-            startSettingsObservation([language, appearance, appIcon, placement, inheritDir, minimalMode, keepWorkspaceOpen, firstClick, focusHistoryIncludesPanesAndTabs, fileDrop, preferredEditor, openSupported, openMarkdown, globalFontMagnification, markdownFontSize, markdownFontFamily, markdownMaxWidth, canvasPaneGap, canvasSnapping, fileEditorWordWrap, fileEditorSyntaxHighlighting, fileEditorLineNumbers, fileEditorIndentGuides, fileEditorCurrentLineHighlight, fileEditorTabWidth, iMessage, reorder, dockBadge, menuBarOnly, showInMenuBar, paneRing, paneFlash, desktopNotifications, agentPermissionPrompt, agentTurnComplete, agentIdleReminder, soundName, soundCommand, customSoundFile, soundOverrides, telemetry, confirmQuit, warnCloseTab, warnCloseX, hideCloseButton, renameSelects, paletteAllSurfaces])
+            startSettingsObservation([language, appearance, appIcon, placement, inheritDir, minimalMode, keepWorkspaceOpen, firstClick, focusHistoryIncludesPanesAndTabs, fileDrop, preferredEditor, openSupported, openMarkdown, globalFontMagnification, markdownFontSize, markdownFontFamily, markdownMaxWidth, canvasPaneGap, canvasSnapping, fileEditorWordWrap, fileEditorSyntaxHighlighting, fileEditorLineNumbers, fileEditorIndentGuides, fileEditorCurrentLineHighlight, fileEditorTabWidth, iMessage, dockBadge, menuBarOnly, showInMenuBar, paneRing, paneFlash, desktopNotifications, agentPermissionPrompt, agentTurnComplete, agentIdleReminder, soundName, soundCommand, customSoundFile, soundOverrides, telemetry, confirmQuit, warnCloseTab, warnCloseX, hideCloseButton, renameSelects, paletteAllSurfaces])
             if soundAgents.isEmpty {
                 soundAgents = await hostActions.notificationSoundAgentOptions()
             }
@@ -611,18 +609,6 @@ public struct AppSection: View {
                 subtitle: String(localized: "settings.app.iMessageMode.subtitle", defaultValue: "Move a workspace to the top and show the submitted message when you send an agent prompt.")
             ) {
                 Toggle("", isOn: Binding(get: { iMessage.current }, set: { iMessage.set($0) }))
-                    .labelsHidden()
-                    .controlSize(.small)
-            }
-            SettingsCardDivider()
-
-            // Reorder on Notification
-            SettingsCardRow(
-                configurationReview: .json("app.reorderOnNotification"),
-                String(localized: "settings.app.reorderOnNotification", defaultValue: "Reorder on Notification"),
-                subtitle: String(localized: "settings.app.reorderOnNotification.subtitle", defaultValue: "Move workspaces to the top when they receive a notification. Disable for stable shortcut positions.")
-            ) {
-                Toggle("", isOn: Binding(get: { reorder.current }, set: { reorder.set($0) }))
                     .labelsHidden()
                     .controlSize(.small)
             }

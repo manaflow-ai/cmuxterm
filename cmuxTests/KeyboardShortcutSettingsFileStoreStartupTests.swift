@@ -13,6 +13,8 @@ import struct CmuxSettings.NotificationSoundOverride
 import struct CmuxSettings.NotificationSoundOverrides
 import enum CmuxSettings.NotificationSoundAlertType
 import struct CmuxSettings.NotificationsCatalogSection
+import struct CmuxSettings.SidebarCatalogSection
+import enum CmuxSettings.SidebarWorkspaceOrder
 
 #if canImport(cmux_DEV)
 @testable import cmux_DEV
@@ -1572,6 +1574,43 @@ final class KeyboardShortcutSettingsFileStoreStartupTests: XCTestCase {
             )
 
             XCTAssertNil(defaults.string(forKey: key))
+        }
+    }
+
+    func testSidebarWorkspaceOrderOverridesLegacyNotificationBoolean() throws {
+        let defaults = UserDefaults.standard
+        let key = SidebarCatalogSection().workspaceOrder
+        try preservingDefaults(keys: [
+            key.userDefaultsKey,
+            settingsFileBackupsDefaultsKey,
+            importedManagedDefaultsKey,
+        ]) {
+            defaults.removeObject(forKey: key.userDefaultsKey)
+            defaults.removeObject(forKey: settingsFileBackupsDefaultsKey)
+            defaults.removeObject(forKey: importedManagedDefaultsKey)
+
+            let directoryURL = try makeTemporaryDirectory()
+            defer { try? FileManager.default.removeItem(at: directoryURL) }
+            let settingsFileURL = directoryURL.appendingPathComponent("cmux.json")
+            try writeSettingsFile(
+                """
+                {
+                  "app": { "reorderOnNotification": false },
+                  "sidebar": { "workspaceOrder": "creation" }
+                }
+                """,
+                to: settingsFileURL
+            )
+
+            _ = KeyboardShortcutSettingsFileStore(
+                primaryPath: settingsFileURL.path,
+                fallbackPath: nil,
+                additionalFallbackPaths: [],
+                startWatching: false
+            )
+
+            XCTAssertEqual(key.value(in: defaults), SidebarWorkspaceOrder.creation)
+            XCTAssertEqual(defaults.string(forKey: key.userDefaultsKey), "creation")
         }
     }
 

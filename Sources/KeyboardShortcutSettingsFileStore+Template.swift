@@ -73,7 +73,6 @@ extension CmuxSettingsFileStore {
                     "preferredEditor": "",
                     "openSupportedFilesInCmux": AppCatalogSection().openSupportedFilesInCmux.defaultValue,
                     "openMarkdownInCmuxViewer": AppCatalogSection().openMarkdownInCmuxViewer.defaultValue,
-                    "reorderOnNotification": SettingCatalog().app.reorderOnNotification.defaultValue,
                     "iMessageMode": IMessageModeSettings.defaultValue,
                     "sendAnonymousTelemetry": AppCatalogSection().sendAnonymousTelemetry.defaultValue,
                     "confirmQuit": AppCatalogSection().confirmQuitMode.defaultValue.rawValue,
@@ -133,6 +132,7 @@ extension CmuxSettingsFileStore {
             ],
             [
                 "sidebar": [
+                    "workspaceOrder": SettingCatalog().sidebar.workspaceOrder.defaultValue.rawValue,
                     "hideAllDetails": SettingCatalog().sidebar.hideAllDetails.defaultValue,
                     "wrapWorkspaceTitles": SidebarWorkspaceTitleWrapSettings.defaultWrap,
                     "showWorkspaceDescription": SettingCatalog().sidebar.showWorkspaceDescription.defaultValue,

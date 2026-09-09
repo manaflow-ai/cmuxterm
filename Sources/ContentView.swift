@@ -11136,6 +11136,11 @@ extension SidebarDragState {
 /// the underlying row's shortcut badges (which would be visible around the
 /// open context menu). All other rows transition live.
 struct VerticalTabsSidebar: View, Equatable {
+    private struct WorkspaceOrderScriptEvaluationKey: Hashable {
+        let sourceRevision: UInt64
+        let workspaces: [SidebarWorkspaceSortScriptInput]
+    }
+
     // Equatable gates only parent-driven re-evaluation: closures and
     // Bindings are excluded on purpose (recreated per parent eval but
     // functionally identical), and every data source the body renders from
@@ -11239,6 +11244,7 @@ struct VerticalTabsSidebar: View, Equatable {
     // receive only values and action closures. This is the ownership boundary
     // that prevents layout/realization from publishing row state (#6707).
     @State private var workspaceSnapshotsById: [UUID: SidebarWorkspaceSnapshotBuilder.Snapshot] = [:]
+    @State private var workspaceOrderScriptModel = SidebarWorkspaceOrderScriptModel()
     @State private var extensionSidebarUpdateToken: UInt64 = 0
     // Stable, memoized merged observation publishers for the extension
     // sidebar's `.onReceive` handlers. Rebuilding them inline each body pass
@@ -11265,6 +11271,7 @@ struct VerticalTabsSidebar: View, Equatable {
     @LiveSetting(\.betaFeatures.customSidebars) private var customSidebarsExperimentalEnabled
     @LiveSetting(\.customSidebars.renderer) private var customSidebarRenderer
     @LiveSetting(\.shortcuts.showModifierHoldHints) private var showModifierHoldHints
+    @LiveSetting(\.sidebar.workspaceOrder) private var sidebarWorkspaceOrder
 #if DEBUG
     @Environment(\.minimalModeInvalidationProbe) private var minimalModeInvalidationProbe
     @Environment(\.sidebarLazyContractProbe) private var sidebarLazyContractProbe
@@ -11569,6 +11576,7 @@ struct VerticalTabsSidebar: View, Equatable {
 #endif
                 tabManager.closeWorkspaceWithConfirmation(workspace)
             }, onBeginWorkspaceDrag: { dragId, sourceView, event, draggingFrame, dragImage in
+                guard sidebarWorkspaceOrder.allowsManualReordering else { return false }
                 let workspaceId: UUID
                 if tabManager.tabs.contains(where: { $0.id == dragId }) {
                     workspaceId = dragId
@@ -11630,6 +11638,67 @@ struct VerticalTabsSidebar: View, Equatable {
         #endif
     }
 
+    private func orderedSidebarTabs(
+        _ persistedTabs: [Workspace],
+        workspaceGroups: [WorkspaceGroup],
+        effectiveMembership: [UUID: UUID?]
+    ) -> [Workspace] {
+        let preferredWorkspaceIds: [UUID]
+        switch sidebarWorkspaceOrder {
+        case .notificationRecency, .manual:
+            return persistedTabs
+        case .creation:
+            let persistedIndexById = Dictionary(
+                uniqueKeysWithValues: persistedTabs.enumerated().map { ($0.element.id, $0.offset) }
+            )
+            preferredWorkspaceIds = persistedTabs.sorted { lhs, rhs in
+                if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
+                return (persistedIndexById[lhs.id] ?? Int.max) <
+                    (persistedIndexById[rhs.id] ?? Int.max)
+            }.map(\.id)
+        case .custom:
+            preferredWorkspaceIds = workspaceOrderScriptModel.orderedWorkspaceIds
+        }
+
+        let planner = SidebarWorkspaceOrderPlanner()
+        let orderedIds = planner.orderedWorkspaceIds(
+            preferredWorkspaceIds: preferredWorkspaceIds,
+            current: persistedTabs.map { workspace in
+                SidebarWorkspaceOrderSnapshot(
+                    id: workspace.id,
+                    isPinned: workspace.isPinned,
+                    groupId: effectiveMembership[workspace.id] ?? nil
+                )
+            },
+            groups: workspaceGroups.map {
+                SidebarWorkspaceOrderGroupSnapshot(id: $0.id, isPinned: $0.isPinned)
+            }
+        )
+        let workspaceById = Dictionary(uniqueKeysWithValues: persistedTabs.map { ($0.id, $0) })
+        return orderedIds.compactMap { workspaceById[$0] }
+    }
+
+    private func sidebarWorkspaceSortScriptInputs(
+        _ persistedTabs: [Workspace],
+        effectiveMembership: [UUID: UUID?]
+    ) -> [SidebarWorkspaceSortScriptInput] {
+        persistedTabs.enumerated().map { index, workspace in
+            let branch = workspace.sidebarGitBranchesInDisplayOrder().first
+            return SidebarWorkspaceSortScriptInput(
+                id: workspace.id,
+                title: workspace.customTitle ?? workspace.title,
+                manualIndex: index,
+                createdAt: workspace.createdAt,
+                isSelected: workspace.id == tabManager.selectedTabId,
+                isPinned: workspace.isPinned,
+                groupId: effectiveMembership[workspace.id] ?? nil,
+                directory: workspace.presentedCurrentDirectory ?? workspace.currentDirectory,
+                gitBranch: branch?.branch,
+                gitIsDirty: branch?.isDirty ?? false
+            )
+        }
+    }
+
     var body: some View {
 #if DEBUG
         let _ = { minimalModeInvalidationProbe.verticalTabsSidebarBody?() }()
@@ -11638,7 +11707,18 @@ struct VerticalTabsSidebar: View, Equatable {
         // Retain the native table identity while hidden without continuing the
         // O(workspaces) projection pipeline. Reveal rebuilds one authoritative
         // snapshot from the current model before the controller applies again.
-        let tabs = isPresented ? tabManager.tabs : []
+        let persistedTabs = isPresented ? tabManager.tabs : []
+        let workspaceGroups = isPresented ? tabManager.workspaceGroups : []
+        let workspaceGroupById = Dictionary(uniqueKeysWithValues: workspaceGroups.map { ($0.id, $0) })
+        let persistedWorkspaceGroupIdByWorkspaceId = SidebarWorkspaceRenderItem.effectiveGroupIdByWorkspaceId(
+            tabs: persistedTabs,
+            groupsById: workspaceGroupById
+        )
+        let tabs = orderedSidebarTabs(
+            persistedTabs,
+            workspaceGroups: workspaceGroups,
+            effectiveMembership: persistedWorkspaceGroupIdByWorkspaceId
+        )
         let workspaceCount = tabs.count
         let canCloseWorkspace = workspaceCount > 1
         let workspaceNumberShortcut = self.workspaceNumberShortcut
@@ -11664,12 +11744,7 @@ struct VerticalTabsSidebar: View, Equatable {
             }
         let allSelectedRemoteContextMenuTargetsDisconnected = !selectedRemoteContextMenuTargets.isEmpty &&
             selectedRemoteContextMenuTargets.allSatisfy { $0.remoteConnectionState == .disconnected }
-        let workspaceGroups = isPresented ? tabManager.workspaceGroups : []
-        let workspaceGroupById = Dictionary(uniqueKeysWithValues: workspaceGroups.map { ($0.id, $0) })
-        let workspaceGroupIdByWorkspaceId = SidebarWorkspaceRenderItem.effectiveGroupIdByWorkspaceId(
-            tabs: tabs,
-            groupsById: workspaceGroupById
-        )
+        let workspaceGroupIdByWorkspaceId = persistedWorkspaceGroupIdByWorkspaceId
         let memberWorkspaceIdsByGroupId = SidebarWorkspaceRenderItem.memberWorkspaceIdsByGroupId(
             tabs: tabs,
             groupsById: workspaceGroupById,
@@ -11738,6 +11813,16 @@ struct VerticalTabsSidebar: View, Equatable {
             workspaceRenderItems: workspaceRenderItems,
             visibleWorkspaceRowIds: visibleWorkspaceRowIds
         )
+        let workspaceOrderScriptInputs = sidebarWorkspaceOrder == .custom
+            ? sidebarWorkspaceSortScriptInputs(
+                persistedTabs,
+                effectiveMembership: persistedWorkspaceGroupIdByWorkspaceId
+            )
+            : []
+        let workspaceOrderScriptEvaluationKey = WorkspaceOrderScriptEvaluationKey(
+            sourceRevision: workspaceOrderScriptModel.sourceRevision,
+            workspaces: workspaceOrderScriptInputs
+        )
         let _ = SidebarProfilingSignposts.end(signpost)
         ZStack(alignment: .bottomLeading) {
             if CmuxExtensionSidebarSelection.resolvesToDefaultSidebar(effectiveProviderId: effectiveExtensionSidebarProviderId) {
@@ -11771,9 +11856,22 @@ struct VerticalTabsSidebar: View, Equatable {
         )
         .onAppear {
             if isPresented { activateSidebarInteractions() }
+            if sidebarWorkspaceOrder == .custom { workspaceOrderScriptModel.start() }
         }
         .onDisappear {
             deactivateSidebarInteractions()
+            workspaceOrderScriptModel.stop()
+        }
+        .onChange(of: sidebarWorkspaceOrder) { _, order in
+            if order == .custom {
+                workspaceOrderScriptModel.start()
+            } else {
+                workspaceOrderScriptModel.stop()
+            }
+        }
+        .task(id: workspaceOrderScriptEvaluationKey) {
+            guard sidebarWorkspaceOrder == .custom else { return }
+            await workspaceOrderScriptModel.evaluate(workspaces: workspaceOrderScriptInputs)
         }
         .onChange(of: isPresented) { _, presented in
             if presented {
@@ -11844,6 +11942,30 @@ struct VerticalTabsSidebar: View, Equatable {
                     }
                     .onAppear { WindowTerminalPortal.usesCoalescedAnchorFailsafe = false }
                 )
+            }
+        }
+        .overlay(alignment: .top) {
+            if sidebarWorkspaceOrder == .custom,
+               let errorMessage = workspaceOrderScriptModel.errorMessage,
+               isPresented {
+                Text(
+                    String.localizedStringWithFormat(
+                        String(
+                            localized: "sidebar.workspaceOrder.custom.errorFormat",
+                            defaultValue: "Custom order error: %@"
+                        ),
+                        errorMessage
+                    )
+                )
+                .cmuxFont(.caption)
+                .foregroundStyle(.red)
+                .lineLimit(3)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+                .padding(.horizontal, 8)
+                .padding(.top, sidebarTitlebarInteractionHeight + 4)
+                .accessibilityIdentifier("SidebarWorkspaceOrderError")
             }
         }
         // Workspace publisher observations and the snapshot refresh feed BOTH
@@ -12332,6 +12454,7 @@ struct VerticalTabsSidebar: View, Equatable {
                 _ = AppDelegate.shared?.createEmptyWorkspaceGroup(tabManager: tabManager)
             },
             beginWorkspaceDrag: { workspaceId in
+                guard sidebarWorkspaceOrder.allowsManualReordering else { return }
                 _ = dragState.beginDragging(tabId: workspaceId)
             },
             movingWorkspaceCount: { workspaceId in

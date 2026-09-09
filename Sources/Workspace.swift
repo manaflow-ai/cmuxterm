@@ -168,6 +168,7 @@ extension Workspace {
         let workspaceNotificationSnapshots = notificationSnapshots(surfaceId: nil)
         var snapshot = SessionWorkspaceSnapshot(
             workspaceId: id,
+            createdAt: createdAt,
             stableId: stableId,
             taskCreateOperationID: taskCreateOperationID,
             processTitle: processTitle,
@@ -243,6 +244,9 @@ extension Workspace {
         if let persistedStableId = snapshot.stableId,
            sessionRestoreIdentityExclusions.shouldAdopt(persistedStableId) {
             stableId = persistedStableId
+        }
+        if let restoredCreatedAt = snapshot.createdAt {
+            createdAt = restoredCreatedAt
         }
         taskCreateOperationID = snapshot.taskCreateOperationID
 
@@ -2647,11 +2651,9 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         forkAgentConversationInFlightPanelIds.remove(panelId)
     }
 
-    /// When this workspace instance came into existence in this app session
-    /// (creation, or restore at launch). The mobile list's last-activity
-    /// fallback: a workspace that never fired a notification still carries a
-    /// real timestamp instead of nothing.
-    let createdAt = Date()
+    /// When this workspace was first created. Restored from the session
+    /// snapshot so creation-order sorting is stable across app launches.
+    private(set) var createdAt: Date
     @Published var title: String
     @Published var customTitle: String?
     /// Provenance of `customTitle`: `.user` for manual renames (sidebar,
@@ -3952,7 +3954,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         agentChatResumeIntentRecorder: any AgentChatResumeIntentRecording = AgentChatTranscriptResumeIntentRecorder(),
         fileContentChangeCoordinator: FileContentChangeCoordinator? = nil,
         nativeSSHConnectionBroker: NativeSSHConnectionBroker = NativeSSHConnectionBroker(),
-        restorableAgentIndexProvider: (@MainActor () -> RestorableAgentSessionIndex?)? = nil
+        restorableAgentIndexProvider: (@MainActor () -> RestorableAgentSessionIndex?)? = nil,
+        createdAt: Date = Date()
     ) {
         let tabDragTransferRegistry = tabDragTransferRegistry ?? TabDragTransferRegistry()
         let resolvedID = id ?? UUID()
@@ -3962,6 +3965,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
                 SharedLiveAgentIndex.shared.currentIndexForOwnershipSensitiveRestore()
             }
         self.id = resolvedID
+        self.createdAt = createdAt
         self.sessionRestorePolicy = sessionRestorePolicy ?? Self.makeSessionRestorePolicyService()
         self.sidebarProcessTitleObservation = sidebarProcessTitleObservation ?? WorkspaceSidebarProcessTitleObservationModel()
         self.nativeSSHConnectionBroker = nativeSSHConnectionBroker

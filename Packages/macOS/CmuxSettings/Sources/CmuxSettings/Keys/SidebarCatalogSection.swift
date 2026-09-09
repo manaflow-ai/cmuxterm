@@ -6,6 +6,17 @@ public struct SidebarCatalogSection: SettingCatalogSection {
     /// Valid notification-preview line limits for settings UI and configuration parsing.
     public static let notificationMessageLineLimitRange = 1...50
 
+    /// How workspace rows are ordered in the left sidebar.
+    ///
+    /// The storage key is intentionally shared with the legacy
+    /// `app.reorderOnNotification` Boolean. ``SidebarWorkspaceOrder`` decodes
+    /// those shipped Boolean values and writes the current string form.
+    public let workspaceOrder = DefaultsKey<SidebarWorkspaceOrder>(
+        id: "sidebar.workspaceOrder",
+        defaultValue: .notificationRecency,
+        userDefaultsKey: "workspaceAutoReorderOnNotification"
+    )
+
     /// Resolves the shipped legacy layout contract together with the newer
     /// branch/directory placement preference.
     public static func stacksBranchAndDirectory(

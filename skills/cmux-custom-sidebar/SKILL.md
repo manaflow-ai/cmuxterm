@@ -1,9 +1,75 @@
 ---
 name: cmux-custom-sidebar
-description: "Build a custom cmux sidebar from a plain-language request. Use when the user asks for a custom sidebar, a sidebar that shows their workspaces/tabs/PRs/clock, a vibe-coded sidebar, or anything involving files in ~/.config/cmux/sidebars/. Covers authoring the interpreted SwiftUI-style file, enabling the beta flag, selecting it, and iterating with hot reload."
+description: "Customize cmux's sidebar from a plain-language request. Use when the user asks for custom workspace ordering or sorting, a custom sidebar, a sidebar that shows their workspaces/tabs/PRs/clock, a vibe-coded sidebar, or files in ~/.config/cmux/sidebar-order.js or ~/.config/cmux/sidebars/. Covers the lightweight default-sidebar ordering function and full custom sidebar authoring."
 ---
 
 # cmux Custom Sidebar
+
+Choose the smallest surface that fulfills the request:
+
+- If the user only wants default workspace rows in a different order, use the
+  standard-sidebar ordering function below. It preserves cmux's native rows,
+  menus, badges, groups, and interactions.
+- If the user wants different row content or layout, follow the custom-sidebar
+  workflow in the rest of this skill.
+
+## Custom order for the standard sidebar
+
+Built-in modes are `notificationRecency`, `creation`, and `manual`. Set one
+with the cmux-settings helper:
+
+```bash
+cmux-settings set sidebar.workspaceOrder creation
+cmux-settings validate
+```
+
+For a custom heuristic, first read an existing file at
+`~/.config/cmux/sidebar-order.js` if present, then create or edit it. It must
+define this global function:
+
+```javascript
+function orderWorkspaces(workspaces) {
+  return [...workspaces].sort((a, b) =>
+    a.title.localeCompare(b.title)
+  );
+}
+```
+
+Enable it after saving:
+
+```bash
+cmux-settings set sidebar.workspaceOrder custom
+cmux-settings validate
+```
+
+Each workspace has `id`, `title`, `manualIndex`, `createdAt` (Unix
+milliseconds), `selected`, `pinned`, `directory`, and `dirty`. Optional fields
+are `groupId` and `branch`. Return workspace objects or their id strings. An
+omitted workspace is appended in manual order. Unknown or duplicate ids show
+an inline error, and cmux keeps the last valid custom order while the file is
+being fixed. Saving the file reloads it automatically.
+
+Pinned rows remain above unpinned rows. A workspace group remains one
+contiguous block and moves according to its highest-ranked member. Explain
+these constraints when the requested comparator crosses a pin or group
+boundary.
+
+Useful patterns:
+
+```javascript
+// Selected first, then clean before dirty, then title.
+function orderWorkspaces(workspaces) {
+  return [...workspaces].sort((a, b) =>
+    Number(b.selected) - Number(a.selected) ||
+    Number(a.dirty) - Number(b.dirty) ||
+    a.title.localeCompare(b.title)
+  );
+}
+```
+
+Use the standard sidebar for this path. Do not create a file under
+`~/.config/cmux/sidebars/` unless the user also asked to change its content or
+layout.
 
 cmux renders custom sidebars from a small SwiftUI-style file at runtime: no Xcode, no build step, no signing. The file hot-reloads on save, binds to live cmux state (workspaces, tabs, git, PRs, clock), and runs real cmux commands on tap.
 

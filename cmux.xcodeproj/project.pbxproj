@@ -2525,6 +2525,7 @@
 			A6AC73320000000000000001 /* SidebarWorkspaceLoadingSpinner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6AC73320000000000000002 /* SidebarWorkspaceLoadingSpinner.swift */; };
 		6707F0216707F0216707F021 /* SidebarWorkspaceNotificationIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6707F0226707F0226707F022 /* SidebarWorkspaceNotificationIndex.swift */; };
 		6707F0236707F0236707F023 /* SidebarWorkspaceNotificationIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6707F0246707F0246707F024 /* SidebarWorkspaceNotificationIndexTests.swift */; };
+		501D0D010000000000000001 /* SidebarWorkspaceOrderScriptModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 501D0D010000000000000002 /* SidebarWorkspaceOrderScriptModel.swift */; };
 		9521A0040000000000000001 /* SidebarWorkspacePendingDrag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9521A0030000000000000001 /* SidebarWorkspacePendingDrag.swift */; };
 		C9A57201C9A57201C9A57201 /* SidebarWorkspaceRenderItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9A57202C9A57202C9A57202 /* SidebarWorkspaceRenderItem.swift */; };
 		C9A57211C9A57211C9A57211 /* SidebarWorkspaceRenderItemID.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9A57212C9A57212C9A57212 /* SidebarWorkspaceRenderItemID.swift */; };
@@ -5892,6 +5893,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			A6AC73320000000000000002 /* SidebarWorkspaceLoadingSpinner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sidebar/SidebarWorkspaceLoadingSpinner.swift; sourceTree = "<group>"; };
 		6707F0226707F0226707F022 /* SidebarWorkspaceNotificationIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarWorkspaceNotificationIndex.swift; sourceTree = "<group>"; };
 		6707F0246707F0246707F024 /* SidebarWorkspaceNotificationIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarWorkspaceNotificationIndexTests.swift; sourceTree = "<group>"; };
+		501D0D010000000000000002 /* SidebarWorkspaceOrderScriptModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarWorkspaceOrderScriptModel.swift; sourceTree = "<group>"; };
 		9521A0030000000000000001 /* SidebarWorkspacePendingDrag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sidebar/SidebarWorkspacePendingDrag.swift; sourceTree = "<group>"; };
 		C9A57202C9A57202C9A57202 /* SidebarWorkspaceRenderItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarWorkspaceRenderItem.swift; sourceTree = "<group>"; };
 		C9A57212C9A57212C9A57212 /* SidebarWorkspaceRenderItemID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarWorkspaceRenderItemID.swift; sourceTree = "<group>"; };
@@ -7358,6 +7360,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 					D36090020000000000000002 /* NSWindow+CmuxPeerWindow.swift */,
 					C0DE35860000000000000002 /* BackgroundWorkspacePrimeCoordinator.swift */,
 					A5001012 /* ContentView.swift */,
+					501D0D010000000000000002 /* SidebarWorkspaceOrderScriptModel.swift */,
 					C51A740000000000000000B2 /* ContentView+SidebarSurfaceKind.swift */,
 					C0DE86060000000000000002 /* CommandPaletteFocusRestoreCoordinator.swift */,
 					C0DE86060000000000000004 /* CommandPaletteRestoreFocusTarget.swift */,
@@ -12381,6 +12384,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 					A6AC73310000000000000001 /* SidebarWorkspaceLeadingStatusSlot.swift in Sources */,
 					A6AC73320000000000000001 /* SidebarWorkspaceLoadingSpinner.swift in Sources */,
 				6707F0216707F0216707F021 /* SidebarWorkspaceNotificationIndex.swift in Sources */,
+				501D0D010000000000000001 /* SidebarWorkspaceOrderScriptModel.swift in Sources */,
 				9521A0040000000000000001 /* SidebarWorkspacePendingDrag.swift in Sources */,
 				C9A57201C9A57201C9A57201 /* SidebarWorkspaceRenderItem.swift in Sources */,
 				C9A57211C9A57211C9A57211 /* SidebarWorkspaceRenderItemID.swift in Sources */,

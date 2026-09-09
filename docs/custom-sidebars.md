@@ -6,6 +6,46 @@ native SwiftUI in the real sidebar, hot-reloads on save, binds to live cmux
 state, and can run cmux commands on tap. This guide is the authoring contract
 for you or a coding agent.
 
+## Change the default workspace order only
+
+The default sidebar can change row order without replacing its native UI.
+Choose **Settings > Sidebar > Workspace Order**:
+
+- **Reorder on Notification** keeps the shipped behavior that moves a workspace
+  toward the top when it receives a notification.
+- **Order of Creation** keeps older workspaces above newer ones. Creation time
+  persists across app launches.
+- **Manual Order** uses the order saved by dragging or workspace reorder
+  commands.
+- **Custom Function** runs `orderWorkspaces` from
+  `~/.config/cmux/sidebar-order.js` and reloads it when the file changes.
+
+A custom function receives immutable workspace objects and returns workspace
+objects or id strings:
+
+```javascript
+function orderWorkspaces(workspaces) {
+  return [...workspaces].sort((a, b) =>
+    a.title.localeCompare(b.title)
+  );
+}
+```
+
+Fields are `id`, `title`, `manualIndex`, `createdAt` (Unix milliseconds),
+`selected`, `pinned`, `directory`, and `dirty`, plus optional `groupId` and
+`branch`. Omitted workspaces follow in manual order. Unknown or duplicate ids
+produce an inline error. cmux retains the last valid custom order while a
+broken edit is fixed.
+
+Pinned rows remain above unpinned rows. Groups stay contiguous and move by
+their highest-ranked member. This lightweight path needs no custom-sidebar
+beta. Use the rest of this guide when the row content or layout also needs to
+change.
+
+Dragging workspace rows is available in Reorder on Notification and Manual
+Order. Order of Creation and Custom Function own the displayed order, so their
+rows do not start a reorder drag.
+
 This guide covers interpreted custom sidebars, which cannot import frameworks
 or start child processes. For compiled Swift in an ExtensionKit sidebar, start
 with the

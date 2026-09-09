@@ -55,8 +55,8 @@ import XCTest
 ///   - iMessage Mode (app.iMessageMode): reorders a workspace to top and
 ///     shows the submitted message when an agent prompt is sent; needs an
 ///     agent surface and a send action.
-///   - Reorder on Notification (workspaceAutoReorderOnNotification): needs
-///     ≥2 workspaces and an injected notification to observe reordering.
+///   - Workspace Order now lives in the Sidebar section. Notification
+///     ordering needs ≥2 workspaces and an injected notification.
 ///   - Dock Badge (notificationDockBadgeEnabled): sets the Dock tile
 ///     badge label; Dock tile state is not an XCUITest element.
 ///   - Show in Menu Bar (showMenuBarExtra): adds/removes an NSStatusItem
