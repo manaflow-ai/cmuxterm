@@ -1,4 +1,5 @@
 import CmuxAuthRuntime
+import CMUXMobileCore
 import Foundation
 
 extension URLError.Code {
@@ -38,9 +39,16 @@ enum VMClientError: Error, CustomStringConvertible {
     case backendUnreachable(url: String, detail: String)
     case httpStatus(Int, String)
     case malformedResponse(String)
+    /// An MDM profile forces `DisableCloud`; no request was attempted.
+    case disabledByManagedPolicy
 
     var description: String {
         switch self {
+        case .disabledByManagedPolicy:
+            return String(
+                localized: "cloud.managed.disabled",
+                defaultValue: "Cloud Machines are disabled by your administrator."
+            )
         case .notSignedIn:
             return """
                 You are not signed in to cmux.
@@ -746,17 +754,20 @@ actor VMClient {
     /// "Does this account have a machine?", remembered for the next launch
     /// (``CloudActivationPolicy``). Every list and every create updates it.
     private let machineCache: CloudMachineCache
+    private let isDisabledByManagedPolicy: (@Sendable () -> Bool)?
 
     init(
         session: URLSession = .shared,
         auth: AuthCoordinator,
         telemetry: VMClientTelemetry = .shared,
-        machineCache: CloudMachineCache = CloudMachineCache()
+        machineCache: CloudMachineCache = CloudMachineCache(),
+        isDisabledByManagedPolicy: (@Sendable () -> Bool)? = nil
     ) {
         self.session = session
         self.auth = auth
         self.telemetry = telemetry
         self.machineCache = machineCache
+        self.isDisabledByManagedPolicy = isDisabledByManagedPolicy
     }
 
     func list() async throws -> [VMSummary] {
@@ -1555,7 +1566,8 @@ actor VMClient {
         let (data, http) = try await request(
             "DELETE",
             path: revocation.path,
-            jsonBody: revocation.body
+            jsonBody: revocation.body,
+            allowedUnderManagedPolicy: true
         )
         try ensureOK(http, data: data)
     }
@@ -1884,8 +1896,12 @@ actor VMClient {
         jsonBody: [String: Any]? = nil,
         extraHeaders: [String: String] = [:],
         timeoutSeconds: TimeInterval? = nil,
-        retryTransientServiceUnavailable: Bool = false
+        retryTransientServiceUnavailable: Bool = false,
+        allowedUnderManagedPolicy: Bool = false
     ) async throws -> (Data, HTTPURLResponse) {
+        if !allowedUnderManagedPolicy, isDisabledByManagedPolicy?() == true {
+            throw VMClientError.disabledByManagedPolicy
+        }
         let trace = VMRequestTraceContext.mint()
         let route = VMClientTelemetry.normalizedRoute(path: path)
         let startedAt = DispatchTime.now().uptimeNanoseconds
@@ -1943,7 +1959,7 @@ actor VMClient {
         case .sessionRefreshFailed: return .sessionRefreshFailed
         case .backendUnreachable: return .backendUnreachable
         case .malformedResponse: return .malformedResponse
-        case .httpStatus: return .unknown
+        case .httpStatus, .disabledByManagedPolicy: return .unknown
         }
     }
 
@@ -1951,7 +1967,7 @@ actor VMClient {
         switch error {
         case .backendUnreachable(let url, let detail): return "\(url): \(detail)"
         case .malformedResponse(let message): return message
-        case .notSignedIn, .sessionRefreshFailed, .httpStatus: return ""
+        case .notSignedIn, .sessionRefreshFailed, .httpStatus, .disabledByManagedPolicy: return ""
         }
     }
 
@@ -2059,9 +2075,11 @@ actor VMClient {
             if http.statusCode == 429, retriesLeft > 0 {
                 retriesLeft -= 1
                 onRetry()
-                let retryAfterSeconds = (http.value(forHTTPHeaderField: "Retry-After")).flatMap(Double.init)
-                let delaySeconds = min(max(retryAfterSeconds ?? 2, 1), 10)
-                try await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
+                let delaySeconds = Self.retryDelaySeconds(
+                    statusCode: http.statusCode,
+                    retryAfterHeader: http.value(forHTTPHeaderField: "Retry-After")
+                ) ?? 2
+                try await CmxRetryAfterPolicy.sleep(seconds: delaySeconds)
                 continue
             }
             if retryTransientServiceUnavailable,
@@ -2069,9 +2087,7 @@ actor VMClient {
                let delaySeconds = Self.transientVMRetryDelay(http: http, data: data) {
                 retriesLeft -= 1
                 onRetry()
-                try await Task.sleep(
-                    nanoseconds: UInt64(delaySeconds.components.seconds) * 1_000_000_000
-                )
+                try await CmxRetryAfterPolicy.sleep(seconds: TimeInterval(delaySeconds.components.seconds))
                 continue
             }
             if let sessionIdentity {
@@ -2102,7 +2118,18 @@ actor VMClient {
         let error = object["error"] as? String
         guard retryable || error == "vm_cloud_service_unavailable" else { return nil }
         let requested = cloudVMInt(object["retryAfterSeconds"]) ?? 2
-        return .seconds(min(max(requested, 1), 10))
+        return .seconds(max(requested, 1))
+    }
+
+    nonisolated static func retryDelaySeconds(
+        statusCode: Int,
+        retryAfterHeader: String?
+    ) -> TimeInterval? {
+        guard statusCode == 429 else { return nil }
+        return TimeInterval(
+            CmxRetryAfterPolicy.seconds(from: retryAfterHeader)
+                ?? CmxRetryAfterPolicy.defaultRateLimitSeconds
+        )
     }
 
     private func decodeWebSocketDaemonEndpoint(_ value: Any?) throws -> VMWebSocketDaemonEndpoint? {
