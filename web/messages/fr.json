@@ -434,7 +434,7 @@
   },
   "vault": {
     "overview": {
-      "eyebrow": "Coffre-fort cmux",
+      "eyebrow": "cmux Vault",
       "title": "Présentation du coffre-fort",
       "description": "Activité de stockage et de téléchargement pour les sessions synchronisées.",
       "emptyTitle": "Aucune session synchronisée pour le moment",
@@ -447,7 +447,7 @@
     },
     "cliAuth": {
       "section": "coffre-fort",
-      "eyebrow": "Coffre-fort cmux",
+      "eyebrow": "cmux Vault",
       "title": "Approuver l'accès CLI",
       "description": "Confirmez le code affiché par cmux-vault pour connecter cet appareil à votre compte cmux connecté.",
       "coderouterEyebrow": "CodeRouter",
@@ -461,7 +461,7 @@
     },
     "sessions": {
       "section": "coffre-fort",
-      "eyebrow": "Coffre-fort cmux",
+      "eyebrow": "cmux Vault",
       "title": "Sessions synchronisées",
       "description": "Transcriptions récentes de l'agent de codage synchronisées à partir de vos machines locales.",
       "backToOverview": "Retour à l'aperçu",
@@ -1521,7 +1521,7 @@
         "p5": "Nécessite cmux v0.64+."
       },
       "cmuxVault": {
-        "title": "Présentation de cmux Vault",
+        "title": "cmux Vault",
         "summary": "Recherche des sessions Codex, Claude Code, OpenCode et Pi depuis le panneau Vault et glisse-les dans ton workspace.",
         "date": "22 mai 2026",
         "p1": "cmux a maintenant un panneau Vault dans la barre latérale droite pour les anciennes sessions d’agents.",
@@ -1604,10 +1604,10 @@
       ]
     },
     "cmuxVault": {
-      "metaTitle": "Présentation de cmux Vault",
+      "metaTitle": "cmux Vault",
       "metaDescription": "cmux v0.64+ ajoute un panneau Vault pour rechercher des sessions Codex, Claude Code, OpenCode et Pi, puis les glisser dans ton workspace.",
       "metaKeywords": [
-        "Coffre-fort cmux",
+        "cmux Vault",
         "sessions Codex",
         "sessions Claude Code",
         "sessions OpenCode",
@@ -2625,7 +2625,7 @@
       "suggestCloudVmName": "Machine virtuelle cloud cmux",
       "suggestCloudVmUse": "Exploitez les flux de création, d'attachement, d'exécution, de point de terminaison SSH, de facturation et de dépannage du fournisseur de Cloud VM.",
       "suggestCloudVmWhy": "Le travail de Cloud VM traverse l'application Web, la base de données, les API du fournisseur et les tests de fumée.",
-      "suggestVaultName": "Coffre-fort cmux",
+      "suggestVaultName": "cmux Vault",
       "suggestVaultUse": "Gérez la configuration des agents basés sur un coffre-fort, les informations d'identification et le comportement de restauration sans divulguer de secrets dans les invites.",
       "suggestVaultWhy": "Les workflows Vault nécessitent une gestion plus stricte que les paramètres normaux, car ils affectent les secrets et le démarrage des agents.",
       "suggestionsCallout": "Concentrez vos compétences futures sur des flux de travail reproductibles avec de véritables séquences de commandes. Si une compétence ne fait que reformuler la documentation du produit, ajoutez-la plutôt à la documentation.",
