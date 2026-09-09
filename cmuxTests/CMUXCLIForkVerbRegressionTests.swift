@@ -133,6 +133,20 @@ struct CMUXCLIForkVerbRegressionTests {
     }
 
     @Test
+    func retargetingPreservesUnavailablePolicy() {
+        let snapshot = SessionRestorableAgentSnapshot(
+            kind: .codex, sessionId: "unavailable-retarget",
+            workingDirectory: "/tmp/captured",
+            restoreWorkingDirectorySelection: .unavailable
+        )
+        let retargeted = snapshot.retargetingForkWorkingDirectory("/tmp/destination")
+        #expect(retargeted.restoreWorkingDirectorySelection == .unavailable)
+        #expect(retargeted.workingDirectory == nil)
+        #expect(retargeted.forkCommand() == nil)
+        #expect(retargeted.preparedForkArguments() == nil)
+    }
+
+    @Test
     func surfaceResumeCanonicalizerUsesForkSelectorForLocalBindings() throws {
         let sessionID = "019dad34-d218-7943-b81a-eddac5c87951"
         let binding = SurfaceResumeBindingSnapshot(
