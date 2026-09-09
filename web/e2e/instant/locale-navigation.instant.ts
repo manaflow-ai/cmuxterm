@@ -18,7 +18,7 @@ test("keeps Arabic docs commands left-to-right and content spacing mirrored", as
   await page.goto("/ar/docs/getting-started");
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
   await expect(page.locator(".docs-content pre").first()).toHaveCSS("direction", "ltr");
-  await expect(page.getByRole("heading", { name: "Homebrew", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: /Homebrew$/ })).toBeVisible();
   await expect(page.locator(".docs-content ul").first()).toHaveCSS("padding-right", "24px");
   await expect(page.getByRole("note").first()).toHaveCSS("border-right-width", "2px");
 });

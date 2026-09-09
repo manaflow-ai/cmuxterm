@@ -216,7 +216,7 @@ body {
 
   .docs-content ul,
   .docs-content ol {
-    padding-left: 1.5rem;
+    padding-inline-start: 1.5rem;
     padding-bottom: 1rem;
   }
 
@@ -235,6 +235,8 @@ body {
   }
 
   .docs-content code {
+    direction: ltr;
+    unicode-bidi: isolate;
     font-family: var(--font-geist-mono);
     font-size: 0.8125em;
     background: var(--code-bg);
@@ -305,7 +307,7 @@ body {
   }
 
   .docs-content th {
-    text-align: left;
+    text-align: start;
     font-weight: 600;
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--border);
