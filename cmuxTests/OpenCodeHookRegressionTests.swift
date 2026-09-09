@@ -26,13 +26,12 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         let socketPath = root.appendingPathComponent("cmux.sock").path
         let harnessURL = root.appendingPathComponent("harness.js")
         try Self.openCodeFeedEventHarness.write(to: harnessURL, atomically: true, encoding: .utf8)
+        let bunURL = try Self.bunExecutableURL()
 
-        let environment = ProcessInfo.processInfo.environment
-        let jsRuntimePath = try Self.javascriptRuntimePath(in: environment)
         let result = runProcess(
-            executablePath: jsRuntimePath,
+            executablePath: bunURL.path,
             arguments: [harnessURL.path, pluginURL.path, socketPath],
-            environment: environment,
+            environment: ProcessInfo.processInfo.environment,
             timeout: 5
         )
         XCTAssertFalse(result.timedOut, result.stderr)
@@ -113,21 +112,21 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         try BundledCLITestSupport.bundledCLIPath(for: Self.self)
     }
 
-    private static func javascriptRuntimePath(in environment: [String: String]) throws -> String {
-        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser.path
-        let searchPaths = (environment["PATH"] ?? "").split(separator: ":").map(String.init)
-            + ["\(homeDirectory)/.bun/bin", "/opt/homebrew/bin", "/usr/local/bin"]
-        for runtime in ["bun", "node"] {
-            for directory in searchPaths where directory.hasPrefix("/") {
-                let executablePath = "\(directory)/\(runtime)"
-                if FileManager.default.isExecutableFile(atPath: executablePath) {
-                    return executablePath
-                }
-            }
+    private static func bunExecutableURL() throws -> URL {
+        let fileManager = FileManager.default
+        var candidates: [String] = []
+        if let install = ProcessInfo.processInfo.environment["BUN_INSTALL"], !install.isEmpty {
+            candidates.append(URL(fileURLWithPath: install).appendingPathComponent("bin/bun").path)
         }
-        throw NSError(domain: "OpenCodeHookRegressionTests", code: 1, userInfo: [
-            NSLocalizedDescriptionKey: "Neither bun nor node is available in PATH or standard runtime locations"
-        ])
+        candidates += [
+            fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".bun/bin/bun").path,
+            "/opt/homebrew/bin/bun",
+            "/usr/local/bin/bun",
+        ]
+        if let path = candidates.first(where: { fileManager.isExecutableFile(atPath: $0) }) {
+            return URL(fileURLWithPath: path)
+        }
+        throw XCTSkip("Bun runtime is required for the OpenCode plugin harness")
     }
 
     private static let openCodeFeedEventHarness = #"""
