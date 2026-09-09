@@ -32,7 +32,16 @@ extension IrohPeerConnection {
             }
             return nil
         } else {
-            rendered = await connection.closed()
+            // A lane EOF is not proof that the QUIC connection itself closed:
+            // peers can finish the control stream while retaining the session
+            // for another lane. Waiting on `closed()` here would strand the
+            // reconnect owner forever, so let it classify this as the
+            // ordinary connection-lost case and schedule capped redial.
+            if TransportDebugLog.enabled {
+                TransportDebugLog.core.notice(
+                    "conn \(TransportDebugLog.id(self), privacy: .public) termination: lane EOF without close cause -> nil")
+            }
+            return nil
         }
         for code in Self.knownTerminationCodes where Self.renderedReasonContains(rendered, code: code) {
             if TransportDebugLog.enabled {
