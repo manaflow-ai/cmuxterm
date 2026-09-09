@@ -162,11 +162,36 @@ final class FakeTunnelEnroller: CloudTunnelEnrolling, @unchecked Sendable {
 
     private let lock = NSLock()
     private var count = 0
+    private var discards = 0
+    /// Whether an enrollment is on "disk" right now, so a discard counts
+    /// only when it removes something (like the real `removeLocalCredentials`).
+    private var hasEnrollment = false
+    private var _onEnroll: (@Sendable () async -> Void)?
     var enrollCount: Int { lock.withLock { count } }
+    /// Discards that actually removed an enrollment.
+    var discardCount: Int { lock.withLock { discards } }
+    /// Runs inside `enroll()`, standing in for whatever happens during the
+    /// control-plane round trip (a toggle flipped off, for one).
+    var onEnroll: (@Sendable () async -> Void)? {
+        get { lock.withLock { _onEnroll } }
+        set { lock.withLock { _onEnroll = newValue } }
+    }
 
     func enroll() async throws -> CloudTunnelEnrollment {
-        lock.withLock { count += 1 }
+        lock.withLock {
+            count += 1
+            hasEnrollment = true
+        }
+        if let onEnroll { await onEnroll() }
         return CloudTunnelEnrollment(wgQuickConfig: Self.config, serverAddress: "vpn.example.com:51820")
+    }
+
+    func discardEnrollment() {
+        lock.withLock {
+            guard hasEnrollment else { return }
+            hasEnrollment = false
+            discards += 1
+        }
     }
 }
 

@@ -1,4 +1,3 @@
-import CmuxSettings
 import Foundation
 import os
 
@@ -21,10 +20,12 @@ nonisolated private let logger = Logger(subsystem: "com.cmuxterm.app", category:
 ///   When it fires and no consumer is live (``CloudTunnelConsumerSource``),
 ///   the tunnel stops. `cmux vpn up` pins it until `cmux vpn down`.
 /// - **Stops with the session.** Sign-out, revoke, and app termination stop it.
-/// - **Off under `DisableCloud`.** While the managed policy is forced the
-///   coordinator never enrolls, starts, or reconnects; explicit and implicit
-///   uses fail closed, and the app's enforcement path revokes any existing
-///   configuration. `down` and `revoke` remain available for cleanup.
+/// - **Off until admitted.** Every start path awaits ``CloudTunnelAdmission``
+///   first (``CloudActivationPolicy`` in production: Cloud Machines on, and
+///   the account has a machine, resolved through the control plane when local
+///   state cannot say). A refused start touches neither enrollment nor
+///   NetworkExtension; `down`, sign-out, quit, and `revoke` stay available so
+///   a tunnel from an earlier opted-in session is still cleaned up.
 /// - macOS never auto-connects it: no NetworkExtension on-demand rules are set.
 ///
 /// An unavailable backend fails closed for these callers. It does not run a
@@ -38,9 +39,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     /// `CloudTunnelCoordinator+Deadline.swift` reads it.
     let clock: any Clock<Duration>
     private let timing: CloudTunnelTiming
-    /// The `DisableCloud` managed policy, read on every start path so a profile
-    /// pushed mid-session is honored by the next use without a restart.
-    private let isDisabledByPolicy: @Sendable () -> Bool
+    /// Why a start is refused right now, or nil. Asked on every start path so
+    /// an opt-in flipped while the app runs is honored by the next use.
+    private let admission: CloudTunnelAdmission
 
     private(set) var state: CloudTunnelState = .off
     private(set) var isPinned = false
@@ -49,9 +50,6 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     /// Bumped per start so a cancelled start that resumes late (activation
     /// approval is not cancellable) cannot clobber a newer start's state.
     private var startGeneration = 0
-    /// A cancelled install may still be waiting for macOS approval. Its
-    /// cleanup must finish before a replacement writes a new configuration.
-    private var retiredStartTask: Task<Void, Never>?
     private var idleTask: Task<Void, Never>?
     private var failureBackoffTask: Task<Void, Never>?
     /// True from a failed start until ``CloudTunnelTiming/failureBackoff`` elapses (or an explicit up/down).
@@ -62,6 +60,21 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     /// The in-flight stop, so a Cloud use that arrives mid-stop queues behind
     /// it instead of racing NetworkExtension with a start.
     private var stopTask: Task<Void, Never>?
+    /// Set when a scheduled start was refused by the policy after all, so the
+    /// callers waiting on the state stream report that refusal rather than a
+    /// generic cancellation. Cleared when the next start is scheduled.
+    private var lastStartRefusal: CloudTunnelStartRefusal?
+    /// A superseded start's cleanup of what it wrote (``discard(install:)``),
+    /// still in flight. A newer start waits for it before enrolling, so the
+    /// cleanup can never delete the newer start's enrollment or configuration.
+    private var pendingDiscard: Task<Void, Never>?
+    /// What a superseded start left behind because a newer start was in
+    /// flight when it ended: an enrollment written to disk, and a VPN
+    /// configuration saved in NetworkExtension. The newer start takes the
+    /// obligation over: its own install overwrites both, and if it ends
+    /// without installing it settles them (``settleRefusedStart``).
+    private var orphanedEnrollment = false
+    private var orphanedInstall = false
 
     init(
         backend: CloudTunnelBackend,
@@ -70,9 +83,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         consumers: any CloudTunnelConsumerSource,
         clock: any Clock<Duration> = ContinuousClock(),
         timing: CloudTunnelTiming = CloudTunnelTiming(),
-        isDisabledByPolicy: @escaping @Sendable () -> Bool = {
-            ManagedDevicePolicy().isEnforced(.disableCloud)
-        }
+        admission: CloudTunnelAdmission = .open
     ) {
         self.backend = backend
         self.controller = controller
@@ -80,25 +91,57 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         self.consumers = consumers
         self.clock = clock
         self.timing = timing
-        self.isDisabledByPolicy = isDisabledByPolicy
+        self.admission = admission
+    }
+
+    /// Why the next start would be refused, or nil when it would proceed;
+    /// settles the machine count against the control plane. For
+    /// `vm.tunnel_config`, which enrolls without scheduling a start here.
+    func startRefusal() async -> CloudTunnelStartRefusal? {
+        await admission.resolvedRefusal()
+    }
+
+    /// The admission a use must pass. Local state answers while the tunnel
+    /// is up or a start is already in flight (that start was admitted on a
+    /// fresh fleet answer, and a burst of uses must not list the fleet once
+    /// each); otherwise the control-plane-settled answer decides.
+    private func admissionRefusal() async -> CloudTunnelStartRefusal? {
+        if state == .up || startTask != nil {
+            return admission.knownRefusal()
+        }
+        return await admission.resolvedRefusal()
+    }
+
+    /// The refusal local state already knows about, for status reporting.
+    func knownStartRefusal() -> CloudTunnelStartRefusal? {
+        admission.knownRefusal()
+    }
+
+    /// The refusal that ended the last scheduled start, until a new start is
+    /// scheduled. Read by `vm.tunnel_up` right after its wait settles, so the
+    /// verb answers with the reason instead of a bare "off"; status does not
+    /// use it, because the cause may have been fixed since.
+    func recordedStartRefusal() -> CloudTunnelStartRefusal? {
+        lastStartRefusal
     }
 
     // MARK: - CloudPrivateNetworkGate
 
     func prepareForPrivateNetworkUse(_ use: CloudPrivateNetworkUse) async {
         guard backend.isNetworkExtension else { return }
-        if isDisabledByPolicy() {
-            logger.notice("Cloud use refused: DisableCloud is enforced by a managed profile")
+        if state != .up, isInFailureBackoff {
+            // The last start just failed; a burst of dials must not re-run
+            // enrollment, activation, and the configuration save each time,
+            // nor settle the fleet against the control plane once per dial.
+            logger.debug("Legacy non-browser preparation arrived during the failure backoff")
+            return
+        }
+        if let refusal = await admissionRefusal() {
+            logger.notice("Cloud use refused: \(refusal.rawValue, privacy: .public)")
             return
         }
         if state == .up {
             restartIdleTimer()
-            return
-        }
-        if isInFailureBackoff {
-            // The last start just failed; a burst of dials must not re-run
-            // enrollment, activation, and the configuration save each time.
-            logger.debug("Legacy non-browser preparation arrived during the failure backoff")
             return
         }
         logger.info("Cloud use (\(use.purpose.rawValue, privacy: .public)) for \(use.machineID, privacy: .public): bringing the tunnel up")
@@ -121,8 +164,8 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         guard case .networkExtension = backend else {
             throw CloudTunnelError.backendUnavailable(backend.unavailableReason ?? .entitlementMissing)
         }
-        if isDisabledByPolicy() {
-            throw CloudTunnelError.disabledByPolicy
+        if let refusal = await admissionRefusal() {
+            throw refusal.error
         }
         if state == .up {
             restartIdleTimer()
@@ -142,8 +185,8 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         guard case .networkExtension = backend else {
             throw CloudTunnelError.backendUnavailable(backend.unavailableReason ?? .entitlementMissing)
         }
-        if isDisabledByPolicy() {
-            throw CloudTunnelError.disabledByPolicy
+        if let refusal = await admissionRefusal() {
+            throw refusal.error
         }
         if pin { isPinned = true }
         clearFailureBackoff()
@@ -151,11 +194,18 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     }
 
     /// Kick off a start without waiting for it; pair with ``waitForState``.
-    func beginUp(pin: Bool) {
-        guard backend.isNetworkExtension, !isDisabledByPolicy() else { return }
+    /// Returns the refusal when the policy did not admit the start, so the
+    /// caller reports it instead of reading an "off" state as success.
+    @discardableResult
+    func beginUp(pin: Bool) async -> CloudTunnelStartRefusal? {
+        guard backend.isNetworkExtension else { return nil }
+        if let refusal = await admissionRefusal() {
+            return refusal
+        }
         if pin { isPinned = true }
         clearFailureBackoff()
         _ = startTaskIfNeeded()
+        return nil
     }
 
     func requestDown() async {
@@ -245,6 +295,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             case .failed(let message):
                 throw CloudTunnelError.startFailed(message)
             case .off:
+                if let lastStartRefusal {
+                    throw lastStartRefusal.error
+                }
                 throw CloudTunnelError.startFailed(String(
                     localized: "cloudTunnel.error.startCancelled",
                     defaultValue: "The tunnel start was cancelled."
@@ -260,24 +313,28 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         if let startTask { return startTask }
         startGeneration += 1
         let generation = startGeneration
+        lastStartRefusal = nil
         // Visible before the task runs, so a subscriber never sees `.off`
         // between asking for the start and the start beginning.
         setState(.starting)
         observeLinkIfNeeded()
-        let previousStart = retiredStartTask
-        let task = Task { try await self.performStart(generation: generation, previousStart: previousStart) }
+        let task = Task { try await self.performStart(generation: generation) }
         startTask = task
         return task
     }
 
-    private func performStart(generation: Int, previousStart: Task<Void, Never>?) async throws {
-        var attemptedInstall = false
+    private func performStart(generation: Int) async throws {
         // Runs to completion on its own task, so clearing here (not in the
         // callers, which may be cancelled by their deadlines) is what keeps
         // "one start at a time" true. A superseded start owns nothing.
         defer {
             if startGeneration == generation { startTask = nil }
         }
+        // What this start has written so far: an enrollment on disk, then a
+        // VPN configuration in NetworkExtension. Neither may outlive a policy
+        // refusal, whichever way that refusal arrives.
+        var enrolled = false
+        var installed = false
         do {
             // A stop may still be draining (idle timer, `vpn down`, sign-out);
             // starting on top of it would race NetworkExtension and fail into
@@ -285,28 +342,53 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             if let stopTask {
                 await stopTask.value
             }
-            await previousStart?.value
+            if let pendingDiscard {
+                await pendingDiscard.value
+            }
             try Task.checkCancellation()
-            if isDisabledByPolicy() { throw CloudTunnelError.disabledByPolicy }
+            // A start coalesced behind a stop re-asks local state: the opt-in
+            // may have been turned off while the stop drained. The fleet was
+            // settled just before this start was scheduled.
+            if let refusal = admission.knownRefusal() {
+                throw refusal.error
+            }
             let enrollment = try await enroller.enroll()
+            enrolled = true
             try Task.checkCancellation()
+            // Enrollment is a control-plane round trip; the opt-in may have
+            // been turned off meanwhile. Nothing it wrote may survive a
+            // refusal (the refusal handler settles it), or the next launch
+            // would treat this Mac as configured.
+            if let refusal = admission.knownRefusal() {
+                throw refusal.error
+            }
             let configuration = CloudTunnelProviderConfiguration(
                 wgQuickConfig: enrollment.wgQuickConfig,
                 serverAddress: enrollment.serverAddress,
                 localizedDescription: String(localized: "cloudTunnel.vpnConfiguration.name", defaultValue: "cmux Cloud")
             )
-            attemptedInstall = true
             try await controller.install(configuration) { [weak self] in
                 Task { await self?.noteAwaitingApproval(generation: generation) }
             }
+            installed = true
+            // Whatever a superseded start left behind is overwritten now.
+            orphanedEnrollment = false
+            orphanedInstall = false
             try Task.checkCancellation()
+            // The install can wait minutes for the user's extension approval.
+            // A refusal that landed meanwhile takes the saved configuration
+            // and the enrollment back out with it (the refusal handler below
+            // settles it): a refused Mac keeps no VPN configuration and is
+            // not "configured" at the next launch.
+            if let refusal = admission.knownRefusal() {
+                throw refusal.error
+            }
             if state == .awaitingApproval { setState(.starting, generation: generation) }
             // The extension outlives the app: after a crash or `kill`, the
             // tunnel can already be connected, and `startVPNTunnel` on a live
             // session posts no status change to wait for. Read the current
             // status and adopt a running tunnel instead of restarting it.
             let current = await controller.currentStatus()
-            try Task.checkCancellation()
             linkStatus = current
             switch current {
             case .connected:
@@ -317,24 +399,26 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
                 try await controller.start()
                 try await withDeadline(timing.connectTimeout) { try await self.waitForLink(.connected) }
             }
-            try Task.checkCancellation()
             setState(.up, generation: generation)
             restartIdleTimer()
             logger.notice("tunnel up")
         } catch is CancellationError {
-            if attemptedInstall {
-                // install() can save after revoke() already removed the old
-                // configuration. Replacement starts await this task's cleanup.
-                try? await controller.remove()
-            }
+            // The production opt-out cancels the start before the policy is
+            // re-read here (the observer's `requestDown`), so a late install
+            // that saved the configuration is cleaned up on this path too.
+            await settleRefusedStart(enrolled: enrolled, installed: installed, generation: generation)
             setState(.off, generation: generation)
             throw CancellationError()
+        } catch let error as CloudTunnelError where error.isActivationRefusal {
+            // A policy refusal is not a failure to back off from: the next
+            // use re-asks the policy, and nothing was started. Record it
+            // before the state changes so every waiter sees the real reason.
+            await settleRefusedStart(enrolled: enrolled, installed: installed, generation: generation)
+            if startGeneration == generation { lastStartRefusal = CloudTunnelStartRefusal(error: error) }
+            setState(.off, generation: generation)
+            throw error
         } catch {
-            if Task.isCancelled {
-                if attemptedInstall { try? await controller.remove() }
-                setState(.off, generation: generation)
-                throw CancellationError()
-            }
+            await settleRefusedStart(enrolled: enrolled, installed: installed, generation: generation)
             let message = Self.userMessage(for: error)
             setState(.failed(message), generation: generation)
             logger.error("tunnel start failed: \(message, privacy: .public)")
@@ -346,6 +430,42 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             }
             throw (error as? CloudTunnelError) ?? CloudTunnelError.startFailed(message)
         }
+    }
+
+    /// A start is ending without owning a running tunnel, with something on
+    /// the line: the enrollment and VPN configuration it wrote itself, or
+    /// ones a superseded start handed over. While a newer start is in flight
+    /// the obligation passes to it, whatever the policy says right now: its
+    /// install overwrites both, and if it ends without installing it settles
+    /// here in turn. Otherwise the policy decides: refused, the VPN
+    /// configuration (only if one was ever saved, so a Mac that never
+    /// installed never calls NetworkExtension) and this Mac's enrollment are
+    /// taken back out; admitted, they stay for the next use, as before this
+    /// gate.
+    private func settleRefusedStart(enrolled: Bool, installed: Bool, generation: Int) async {
+        let owesEnrollment = enrolled || orphanedEnrollment
+        let owesInstall = installed || orphanedInstall
+        guard owesEnrollment || owesInstall else { return }
+        let newerStartInFlight = startTask != nil && startGeneration != generation
+        if newerStartInFlight {
+            orphanedEnrollment = owesEnrollment
+            orphanedInstall = owesInstall
+            return
+        }
+        orphanedEnrollment = false
+        orphanedInstall = false
+        guard admission.knownRefusal() != nil else { return }
+        let discard = Task { await self.discard(install: owesInstall) }
+        pendingDiscard = discard
+        await discard.value
+        if pendingDiscard == discard { pendingDiscard = nil }
+    }
+
+    private func discard(install: Bool) async {
+        if install {
+            try? await controller.remove()
+        }
+        enroller.discardEnrollment()
     }
 
     private func noteAwaitingApproval(generation: Int) {
@@ -399,7 +519,6 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             // cannot be interrupted, and the generation guard keeps its late
             // resumption from touching the state this stop sets.
             startTask.cancel()
-            retiredStartTask = Task { _ = try? await startTask.value }
             self.startTask = nil
             startGeneration += 1
         }

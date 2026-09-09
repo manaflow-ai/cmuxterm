@@ -1,5 +1,4 @@
 import CmuxAuthRuntime
-import CmuxSettings
 import Foundation
 
 extension URLError.Code {
@@ -39,16 +38,9 @@ enum VMClientError: Error, CustomStringConvertible {
     case backendUnreachable(url: String, detail: String)
     case httpStatus(Int, String)
     case malformedResponse(String)
-    /// An MDM profile forces `DisableCloud`; no request was attempted.
-    case disabledByManagedPolicy
 
     var description: String {
         switch self {
-        case .disabledByManagedPolicy:
-            return String(
-                localized: "cloud.managed.disabled",
-                defaultValue: "Cloud Machines are disabled by your administrator."
-            )
         case .notSignedIn:
             return """
                 You are not signed in to cmux.
@@ -751,22 +743,20 @@ actor VMClient {
     private let session: URLSession
     private let auth: AuthCoordinator
     private let telemetry: VMClientTelemetry
-    /// The `DisableCloud` managed policy. Every Cloud VM API call reads it, so
-    /// a profile pushed mid-session takes effect on the next request.
-    private let isDisabledByManagedPolicy: @Sendable () -> Bool
+    /// "Does this account have a machine?", remembered for the next launch
+    /// (``CloudActivationPolicy``). Every list and every create updates it.
+    private let machineCache: CloudMachineCache
 
     init(
         session: URLSession = .shared,
         auth: AuthCoordinator,
         telemetry: VMClientTelemetry = .shared,
-        isDisabledByManagedPolicy: @escaping @Sendable () -> Bool = {
-            ManagedDevicePolicy().isEnforced(.disableCloud)
-        }
+        machineCache: CloudMachineCache = CloudMachineCache()
     ) {
         self.session = session
         self.auth = auth
         self.telemetry = telemetry
-        self.isDisabledByManagedPolicy = isDisabledByManagedPolicy
+        self.machineCache = machineCache
     }
 
     func list() async throws -> [VMSummary] {
@@ -825,6 +815,7 @@ actor VMClient {
             }
             return summary
         }
+        machineCache.record(hasAnyMachine: !vms.isEmpty)
         return VMListPage(vms: vms, limits: limits)
     }
 
@@ -1199,6 +1190,7 @@ actor VMClient {
         summary.capabilities = VMCapabilities(json: obj["capabilities"])
         summary.displayName = (obj["displayName"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         summary.slug = (obj["slug"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        machineCache.record(hasAnyMachine: true)
         return summary
     }
 
@@ -1243,6 +1235,7 @@ actor VMClient {
         var summary = VMSummary(id: id, provider: providerValue, status: displayStatus, image: imageValue, createdAt: createdAt, base: decodeBaseSummary(obj["base"]))
         summary.kind = Self.decodeKind(obj["kind"])
         summary.capabilities = VMCapabilities(json: obj["capabilities"])
+        machineCache.record(hasAnyMachine: true)
         return summary
     }
 
@@ -1291,6 +1284,10 @@ actor VMClient {
         let encodedID = try pathSegment(id, fieldName: "vm id")
         let (data, http) = try await request("DELETE", path: "/api/vm/\(encodedID)")
         try ensureOK(http, data: data)
+        // Whether any machine remains is only known after the next list; a
+        // tunnel start meanwhile asks the control plane instead of trusting
+        // a marker that may have just described the deleted machine.
+        machineCache.clear()
     }
 
     func snapshot(id: String, name: String? = nil) async throws -> VMSnapshotResult {
@@ -1352,6 +1349,7 @@ actor VMClient {
             base: nil
         )
         forked.capabilities = VMCapabilities(json: obj["capabilities"])
+        machineCache.record(hasAnyMachine: true)
         return (
             snapshot: snapshotID.map { VMSnapshotResult(id: $0, name: nil, createdAt: Int64(Date().timeIntervalSince1970 * 1000)) },
             vm: forked
@@ -1381,6 +1379,7 @@ actor VMClient {
         let status = (obj["status"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         var restored = VMSummary(id: id, provider: providerValue, status: status?.isEmpty == false ? status! : "running", image: image, createdAt: createdAt, base: nil)
         restored.capabilities = VMCapabilities(json: obj["capabilities"])
+        machineCache.record(hasAnyMachine: true)
         return restored
     }
 
@@ -1553,13 +1552,10 @@ actor VMClient {
     /// config still on disk stops working immediately.
     func revokeCloudAccess(deviceID: String) async throws {
         let revocation = Self.cloudAccessRevocationRequest(deviceID: deviceID)
-        // Revocation removes this Mac's access, so it is the one call a
-        // `DisableCloud` profile must not block (`cmux vpn revoke` cleanup).
         let (data, http) = try await request(
             "DELETE",
             path: revocation.path,
-            jsonBody: revocation.body,
-            allowedUnderManagedPolicy: true
+            jsonBody: revocation.body
         )
         try ensureOK(http, data: data)
     }
@@ -1882,23 +1878,14 @@ actor VMClient {
     /// sends the client identity headers, measures wall-clock latency and
     /// records the outcome (success, HTTP error with the server's code and
     /// trace id, or transport failure) with `VMClientTelemetry`.
-    ///
-    /// This is also the authoritative `DisableCloud` boundary: with the
-    /// managed policy forced, every operation fails closed here before any
-    /// network or telemetry work, whichever entry point asked (UI, palette,
-    /// restore, socket, iOS RPC). Only access revocation may pass.
     private func request(
         _ method: String,
         path: String,
         jsonBody: [String: Any]? = nil,
         extraHeaders: [String: String] = [:],
         timeoutSeconds: TimeInterval? = nil,
-        retryTransientServiceUnavailable: Bool = false,
-        allowedUnderManagedPolicy: Bool = false
+        retryTransientServiceUnavailable: Bool = false
     ) async throws -> (Data, HTTPURLResponse) {
-        if !allowedUnderManagedPolicy, isDisabledByManagedPolicy() {
-            throw VMClientError.disabledByManagedPolicy
-        }
         let trace = VMRequestTraceContext.mint()
         let route = VMClientTelemetry.normalizedRoute(path: path)
         let startedAt = DispatchTime.now().uptimeNanoseconds
@@ -1956,7 +1943,7 @@ actor VMClient {
         case .sessionRefreshFailed: return .sessionRefreshFailed
         case .backendUnreachable: return .backendUnreachable
         case .malformedResponse: return .malformedResponse
-        case .httpStatus, .disabledByManagedPolicy: return .unknown
+        case .httpStatus: return .unknown
         }
     }
 
@@ -1964,7 +1951,7 @@ actor VMClient {
         switch error {
         case .backendUnreachable(let url, let detail): return "\(url): \(detail)"
         case .malformedResponse(let message): return message
-        case .notSignedIn, .sessionRefreshFailed, .httpStatus, .disabledByManagedPolicy: return ""
+        case .notSignedIn, .sessionRefreshFailed, .httpStatus: return ""
         }
     }
 
@@ -2461,9 +2448,6 @@ actor MachineUsageClient {
         path: String,
         teamID explicitTeamID: String?
     ) async throws -> (Data, HTTPURLResponse) {
-        // `DisableCloud` (MDM): fail closed before any token or network work,
-        // whichever entry point asked.
-        guard ManagedCloudPolicy.isEnabled else { throw VMClientError.disabledByManagedPolicy }
         let tokens: (accessToken: String, refreshToken: String)
         do {
             tokens = try await auth.currentTokens()
