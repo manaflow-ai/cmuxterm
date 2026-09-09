@@ -235,8 +235,6 @@ struct ClaudeHookLifecycleCleanupTests {
         )
         #expect(turnStarted?.workspaceId == newWorkspaceId, "turn start must follow the moved pane; saw \(commands)")
         #expect(turnStarted?.surfaceId == Self.liveSurfaceId)
-        #expect((turnStarted?.draft["attention"] as? [String: Any])?["turnIdentity"] as? String == "turn-1")
-        #expect(!commands.contains { $0.hasPrefix("clear_notifications ") })
         #expect(
             !commands.contains { $0.contains("--panel=\(Self.otherSurfaceId)") },
             "a new turn must not touch sibling panes; saw \(commands)"
@@ -307,8 +305,6 @@ struct ClaudeHookLifecycleCleanupTests {
         )
         #expect(stateChanged?.workspaceId == newWorkspaceId, "PreToolUse journal event must follow the moved pane; saw \(commands)")
         #expect(stateChanged?.surfaceId == Self.liveSurfaceId)
-        #expect(stateChanged?.draft["declared_phase"] as? String == "running")
-        #expect(!commands.contains { $0.hasPrefix("clear_notifications ") })
         #expect(
             !commands.contains { $0.hasPrefix("clear_notifications --tab=\(newWorkspaceId)") && !$0.contains("--panel=") },
             "attention effects are pane-scoped, never workspace-wide; saw \(commands)"

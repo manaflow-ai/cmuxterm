@@ -57434,19 +57434,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No history database found for %@."
+            "value": "No browsing history was found for %@."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ の履歴データベースが見つかりませんでした。"
+            "value": "%@ の閲覧履歴が見つかりませんでした。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@에 대한 방문 기록 데이터베이스를 찾을 수 없습니다."
+            "value": "%@의 방문 기록을 찾을 수 없습니다."
           }
         },
         "uk": {
@@ -57458,37 +57458,37 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "未找到 %@ 的历史记录数据库。"
+            "value": "未找到 %@ 的浏览记录。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Keine Verlaufsdatenbank für %@ gefunden."
+            "value": "Für %@ wurde kein Browserverlauf gefunden."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aucune base de données d'historique trouvée pour %@."
+            "value": "Aucun historique de navigation n’a été trouvé pour %@."
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "لم يتم العثور على قاعدة بيانات سجل لـ %@."
+            "value": "لم يتم العثور على سجل تصفح لـ %@."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No se encontró ninguna base de datos de historial para %@."
+            "value": "No se encontró historial de navegación de %@."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "找不到 %@ 的瀏覽記錄資料庫。"
+            "value": "找不到 %@ 的瀏覽記錄。"
           }
         }
       }
@@ -67663,55 +67663,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The CodeRouter installer finished, but no CodeRouter CLI was found in %@. Add its bin directory to PATH and retry."
+            "value": "The CodeRouter installer finished, but its command could not be found in %@. Check the installation and try again."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "CodeRouter インストーラーは完了しましたが、%@ に CodeRouter CLI が見つかりませんでした。その bin ディレクトリを PATH に追加して、もう一度お試しください。"
+            "value": "CodeRouter のインストールは完了しましたが、%@ にコマンドが見つかりませんでした。インストールを確認して、もう一度お試しください。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Der CodeRouter-Installer wurde abgeschlossen, aber in %@ wurde keine CodeRouter-CLI gefunden. Füge sein bin-Verzeichnis zum PATH hinzu und versuche es erneut."
+            "value": "Die Installation von CodeRouter ist abgeschlossen, aber der Befehl wurde in %@ nicht gefunden. Prüfen Sie die Installation und versuchen Sie es erneut."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "L'installateur de CodeRouter a terminé, mais aucun CLI CodeRouter n'a été trouvé dans %@. Ajoutez son répertoire bin au PATH et réessayez."
+            "value": "L’installation de CodeRouter est terminée, mais sa commande est introuvable dans %@. Vérifiez l’installation et réessayez."
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "انتهى برنامج تثبيت CodeRouter، ولكن لم يتم العثور على CodeRouter CLI في %@. أضف دليل bin الخاص به إلى PATH وأعد المحاولة."
+            "value": "اكتمل تثبيت CodeRouter، لكن لم يتم العثور على أمره في %@. تحقق من التثبيت وحاول مرة أخرى."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El instalador de CodeRouter finalizó, pero no se encontró ninguna CLI de CodeRouter en %@. Añade su directorio bin a PATH y vuelve a intentarlo."
+            "value": "La instalación de CodeRouter finalizó, pero no se encontró su comando en %@. Comprueba la instalación y vuelve a intentarlo."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "CodeRouter 安裝程式已完成，但在 %@ 中找不到 CodeRouter CLI。請將其 bin 目錄新增至 PATH 後重試。"
+            "value": "CodeRouter 安裝已完成，但在 %@ 中找不到其指令。請檢查安裝結果後重試。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "CodeRouter 安装程序已运行完毕，但在 %@ 中未找到 CodeRouter CLI。请将其 bin 目录添加到 PATH 中并重试。"
+            "value": "CodeRouter 安装已完成，但在 %@ 中找不到其命令。请检查安装结果后重试。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "CodeRouter 설치 프로그램이 완료되었으나 %@에서 CodeRouter CLI를 찾을 수 없습니다. 해당 bin 디렉토리를 PATH에 추가하고 다시 시도하십시오."
+            "value": "CodeRouter 설치가 완료되었지만 %@에서 명령을 찾을 수 없습니다. 설치 상태를 확인한 후 다시 시도하세요."
           }
         }
       }
@@ -414758,55 +414758,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The Simulator TCC database is unavailable; wait for the device to finish booting."
+            "value": "Simulator permissions are not available yet. Wait for the device to finish starting."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Simulator の TCC データベースを利用できません。デバイスの起動が完了するまでお待ちください。"
+            "value": "シミュレータの権限はまだ利用できません。デバイスの起動が完了するまでお待ちください。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "模拟器 TCC 数据库不可用；请等待设备启动完成。"
+            "value": "模拟器权限尚不可用。请等待设备完成启动。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die TCC-Datenbank des Simulators ist nicht verfügbar; warten Sie, bis das Gerät den Startvorgang abgeschlossen hat."
+            "value": "Die Simulator-Berechtigungen sind noch nicht verfügbar. Warten Sie, bis das Gerät vollständig gestartet ist."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La base de données TCC du Simulateur n’est pas disponible ; attendez que l’appareil ait fini de démarrer."
+            "value": "Les autorisations du simulateur ne sont pas encore disponibles. Attendez la fin du démarrage de l’appareil."
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "قاعدة بيانات TCC للـ Simulator غير متاحة؛ انتظر حتى ينتهي الجهاز من التشغيل."
+            "value": "أذونات المحاكي غير متاحة بعد. انتظر حتى يكتمل بدء تشغيل الجهاز."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La base de datos TCC del simulador no está disponible; espera a que el dispositivo termine de iniciarse."
+            "value": "Los permisos del simulador aún no están disponibles. Espera a que el dispositivo termine de iniciarse."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Simulator TCC 資料庫無法使用；請等待裝置完成啟動。"
+            "value": "模擬器權限尚未可用。請等待裝置完成啟動。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "시뮬레이터 TCC 데이터베이스를 사용할 수 없습니다. 기기 부팅이 완료될 때까지 기다려 주세요."
+            "value": "시뮬레이터 권한을 아직 사용할 수 없습니다. 기기가 완전히 시작될 때까지 기다리세요."
           }
         }
       }
