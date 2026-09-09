@@ -80,7 +80,10 @@ import Testing
         try await CmxRetryAfterPolicy.sleep(seconds: 172_801) { chunk in
             time.advance(by: chunk)
         }
-        #expect(time.now == 172_801)
+        let observedTime = time.now
+        let expectedTime: TimeInterval = 172_801
+        let timeDelta = abs(observedTime - expectedTime)
+        #expect(timeDelta == 0)
     }
 }
 
