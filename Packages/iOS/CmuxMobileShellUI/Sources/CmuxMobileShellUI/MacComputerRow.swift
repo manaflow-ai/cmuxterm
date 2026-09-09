@@ -214,7 +214,7 @@ struct MacComputerRow: View {
     private var listAuthWarningMessage: String {
         guard let entry = MobileMacListAuthState.shared.entry(deviceID: computer.deviceId),
               entry.isOutdated,
-              let required = entry.minimumSupportedVersion
+              let required = entry.requiredVersionDisplay
         else {
             return ""
         }
