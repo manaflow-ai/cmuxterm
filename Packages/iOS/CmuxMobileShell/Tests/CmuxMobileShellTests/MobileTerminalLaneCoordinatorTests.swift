@@ -99,6 +99,61 @@ struct MobileTerminalLaneCoordinatorTests {
     }
 
     @Test
+    func inputOnlyLaneDoesNotValidateAgainstOutputCursor() async throws {
+        let lane = TerminalLaneTestConnection(
+            frames: [Self.frame(kind: .replay, sequence: 12, bytes: "")],
+            waitsAfterFrames: true
+        )
+        let provider = TerminalLaneTestProvider(lanes: [lane])
+        let coordinator = MobileTerminalLaneCoordinator { request, surfaceID, cursor in
+            try await provider.callAsFunction(request, surfaceID, cursor: cursor)
+        }
+        let readiness = TerminalLaneReadinessRecorder()
+        var readinessIterator = await readiness.stream().makeAsyncIterator()
+
+        await coordinator.ensure(Self.configuration(
+            mode: .inputOnly,
+            providerRequest: try Self.request(),
+            cursor: { 5 },
+            consume: { _ in .accepted(outputReady: true) },
+            readinessChanged: { await readiness.append($0) }
+        ))
+
+        #expect(await readinessIterator.next() == true)
+        #expect(await provider.requestedCursors() == [nil])
+        #expect(await coordinator.sendInput("echo fast\\n", surfaceID: Self.surfaceID) == .sent)
+        await coordinator.deactivateAll()
+    }
+
+    @Test
+    func outputLaneDoesNotFallBackToInputOnlyProvider() async throws {
+        let inputProvider = TerminalLaneTestProvider(lanes: [
+            TerminalLaneTestConnection(
+                frames: [Self.frame(kind: .replay, sequence: 0, bytes: "")],
+                waitsAfterFrames: true
+            ),
+        ])
+        let coordinator = MobileTerminalLaneCoordinator(
+            provider: nil,
+            inputOnlyProvider: { request, surfaceID, cursor in
+                try await inputProvider.callAsFunction(request, surfaceID, cursor: cursor)
+            }
+        )
+
+        await coordinator.ensure(Self.configuration(
+            providerRequest: try Self.request(),
+            cursor: { nil },
+            consume: { _ in .accepted(outputReady: true) },
+            readinessChanged: { _ in }
+        ))
+        try await Task.sleep(for: .milliseconds(10))
+
+        #expect(await inputProvider.requestCount() == 0)
+        #expect(await coordinator.isOutputReady(surfaceID: Self.surfaceID) == false)
+        await coordinator.deactivateAll()
+    }
+
+    @Test
     func sequenceGapSuspendsUntilAuthoritativeCursorThenReopens() async throws {
         let firstLane = TerminalLaneTestConnection(
             frames: [
@@ -139,6 +194,56 @@ struct MobileTerminalLaneCoordinatorTests {
 
         #expect(await readinessIterator.next() == true)
         #expect(await provider.requestedCursors() == [5, 10])
+        await coordinator.deactivateAll()
+    }
+
+    @Test
+    func consumerBackpressureSuspendsBeforeDrainingNextChunk() async throws {
+        let firstLane = TerminalLaneTestConnection(
+            frames: [
+                Self.frame(kind: .replay, sequence: 0, bytes: "baseline"),
+                Self.frame(kind: .chunk, sequence: 8, bytes: "must-not-drain"),
+            ],
+            waitsAfterFrames: true
+        )
+        let secondLane = TerminalLaneTestConnection(
+            frames: [Self.frame(kind: .replay, sequence: 0, bytes: "baseline")],
+            waitsAfterFrames: true
+        )
+        let provider = TerminalLaneTestProvider(lanes: [firstLane, secondLane])
+        let coordinator = MobileTerminalLaneCoordinator { request, surfaceID, cursor in
+            try await provider.callAsFunction(request, surfaceID, cursor: cursor)
+        }
+        let readiness = TerminalLaneReadinessRecorder()
+        var readinessIterator = await readiness.stream().makeAsyncIterator()
+        let consumed = TerminalLaneFrameRecorder()
+        let shouldRejectFirstFrame = TerminalLaneFlag(value: true)
+
+        await coordinator.ensure(Self.configuration(
+            providerRequest: try Self.request(),
+            cursor: { nil },
+            consume: { frame in
+                await consumed.append(frame)
+                if await shouldRejectFirstFrame.value() {
+                    await shouldRejectFirstFrame.setValue(false)
+                    return .accepted(outputReady: false)
+                }
+                return .accepted(outputReady: true)
+            },
+            readinessChanged: { await readiness.append($0) }
+        ))
+
+        for _ in 0..<100 {
+            if await firstLane.closeCount() == 1 { break }
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        #expect(await firstLane.closeCount() == 1)
+        #expect(await consumed.frames().map(\.kind) == [.replay])
+
+        await coordinator.resume(surfaceID: Self.surfaceID)
+        #expect(await readinessIterator.next() == true)
+        #expect(await consumed.frames().map(\.kind) == [.replay, .replay])
+        #expect(await provider.requestCount() == 2)
         await coordinator.deactivateAll()
     }
 
@@ -209,6 +314,7 @@ struct MobileTerminalLaneCoordinatorTests {
     }
 
     private static func configuration(
+        mode: MobileTerminalLaneCoordinator.LaneMode = .output,
         providerRequest: CmxByteTransportRequest,
         cursor: @escaping @Sendable () async -> UInt64?,
         consume: @escaping @Sendable (MobileTerminalLaneOutputFrame) async -> MobileTerminalLaneCoordinator.FrameDisposition,
@@ -217,6 +323,7 @@ struct MobileTerminalLaneCoordinatorTests {
         MobileTerminalLaneCoordinator.Configuration(
             request: providerRequest,
             surfaceID: surfaceID,
+            mode: mode,
             cursor: cursor,
             consume: consume,
             readinessChanged: readinessChanged
@@ -334,4 +441,15 @@ private actor TerminalLaneCursor {
 
     func value() -> UInt64? { storedValue }
     func setValue(_ value: UInt64?) { storedValue = value }
+}
+
+private actor TerminalLaneFlag {
+    private var storedValue: Bool
+
+    init(value: Bool) {
+        self.storedValue = value
+    }
+
+    func value() -> Bool { storedValue }
+    func setValue(_ value: Bool) { storedValue = value }
 }

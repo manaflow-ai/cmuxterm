@@ -924,7 +924,7 @@ final class MobileHostIrxRuntime {
         artifactRegistry: MobileHostIrohArtifactTransferRegistry,
         journal: IrxJournal
     ) async {
-        var terminalLaneCount = 0
+        let terminalLaneQuota = MobileHostIrxTerminalLaneQuota()
         while !Task.isCancelled {
             guard let lane = await irx.acceptLane() else { return }
             journal.record(
@@ -938,12 +938,11 @@ final class MobileHostIrxRuntime {
             case .keepalive:
                 _ = irx.respondKeepalive(on: lane)
             case .terminal:
-                guard terminalLaneCount < 4 else {
+                guard await terminalLaneQuota.reserve() else {
                     await lane.writer.reset(errorCode: 3)
                     await lane.reader.stop(errorCode: 3)
                     continue
                 }
-                terminalLaneCount += 1
                 let resource = lane.descriptor.resource ?? ""
                 let cursor = lane.descriptor.cursor
                 Task {
@@ -953,6 +952,22 @@ final class MobileHostIrxRuntime {
                         stream: lane.bidirectional(),
                         journal: journal
                     )
+                    await terminalLaneQuota.release()
+                }
+            case .terminalInput:
+                guard await terminalLaneQuota.reserve() else {
+                    await lane.writer.reset(errorCode: 3)
+                    await lane.reader.stop(errorCode: 3)
+                    continue
+                }
+                let resource = lane.descriptor.resource ?? ""
+                Task {
+                    await MobileHostIrxTerminalLaneServer.serveInputOnly(
+                        resourceID: resource,
+                        stream: lane.bidirectional(),
+                        journal: journal
+                    )
+                    await terminalLaneQuota.release()
                 }
             case .artifact:
                 guard let resource = try? CmxIrohResourceID(lane.descriptor.resource ?? "")
@@ -1000,6 +1015,25 @@ final class MobileHostIrxRuntime {
                 await lane.reader.stop(errorCode: 2)
             }
         }
+    }
+}
+
+/// Tracks active IRX terminal lanes rather than cumulative opens. Replay
+/// barriers intentionally close and reopen lanes, so a connection must return
+/// its credit when a serving task finishes or the fast input lane eventually
+/// becomes permanently unavailable after four reopen cycles.
+private actor MobileHostIrxTerminalLaneQuota {
+    private static let maximum = 4
+    private var activeCount = 0
+
+    func reserve() -> Bool {
+        guard activeCount < Self.maximum else { return false }
+        activeCount += 1
+        return true
+    }
+
+    func release() {
+        activeCount = max(0, activeCount - 1)
     }
 }
 
