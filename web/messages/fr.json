@@ -1281,7 +1281,7 @@
       "metaDescription": "cmux sous licence AGPL-3.0 vers GPL-3.0."
     },
     "cmuxSsh": {
-      "metaTitle": "cmuxSSH",
+      "metaTitle": "cmux SSH",
       "metaDescription": "Une commande vous offre des sessions à distance persistantes, des volets de navigateur qui atteignent les ports distants et des notifications d'agent qui reviennent à la maison."
     },
     "cmdShiftU": {
@@ -1294,7 +1294,7 @@
     },
     "introducingCmux": {
       "metaTitle": "Présentation de cmux",
-      "metaDescription": "Pourquoi nous avons créé cmux, un nouveau terminal pour macOS."
+      "metaDescription": "Un terminal macOS natif fondé sur Ghostty, conçu pour exécuter plusieurs agents de programmation IA côte à côte."
     },
     "posts": {
       "tokenMultitasking": {
@@ -1404,7 +1404,7 @@
         "p1": "cmux sous licence AGPL-3.0 vers GPL-3.0. La clause d'utilisation du réseau de l'AGPL n'est pas pertinente pour une application de bureau, mais de nombreuses entreprises interdisent complètement l'AGPL. GPL abandonne cette clause tout en exigeant que les forks restent open source. La double licence (GPL + commerciale) reste la même."
       },
       "cmuxSsh": {
-        "title": "cmuxSSH",
+        "title": "cmux SSH",
         "summary": "Une commande vous offre des sessions à distance persistantes, des volets de navigateur qui atteignent les ports distants et des notifications d'agent qui reviennent à la maison.",
         "date": "30 mars 2026",
         "p1": "<code>cmux ssh user@remote</code> crée un espace de travail pour la machine distante. Faites glisser une image dans une session Claude Code à distance et elle sera automatiquement téléchargée. Les volets du navigateur transitent par le réseau distant, donc localhost fonctionne simplement. Utilise votre <code>~/.ssh/config</code>, se reconnecte lors des drop.",
@@ -1453,7 +1453,7 @@
         "title": "Claude Code est le meilleur gestionnaire de worktrees",
         "summary": "Utilisez Claude Code, Codex, des scripts et les primitives cmux pour construire le workflow de worktrees dont votre codebase a vraiment besoin.",
         "date": "3 juillet 2026",
-        "p1": "Les gestionnaires de worktrees intégrés finissent forcément limités. Ils supposent souvent un seul repo, Git, un flux de branches officiel et la vision d’une équipe produit de ce que devrait être la préparation. Les vrais codebases ne restent pas dans ce cadre.",
+        "p1": "Chaque charge de travail appelle sa propre forme de parallélisme. Les worktrees conviennent aux modifications Git courantes. Plusieurs copies du dépôt sont utiles lorsque les sous-modules ou les outils de compilation gèrent mal les worktrees. Freestyle et Modal proposent des environnements isolés distants ; GitHub Actions peut aussi remplir ce rôle. Docker, UTM, Lima et OrbStack assurent l’isolation locale. Certaines équipes utilisent des Mac mini ou des machines Linux. Les expériences d’apprentissage automatique trouvent souvent leur place sur Ray, Modal ou Slurm. Parfois, le plus rapide reste de tout lancer sur main, sans filet.",
         "p2": "Le <zen>Zen de cmux</zen> dit que les développeurs doivent construire leurs propres outils et explorer les façons de travailler avec le code. Les worktrees sont une primitive utile, mais les checkouts multiples, les repos backend/frontend séparés, les machines distantes, les projets sans Git, les scripts locaux et parfois le travail direct sur main le sont aussi quand c’est le plus rapide pour la tâche.",
         "superRepoTitle": "Le modèle du super repo",
         "superRepoP1": "Un super repo est un checkout de contrôle qui sait où vivent les vrais repos, comment créer les worktrees, comment associer les repos liés, quels scripts préparent chaque workspace et comment les PR sont relues puis fusionnées. cmuxterm-hq est un super repo: il contient le checkout principal de cmux, les worktrees cmux par tâche, les checkouts Zed, les scripts hq, les skills réutilisables et les règles que suivent les agents pour ne pas se marcher dessus.",
@@ -1734,7 +1734,7 @@
       "verifyUi": "Dans cmux, Paramètres → Navigateur affiche la bascule d'activation désactivée avec « Géré par votre organisation » et Paramètres → Mobile affiche « Le contrôle à distance depuis l'application iOS est désactivé par votre organisation »."
     },
     "remoteTmux": {
-      "title": "Transmission à distance",
+      "title": "tmux à distance",
       "metaTitle": "Tmux à distance (bêta)",
       "metaDescription": "Pilotez une session tmux à distance depuis cmux via SSH en utilisant le mode de contrôle tmux. Les sessions deviennent des espaces de travail, les fenêtres deviennent des onglets et les volets d'une fenêtre deviennent une division cmux native.",
       "intro": "Tmux distant reflète une session tmux exécutée sur une machine distante dans cmux via SSH, en utilisant le mode de contrôle tmux (tmux -CC). Au lieu d'un simple terminal SSH, la session distante est reprojetée dans l'interface utilisateur native de cmux (espaces de travail, onglets, fractionnements, défilement et copie) et cmux pilote le véritable serveur tmux derrière elle. Il s'agit d'un indicateur de fonctionnalités bêta et ne modifie pas les terminaux locaux.",
@@ -2070,7 +2070,7 @@
           "textBoxSubmitActionTitle": "Libellé de menu pour cette action de soumission.",
           "textBoxSubmitActionKind": "Si cette action soumet une entrée de texte brut ou développe un modèle de commande shell.",
           "textBoxSubmitActionCommandTemplate": "Modèle de commande Shell pour les actions commandTemplate. Incluez {{prompt}} pour citer l'invite dans la commande.",
-          "textBoxSubmitActionPreservePromptAfterLaunch": "Lorsque cela est vrai, lancez commandTemplate sans l’invite et conservez l’invite dans la zone de texte de l’agent actif.",
+          "textBoxSubmitActionPreservePromptAfterLaunch": "Si la valeur est true, lance commandTemplate sans l’invite et conserve celle-ci dans TextBox pour l’agent actif.",
           "textBoxSubmitActionSystemImage": "Nom du symbole SF de secours affiché sur le bouton de soumission.",
           "textBoxSubmitActionAssetName": "Nom facultatif de l’image du catalogue d’actifs d’application affiché sur le bouton d’envoi.",
           "textBoxSubmitActionImagePath": "Chemin d’accès facultatif au fichier PNG ou image affiché sur le bouton Soumettre. Tilde est agrandi.",
@@ -2461,7 +2461,7 @@
       "createHookScript": "1. Créer le script de hook",
       "configureClaude": "2. Configurer Claude Code",
       "restartNote": "Redémarrez Claude Code pour appliquer les hooks.",
-      "copilotCliHooks": "CLI copilote GitHub",
+      "copilotCliHooks": "GitHub Copilot CLI",
       "copilotCliHooksDesc": "Copilot CLI prend en charge les <link>hooks</link> qui exécutent des commandes shell lors d'événements du cycle de vie comme la soumission de prompts, l'arrêt de l'agent et les erreurs.",
       "copilotCliRepoHooks": "Pour les hooks au niveau du dépôt, créez un fichier .github/hooks/notify.json avec la même structure :",
       "integrationExamples": "Exemples d'intégration",
@@ -2619,7 +2619,7 @@
       "suggestionHeader": "Idée de compétence",
       "suggestionUseHeader": "Cas d'utilisation",
       "suggestionWhyHeader": "Pourquoi ça aide",
-      "suggestSshName": "cmuxSSH",
+      "suggestSshName": "cmux SSH",
       "suggestSshUse": "Pilotez les espaces de travail distants, les lancements d'URL SSH, le routage du navigateur via des réseaux distants et le comportement de reconnexion.",
       "suggestSshWhy": "Les sessions à distance constituent une surface cmux majeure avec un comportement différent des workflows des terminaux locaux.",
       "suggestCloudVmName": "Machine virtuelle cloud cmux",
@@ -2837,8 +2837,8 @@
       "envSocket": "Chemin d'accès à la prise de contrôle cmux à laquelle la cale doit se connecter"
     },
     "ohMyPi": {
-      "title": "oh-mon-pi",
-      "metaTitle": "oh-mon-pi - cmux",
+      "title": "oh-my-pi",
+      "metaTitle": "oh-my-pi - cmux",
       "metaDescription": "Connectez oh-my-pi (omp) à cmux avec des hooks pour l'état, les notifications, la restauration de session, la dénomination automatique et l'attribution du gestionnaire de tâches.",
       "intro": "oh-my-pi est un fork de Pi réécrit en tant qu'agent axé sur le codage. Son binaire est omp, et cmux s'y intègre via l'extension omp hooks.",
       "setupUsage": "Configuration et utilisation",
@@ -2912,12 +2912,12 @@
       "notifications": "Alertes",
       "ssh": "SSH",
       "managedPolicies": "Politiques gérées (MDM)",
-      "remoteTmux": "Transmission à distance",
+      "remoteTmux": "tmux à distance",
       "agentIntegrations": "Intégrations d'agents",
       "claudeCodeTeams": "Les équipes Claude Code",
       "ohMyOpenCode": "oh-my-opencode",
       "ohMyCodex": "oh-my-codex",
-      "ohMyPi": "oh-mon-pi",
+      "ohMyPi": "oh-my-pi",
       "ohMyClaudeCode": "oh-mon-claudecode",
       "changelog": "Journal des modifications",
       "dock": "Quai",
@@ -3383,7 +3383,7 @@
       "metaDescription": "Politiques exécutables par MDM pour cmux sur les Mac gérés : désactivez le navigateur intégré et la télécommande iOS avec un profil de configuration."
     },
     "remoteTmux": {
-      "title": "Transmission à distance",
+      "title": "tmux à distance",
       "metaDescription": "Utilisez cmux comme frontal natif de macOS pour tmux exécuté sur une autre machine."
     },
     "compare": {
@@ -4409,7 +4409,7 @@
           "faqQ2": "Pourquoi ne pas gérer les agents avec tmux ?",
           "faqA2": "Vous pouvez, mais cmux ajoute des métadonnées natives de la barre latérale, une navigation non lue, des anneaux de notification, des volets de navigateur et une API de socket au niveau de l'application autour de ces sessions.",
           "faqQ3": "Quand tmux est-il meilleur ?",
-          "faqA3": "Pour serveurs distants, detach/reattach portable et workflows qui doivent tourner dans tout terminal."
+          "faqA3": "Utilisez tmux pour les serveurs distants, pour détacher et rattacher des sessions sur différentes plateformes, et pour les flux de travail qui doivent fonctionner dans n’importe quel terminal."
         },
         "cmuxVsVscode": {
           "metaTitle": "cmux vs VS Code pour les agents de code IA - cmux",
@@ -4904,7 +4904,7 @@
       "keyboardShortcuts": "Raccourcis clavier",
       "browserAutomation": "Automatisation du navigateur",
       "managedPolicies": "Politiques gérées (MDM)",
-      "remoteTmux": "Transmission à distance",
+      "remoteTmux": "tmux à distance",
       "compare": "Comparer cmux"
     },
     "agents": {
