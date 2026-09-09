@@ -851,25 +851,32 @@ jobs:
         run: |
           # The tolerant full-suite step can accept assertion failures or stop
           # after an app-host crash before this suite runs. Keep notification
-          # move/clear causality coverage on a non-tolerant focused invocation.
+          # move/clear causality coverage on non-tolerant, isolated invocations.
+          # Each suite mutates process-global notification and lifecycle state;
+          # a fresh app host prevents one suite's teardown from contaminating
+          # the next suite while retaining the focused gate's strict failures.
           set -euo pipefail
           SOURCE_PACKAGES_DIR="$PWD/.ci-source-packages"
-          scripts/ci/run-in-console-session.sh \
-            scripts/ci/run-app-host-xcodebuild.sh \
-            -project cmux.xcodeproj -scheme cmux-unit -configuration Debug \
-            -derivedDataPath "$CMUX_DERIVED_DATA_PATH" \
-            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
-            -disableAutomaticPackageResolution \
-            -destination "platform=macOS" \
-            CMUX_SKIP_ZIG_BUILD=1 \
-            -only-testing:cmuxTests/AgentNotificationRegressionTests \
-            -only-testing:cmuxTests/DockNotificationAttentionTests \
-            -only-testing:cmuxTests/ClaudeHookLifecycleCleanupTests \
-            -only-testing:cmuxTests/ClaudeHookLiveDeliveryTargetTests \
-            -only-testing:cmuxTests/ClaudeHookPIDAuthenticationTests \
-            -only-testing:cmuxTests/HostSettingsShortcutNotificationTests \
-            -only-testing:cmuxTests/PhonePushPresenceGateTests \
-            test
+          for suite in \
+            AgentNotificationRegressionTests \
+            DockNotificationAttentionTests \
+            ClaudeHookLifecycleCleanupTests \
+            ClaudeHookLiveDeliveryTargetTests \
+            ClaudeHookPIDAuthenticationTests \
+            HostSettingsShortcutNotificationTests \
+            PhonePushPresenceGateTests
+          do
+            scripts/ci/run-in-console-session.sh \
+              scripts/ci/run-app-host-xcodebuild.sh \
+              -project cmux.xcodeproj -scheme cmux-unit -configuration Debug \
+              -derivedDataPath "$CMUX_DERIVED_DATA_PATH" \
+              -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
+              -disableAutomaticPackageResolution \
+              -destination "platform=macOS" \
+              CMUX_SKIP_ZIG_BUILD=1 \
+              -only-testing:"cmuxTests/$suite" \
+              test
+          done
 
       - name: Run Pi Feed ownership regressions
         if: ${{ matrix.shard == fromJSON(env.CMUX_APP_HOST_FOCUSED_REGRESSION_SHARD) }}
