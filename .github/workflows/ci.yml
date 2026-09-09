@@ -1758,6 +1758,7 @@ jobs:
             CmuxTerminal
             CmuxTerminalCore
             CmuxUpdater
+            CmuxVoice
             CMUXAgentLaunch
             CmuxAgentJournal
             CmuxFilePreviewCore

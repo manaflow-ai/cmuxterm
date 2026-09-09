@@ -47,7 +47,7 @@ public final class SettingsSectionMountModel {
     /// its own, so it never appears here.
     public static let displayOrder: [SettingsSectionID] = [
         .account, .app, .terminal, .textBox, .sleepyMode, .mobile, .cloudMachines,
-        .networking, .sidebarAppearance, .customSidebars, .betaFeatures, .automation,
+        .networking, .sidebarAppearance, .customSidebars, .betaFeatures, .voice, .automation,
         .computerUse, .browser, .globalHotkey, .keyboardShortcuts, .workspaceColors,
         .settingsJSON, .reset,
     ]
