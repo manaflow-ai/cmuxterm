@@ -296585,6 +296585,120 @@
             "state": "translated",
             "value": "エージェントの復元許可には、有効なワークスペース、サーフェス、種類、セッションが必要です。"
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يتطلب السماح باستعادة الوكيل مساحة عمل وسطحًا ونوعًا وجلسة صالحة."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Za dozvolu vraćanja agenta potrebni su važeći radni prostor, površina, vrsta i sesija."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Godkendelse af agentgendannelse kræver et gyldigt arbejdsområde, en overflade, en type og en session."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Wiederherstellung eines Agenten erfordert einen gültigen Arbeitsbereich, eine Oberfläche, einen Typ und eine Sitzung."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La admisión de restauración del agente requiere un espacio de trabajo, una superficie, un tipo y una sesión válidos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’admission de restauration de l’agent nécessite un espace de travail, une surface, un type et une session valides."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’ammissione del ripristino dell’agente richiede uno spazio di lavoro, una superficie, un tipo e una sessione validi."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "에이전트 복원을 승인하려면 유효한 작업 공간, 표면, 종류 및 세션이 필요합니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для допуска восстановления агента нужны действительные рабочая область, поверхность, тип и сеанс."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代理恢复准入需要有效的工作区、表面、类型和会话。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代理程式還原准入需要有效的工作區、表面、類型和工作階段。"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ការអនុញ្ញាតស្តារភ្នាក់ងារត្រូវការកន្លែងធ្វើការ ផ្ទៃ ប្រភេទ និងសម័យដែលត្រឹមត្រូវ។"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gjenoppretting av agent krever et gyldig arbeidsområde, en overflate, en type og en økt."
+          }
+        },
+        "no": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gjenoppretting av agent krever et gyldig arbeidsområde, en overflate, en type og en økt."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dopuszczenie przywracania agenta wymaga prawidłowego obszaru roboczego, powierzchni, typu i sesji."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A admissão da restauração do agente exige workspace, superfície, tipo e sessão válidos."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การอนุญาตกู้คืนเอเจนต์ต้องมีเวิร์กสเปซ พื้นผิว ประเภท และเซสชันที่ถูกต้อง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aracı geri yükleme kabulü geçerli bir çalışma alanı, yüzey, tür ve oturum gerektirir."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для допуску відновлення агента потрібні дійсні робоча область, поверхня, тип і сеанс."
+          }
         }
       }
     },
@@ -296602,6 +296716,120 @@
             "state": "translated",
             "value": "エージェントの復元要求を解放するには、有効な種類、セッション、要求 ID が必要です。"
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يتطلب تحرير مطالبة استعادة الوكيل نوعًا وجلسة ومعرّف مطالبة صالحًا."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Za oslobađanje zahtjeva vraćanja agenta potrebni su važeća vrsta, sesija i identifikator zahtjeva."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frigivelse af agentgendannelseskrav kræver en gyldig type, session og krav-id."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zum Freigeben der Agentenwiederherstellung sind ein gültiger Typ, eine Sitzung und eine Anforderungs-ID erforderlich."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para liberar la restauración del agente se necesitan un tipo, una sesión y un identificador de solicitud válidos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La libération de la restauration de l’agent nécessite un type, une session et un identifiant de demande valides."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Per rilasciare il ripristino dell’agente servono un tipo, una sessione e un identificatore della richiesta validi."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "에이전트 복원 요청을 해제하려면 유효한 종류, 세션 및 요청 ID가 필요합니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для освобождения восстановления агента нужны действительные тип, сеанс и идентификатор запроса."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "释放代理恢复请求需要有效的类型、会话和请求 ID。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "釋放代理程式還原要求需要有效的類型、工作階段和要求 ID。"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ការអនុញ្ញាតស្តារភ្នាក់ងារត្រូវការកន្លែងធ្វើការ ផ្ទៃ ប្រភេទ និងសម័យដែលត្រឹមត្រូវ។"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frigivelse av agentgjenoppretting krever gyldig type, økt og forespørsels-ID."
+          }
+        },
+        "no": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frigivelse av agentgjenoppretting krever gyldig type, økt og forespørsels-ID."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zwolnienie przywracania agenta wymaga prawidłowego typu, sesji i identyfikatora żądania."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A liberação da restauração do agente exige tipo, sessão e identificador de solicitação válidos."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การปล่อยคำขอกู้คืนเอเจนต์ต้องมีประเภท เซสชัน และรหัสคำขอที่ถูกต้อง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aracı geri yükleme talebini bırakmak için geçerli tür, oturum ve talep kimliği gerekir."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для звільнення відновлення агента потрібні дійсні тип, сеанс та ідентифікатор запиту."
+          }
         }
       }
     },
@@ -296618,6 +296846,120 @@
           "stringUnit": {
             "state": "translated",
             "value": "サーフェスの復元レコードが変更されました。もう一度「cmux restore --surface」を実行してください。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تغيّر سجل استعادة السطح. شغّل «cmux restore --surface» مرة أخرى."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zapis vraćanja površine je promijenjen. Ponovo pokrenite „cmux restore --surface”."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overfladens gendannelsespost blev ændret. Kør »cmux restore --surface« igen."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Wiederherstellungsdatensatz der Oberfläche wurde geändert. Führen Sie erneut „cmux restore --surface“ aus."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El registro de restauración de la superficie cambió. Ejecuta «cmux restore --surface» de nuevo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’enregistrement de restauration de la surface a changé. Exécutez de nouveau « cmux restore --surface »."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il record di ripristino della superficie è cambiato. Esegui di nuovo «cmux restore --surface»."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "표면 복원 기록이 변경되었습니다. «cmux restore --surface»를 다시 실행하세요."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запись восстановления поверхности изменилась. Снова выполните «cmux restore --surface»."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表面恢复记录已更改。请再次运行“cmux restore --surface”。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表面還原記錄已變更。請再次執行「cmux restore --surface」。"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ការអនុញ្ញាតស្តារភ្នាក់ងារត្រូវការកន្លែងធ្វើការ ផ្ទៃ ប្រភេទ និងសម័យដែលត្រឹមត្រូវ។"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overflatens gjenopprettingspost ble endret. Kjør «cmux restore --surface» på nytt."
+          }
+        },
+        "no": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overflatens gjenopprettingspost ble endret. Kjør «cmux restore --surface» på nytt."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rekord przywracania powierzchni zmienił się. Uruchom ponownie „cmux restore --surface”."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O registro de restauração da superfície mudou. Execute «cmux restore --surface» novamente."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ระเบียนการกู้คืนพื้นผิวเปลี่ยนแปลงแล้ว เรียกใช้ “cmux restore --surface” อีกครั้ง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yüzey geri yükleme kaydı değişti. “cmux restore --surface” komutunu yeniden çalıştırın."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запис відновлення поверхні змінено. Знову виконайте «cmux restore --surface»."
           }
         }
       }
@@ -296640,109 +296982,115 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "تعذّر على cmux التحقق مما إذا كانت جلسة الوكيل هذه قيد التشغيل. أعد محاولة «cmux restore --surface»."
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "cmux nije mogao provjeriti da li je ova sesija agenta već pokrenuta. Pokušajte ponovo „cmux restore --surface”."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "cmux kunne ikke afgøre, om denne agentsession allerede kører. Prøv »cmux restore --surface« igen."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "cmux konnte nicht prüfen, ob diese Agentsitzung bereits ausgeführt wird. Versuchen Sie „cmux restore --surface“ erneut."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "cmux no pudo comprobar si esta sesión del agente ya está en ejecución. Vuelve a intentar «cmux restore --surface»."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "cmux n’a pas pu vérifier si cette session d’agent est déjà en cours. Réessayez « cmux restore --surface »."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "cmux non ha potuto verificare se questa sessione dell’agente è già in esecuzione. Riprova «cmux restore --surface»."
           }
         },
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "ការអនុញ្ញាតស្តារភ្នាក់ងារត្រូវការកន្លែងធ្វើការ ផ្ទៃ ប្រភេទ និងសម័យដែលត្រឹមត្រូវ។"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "cmux에서 이 에이전트 세션이 이미 실행 중인지 확인할 수 없습니다. «cmux restore --surface»를 다시 시도하세요."
           }
         },
         "no": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "cmux kunne ikke kontrollere om denne agentøkten allerede kjører. Prøv «cmux restore --surface» på nytt."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "cmux nie może sprawdzić, czy ta sesja agenta już działa. Spróbuj ponownie „cmux restore --surface”."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "O cmux não conseguiu verificar se esta sessão do agente já está em execução. Tente «cmux restore --surface» novamente."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "cmux не удалось проверить, запущен ли этот сеанс агента. Повторите «cmux restore --surface»."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "cmux ตรวจสอบไม่ได้ว่าเซสชันเอเจนต์นี้กำลังทำงานอยู่หรือไม่ โปรดลอง “cmux restore --surface” อีกครั้ง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "cmux bu aracı oturumunun zaten çalışıp çalışmadığını doğrulayamadı. “cmux restore --surface” komutunu yeniden deneyin."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "cmux не зміг перевірити, чи цей сеанс агента вже запущено. Повторіть «cmux restore --surface»."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "cmux 无法确认此代理会话是否已在运行。请重试“cmux restore --surface”。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux could not verify whether this agent session is already running. Retry 'cmux restore --surface'."
+            "value": "cmux 無法確認此代理程式工作階段是否已在執行。請重試「cmux restore --surface」。"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux kunne ikke kontrollere om denne agentøkten allerede kjører. Prøv «cmux restore --surface» på nytt."
           }
         }
       }
@@ -296761,6 +297109,120 @@
             "state": "translated",
             "value": "このエージェントの保存済みセッション記録を読み取れなかったため、セッションがすでに実行中かどうかを cmux で判断できません。「cmux restore --surface」を再試行してください。"
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذّر على cmux قراءة سجلات الجلسة المحفوظة لهذا الوكيل، لذلك لا يمكنه معرفة ما إذا كانت الجلسة قيد التشغيل. أعد محاولة «cmux restore --surface»."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux nije mogao pročitati sačuvane zapise sesije za ovog agenta, pa ne može utvrditi da li je sesija pokrenuta. Pokušajte ponovo „cmux restore --surface”."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux kunne ikke læse de gemte sessionsposter for denne agent og kan derfor ikke afgøre, om sessionen kører. Prøv »cmux restore --surface« igen."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux konnte die gespeicherten Sitzungsdaten für diesen Agenten nicht lesen und kann daher nicht feststellen, ob die Sitzung ausgeführt wird. Versuchen Sie „cmux restore --surface“ erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux no pudo leer los registros de sesión guardados para este agente, por lo que no puede saber si la sesión está en ejecución. Vuelve a intentar «cmux restore --surface»."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux n’a pas pu lire les enregistrements de session enregistrés pour cet agent et ne peut donc pas déterminer si la session est en cours. Réessayez « cmux restore --surface »."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux non ha potuto leggere i record di sessione salvati per questo agente, quindi non può sapere se la sessione è in esecuzione. Riprova «cmux restore --surface»."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux에서 이 에이전트의 저장된 세션 기록을 읽을 수 없어 세션 실행 여부를 확인할 수 없습니다. «cmux restore --surface»를 다시 시도하세요."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux не удалось прочитать сохранённые записи сеанса этого агента, поэтому состояние сеанса неизвестно. Повторите «cmux restore --surface»."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 无法读取此代理的已保存会话记录，因此无法确认会话是否正在运行。请重试“cmux restore --surface”。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 無法讀取此代理程式的已儲存工作階段記錄，因此無法確認工作階段是否正在執行。請重試「cmux restore --surface」。"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ការអនុញ្ញាតស្តារភ្នាក់ងារត្រូវការកន្លែងធ្វើការ ផ្ទៃ ប្រភេទ និងសម័យដែលត្រឹមត្រូវ។"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux kunne ikke lese lagrede øktposter for denne agenten og kan derfor ikke vite om økten kjører. Prøv «cmux restore --surface» på nytt."
+          }
+        },
+        "no": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux kunne ikke lese lagrede øktposter for denne agenten og kan derfor ikke vite om økten kjører. Prøv «cmux restore --surface» på nytt."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux nie może odczytać zapisanych rekordów sesji tego agenta, więc nie może ustalić, czy sesja działa. Spróbuj ponownie „cmux restore --surface”."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O cmux não conseguiu ler os registros salvos desta sessão, portanto não sabe se ela está em execução. Tente «cmux restore --surface» novamente."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux อ่านระเบียนเซสชันที่บันทึกไว้ของเอเจนต์นี้ไม่ได้ จึงไม่ทราบว่าเซสชันกำลังทำงานอยู่หรือไม่ โปรดลอง “cmux restore --surface” อีกครั้ง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux bu aracı için kaydedilen oturum kayıtlarını okuyamadı; oturumun çalışıp çalışmadığını belirleyemiyor. “cmux restore --surface” komutunu yeniden deneyin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux не зміг прочитати збережені записи сеансу цього агента, тому не може визначити стан сеансу. Повторіть «cmux restore --surface»."
+          }
         }
       }
     },
@@ -296777,6 +297239,120 @@
           "stringUnit": {
             "state": "translated",
             "value": "このエージェントセッションがすでに実行中かどうかの確認が制限時間内に終わりませんでした。「cmux restore --surface」を再試行してください。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم يتمكن cmux من إكمال التحقق من تشغيل جلسة الوكيل قبل انتهاء المهلة. أعد محاولة «cmux restore --surface»."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux nije završio provjeru da li je sesija agenta pokrenuta u zadanom roku. Pokušajte ponovo „cmux restore --surface”."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux nåede ikke at kontrollere, om agentsessionen kører, før tidsgrænsen. Prøv »cmux restore --surface« igen."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux konnte die Prüfung, ob diese Agentsitzung ausgeführt wird, nicht vor Ablauf des Zeitlimits abschließen. Versuchen Sie „cmux restore --surface“ erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux no pudo terminar de comprobar si la sesión del agente estaba en ejecución antes del límite de tiempo. Vuelve a intentar «cmux restore --surface»."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux n’a pas pu terminer la vérification avant la limite de temps. Réessayez « cmux restore --surface »."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux non ha completato il controllo entro il limite di tempo. Riprova «cmux restore --surface»."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시간 제한 전에 에이전트 세션 실행 여부 확인을 완료하지 못했습니다. «cmux restore --surface»를 다시 시도하세요."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux не успел проверить сеанс агента до истечения времени ожидания. Повторите «cmux restore --surface»."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 未能在时间限制前完成代理会话运行检查。请重试“cmux restore --surface”。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 未能在時間限制前完成代理程式工作階段檢查。請重試「cmux restore --surface」。"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ការអនុញ្ញាតស្តារភ្នាក់ងារត្រូវការកន្លែងធ្វើការ ផ្ទៃ ប្រភេទ និងសម័យដែលត្រឹមត្រូវ។"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux rakk ikke å kontrollere agentøkten før tidsfristen. Prøv «cmux restore --surface» på nytt."
+          }
+        },
+        "no": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux rakk ikke å kontrollere agentøkten før tidsfristen. Prøv «cmux restore --surface» på nytt."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux nie zdołał zakończyć sprawdzania przed upływem limitu czasu. Spróbuj ponownie „cmux restore --surface”."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O cmux não concluiu a verificação antes do limite de tempo. Tente «cmux restore --surface» novamente."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux ตรวจสอบเซสชันเอเจนต์ไม่เสร็จก่อนหมดเวลา โปรดลอง “cmux restore --surface” อีกครั้ง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux zaman sınırından önce aracı oturumunu denetlemeyi tamamlayamadı. “cmux restore --surface” komutunu yeniden deneyin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux не встиг завершити перевірку сеансу агента до завершення часу очікування. Повторіть «cmux restore --surface»."
           }
         }
       }
@@ -296795,6 +297371,120 @@
             "state": "translated",
             "value": "このエージェントセッションはプロセス %1$lld ですでに実行中です。cmux は別のコピーを起動しませんでした。このターミナルで引き継ぐには、プロセス %1$lld を停止してから、もう一度「cmux restore --surface」を実行してください。"
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جلسة الوكيل هذه قيد التشغيل بالفعل في العملية %1$lld. لم يبدأ cmux نسخة أخرى. لتوليها هنا، أوقف العملية %1$lld ثم شغّل «cmux restore --surface» مرة أخرى."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ova sesija agenta već radi u procesu %1$lld. cmux nije pokrenuo drugu kopiju. Za preuzimanje ovdje zaustavite proces %1$lld, pa ponovo pokrenite „cmux restore --surface”."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denne agentsession kører allerede i proces %1$lld. cmux startede ikke en ny kopi. Stop proces %1$lld, og kør »cmux restore --surface« igen for at overtage den her."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Agentsitzung läuft bereits in Prozess %1$lld. cmux startete keine weitere Kopie. Beenden Sie Prozess %1$lld und führen Sie „cmux restore --surface“ erneut aus, um sie hier zu übernehmen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta sesión del agente ya se está ejecutando en el proceso %1$lld. cmux no inició otra copia. Para tomar el control aquí, detén el proceso %1$lld y ejecuta «cmux restore --surface» de nuevo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette session d’agent est déjà exécutée dans le processus %1$lld. cmux n’a pas démarré de copie supplémentaire. Pour la reprendre ici, arrêtez le processus %1$lld puis exécutez de nouveau « cmux restore --surface »."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa sessione dell’agente è già in esecuzione nel processo %1$lld. cmux non ha avviato un’altra copia. Per prenderne il controllo qui, arresta il processo %1$lld ed esegui di nuovo «cmux restore --surface»."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 에이전트 세션은 프로세스 %1$lld에서 이미 실행 중입니다. cmux는 다른 복사본을 시작하지 않았습니다. 여기서 인계하려면 프로세스 %1$lld를 중지한 후 «cmux restore --surface»를 다시 실행하세요."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот сеанс агента уже запущен в процессе %1$lld. cmux не запускал второй экземпляр. Чтобы перенять его здесь, остановите процесс %1$lld и снова выполните «cmux restore --surface»."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此代理会话已在进程 %1$lld 中运行。cmux 未启动另一个副本。若要在此接管，请停止进程 %1$lld，然后再次运行“cmux restore --surface”。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此代理程式工作階段已在處理程序 %1$lld 中執行。cmux 未啟動另一個副本。若要在此接管，請停止處理程序 %1$lld，然後再次執行「cmux restore --surface」。"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ការអនុញ្ញាតស្តារភ្នាក់ងារត្រូវការកន្លែងធ្វើការ ផ្ទៃ ប្រភេទ និងសម័យដែលត្រឹមត្រូវ។"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denne agentøkten kjører allerede i prosess %1$lld. cmux startet ingen ny kopi. Stopp prosess %1$lld og kjør «cmux restore --surface» på nytt for å ta den over her."
+          }
+        },
+        "no": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denne agentøkten kjører allerede i prosess %1$lld. cmux startet ingen ny kopi. Stopp prosess %1$lld og kjør «cmux restore --surface» på nytt for å ta den over her."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta sesja agenta działa już w procesie %1$lld. cmux nie uruchomił drugiej kopii. Aby przejąć ją tutaj, zatrzymaj proces %1$lld i ponownie uruchom „cmux restore --surface”."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta sessão do agente já está em execução no processo %1$lld. O cmux não iniciou outra cópia. Para assumir aqui, pare o processo %1$lld e execute «cmux restore --surface» novamente."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เซสชันเอเจนต์นี้ทำงานอยู่แล้วในกระบวนการ %1$lld cmux ไม่ได้เริ่มสำเนาอื่น หากต้องการรับช่วงต่อ ให้หยุดกระบวนการ %1$lld แล้วเรียกใช้ “cmux restore --surface” อีกครั้ง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu aracı oturumu %1$lld işleminde zaten çalışıyor. cmux başka bir kopya başlatmadı. Burada devralmak için %1$lld işlemini durdurun ve “cmux restore --surface” komutunu yeniden çalıştırın."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цей сеанс агента вже працює в процесі %1$lld. cmux не запускав другу копію. Щоб перебрати його тут, зупиніть процес %1$lld і знову виконайте «cmux restore --surface»."
+          }
         }
       }
     },
@@ -296811,6 +297501,120 @@
           "stringUnit": {
             "state": "translated",
             "value": "このエージェントセッションがすでに実行中かどうかを cmux で確認できなかったため、セッションを自動的に再開しませんでした。このターミナルで再開するには「cmux restore --surface」を実行してください。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذّر على cmux التحقق مما إذا كانت جلسة الوكيل هذه قيد التشغيل، لذلك لم يستأنفها تلقائيًا. شغّل «cmux restore --surface» لاستئنافها هنا."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux nije mogao provjeriti da li je sesija agenta pokrenuta, pa sesija nije automatski nastavljena. Pokrenite „cmux restore --surface” da je nastavite ovdje."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux kunne ikke afgøre, om agentsessionen kører, så den blev ikke genoptaget automatisk. Kør »cmux restore --surface« for at genoptage den her."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux konnte nicht prüfen, ob diese Agentsitzung ausgeführt wird, und hat sie daher nicht automatisch fortgesetzt. Führen Sie „cmux restore --surface“ aus, um sie hier fortzusetzen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux no pudo comprobar si esta sesión del agente está en ejecución, así que no la reanudó automáticamente. Ejecuta «cmux restore --surface» para reanudarla aquí."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux n’a pas pu vérifier si cette session d’agent est en cours et ne l’a donc pas reprise automatiquement. Exécutez « cmux restore --surface » pour la reprendre ici."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux non ha potuto verificare se questa sessione dell’agente è in esecuzione, quindi non l’ha ripresa automaticamente. Esegui «cmux restore --surface» per riprenderla qui."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux에서 에이전트 세션 실행 여부를 확인할 수 없어 자동으로 재개하지 않았습니다. 여기서 재개하려면 «cmux restore --surface»를 실행하세요."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux не удалось проверить состояние сеанса агента, поэтому он не был возобновлён автоматически. Выполните «cmux restore --surface», чтобы возобновить его здесь."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 无法确认此代理会话是否正在运行，因此未自动恢复会话。请运行“cmux restore --surface”在此恢复。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 無法確認此代理程式工作階段是否正在執行，因此未自動繼續。請執行「cmux restore --surface」以在此繼續。"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ការអនុញ្ញាតស្តារភ្នាក់ងារត្រូវការកន្លែងធ្វើការ ផ្ទៃ ប្រភេទ និងសម័យដែលត្រឹមត្រូវ។"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux kunne ikke kontrollere om agentøkten kjører, så den ble ikke gjenopptatt automatisk. Kjør «cmux restore --surface» for å gjenoppta den her."
+          }
+        },
+        "no": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux kunne ikke kontrollere om agentøkten kjører, så den ble ikke gjenopptatt automatisk. Kjør «cmux restore --surface» for å gjenoppta den her."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux nie może sprawdzić, czy ta sesja agenta działa, więc nie wznowił jej automatycznie. Uruchom „cmux restore --surface”, aby wznowić ją tutaj."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O cmux não conseguiu verificar se esta sessão está em execução e não a retomou automaticamente. Execute «cmux restore --surface» para retomá-la aqui."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux ตรวจสอบเซสชันเอเจนต์ไม่ได้ จึงไม่ได้ดำเนินการต่อโดยอัตโนมัติ เรียกใช้ “cmux restore --surface” เพื่อดำเนินการต่อที่นี่"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux aracı oturumunun çalışıp çalışmadığını doğrulayamadı; bu nedenle oturum otomatik olarak sürdürülmedi. Burada sürdürmek için “cmux restore --surface” komutunu çalıştırın."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux не зміг перевірити стан сеансу агента, тому його не відновлено автоматично. Виконайте «cmux restore --surface», щоб відновити його тут."
           }
         }
       }
@@ -296862,6 +297666,120 @@
           "stringUnit": {
             "state": "translated",
             "value": "restore: このエージェントセッションはプロセス %1$lld ですでに実行中です。cmux は別のコピーを起動しませんでした。このターミナルで引き継ぐには、プロセス %1$lld を停止してから、もう一度「cmux restore --surface」を実行してください。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جلسة الوكيل هذه قيد التشغيل بالفعل في العملية %1$lld. لم يبدأ cmux نسخة أخرى. لتوليها هنا، أوقف العملية %1$lld ثم شغّل «cmux restore --surface» مرة أخرى."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ova sesija agenta već radi u procesu %1$lld. cmux nije pokrenuo drugu kopiju. Za preuzimanje ovdje zaustavite proces %1$lld, pa ponovo pokrenite „cmux restore --surface”."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denne agentsession kører allerede i proces %1$lld. cmux startede ikke en ny kopi. Stop proces %1$lld, og kør »cmux restore --surface« igen for at overtage den her."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Agentsitzung läuft bereits in Prozess %1$lld. cmux startete keine weitere Kopie. Beenden Sie Prozess %1$lld und führen Sie „cmux restore --surface“ erneut aus, um sie hier zu übernehmen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta sesión del agente ya se está ejecutando en el proceso %1$lld. cmux no inició otra copia. Para tomar el control aquí, detén el proceso %1$lld y ejecuta «cmux restore --surface» de nuevo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette session d’agent est déjà exécutée dans le processus %1$lld. cmux n’a pas démarré de copie supplémentaire. Pour la reprendre ici, arrêtez le processus %1$lld puis exécutez de nouveau « cmux restore --surface »."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa sessione dell’agente è già in esecuzione nel processo %1$lld. cmux non ha avviato un’altra copia. Per prenderne il controllo qui, arresta il processo %1$lld ed esegui di nuovo «cmux restore --surface»."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 에이전트 세션은 프로세스 %1$lld에서 이미 실행 중입니다. cmux는 다른 복사본을 시작하지 않았습니다. 여기서 인계하려면 프로세스 %1$lld를 중지한 후 «cmux restore --surface»를 다시 실행하세요."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот сеанс агента уже запущен в процессе %1$lld. cmux не запускал второй экземпляр. Чтобы перенять его здесь, остановите процесс %1$lld и снова выполните «cmux restore --surface»."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此代理会话已在进程 %1$lld 中运行。cmux 未启动另一个副本。若要在此接管，请停止进程 %1$lld，然后再次运行“cmux restore --surface”。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此代理程式工作階段已在處理程序 %1$lld 中執行。cmux 未啟動另一個副本。若要在此接管，請停止處理程序 %1$lld，然後再次執行「cmux restore --surface」。"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ការអនុញ្ញាតស្តារភ្នាក់ងារត្រូវការកន្លែងធ្វើការ ផ្ទៃ ប្រភេទ និងសម័យដែលត្រឹមត្រូវ។"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denne agentøkten kjører allerede i prosess %1$lld. cmux startet ingen ny kopi. Stopp prosess %1$lld og kjør «cmux restore --surface» på nytt for å ta den over her."
+          }
+        },
+        "no": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denne agentøkten kjører allerede i prosess %1$lld. cmux startet ingen ny kopi. Stopp prosess %1$lld og kjør «cmux restore --surface» på nytt for å ta den over her."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta sesja agenta działa już w procesie %1$lld. cmux nie uruchomił drugiej kopii. Aby przejąć ją tutaj, zatrzymaj proces %1$lld i ponownie uruchom „cmux restore --surface”."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta sessão do agente já está em execução no processo %1$lld. O cmux não iniciou outra cópia. Para assumir aqui, pare o processo %1$lld e execute «cmux restore --surface» novamente."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เซสชันเอเจนต์นี้ทำงานอยู่แล้วในกระบวนการ %1$lld cmux ไม่ได้เริ่มสำเนาอื่น หากต้องการรับช่วงต่อ ให้หยุดกระบวนการ %1$lld แล้วเรียกใช้ “cmux restore --surface” อีกครั้ง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu aracı oturumu %1$lld işleminde zaten çalışıyor. cmux başka bir kopya başlatmadı. Burada devralmak için %1$lld işlemini durdurun ve “cmux restore --surface” komutunu yeniden çalıştırın."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цей сеанс агента вже працює в процесі %1$lld. cmux не запускав другу копію. Щоб перебрати його тут, зупиніть процес %1$lld і знову виконайте «cmux restore --surface»."
           }
         }
       }

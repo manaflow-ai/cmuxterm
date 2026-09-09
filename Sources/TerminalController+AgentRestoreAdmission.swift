@@ -10,20 +10,6 @@ private enum AgentRestoreAdmissionDecision: Sendable {
     case targetChanged
     case unverifiable(AgentRestoreAdmissionUnverifiableReason)
 
-    var debugLabel: String {
-        switch self {
-        case .admitted:
-            return "admitted"
-        case .liveOwner(let owner):
-            return "live-owner pid=\(owner.processID)"
-        case .concurrentLaunch:
-            return "concurrent-launch"
-        case .targetChanged:
-            return "target-changed"
-        case .unverifiable(let reason):
-            return "unverifiable reason=\(reason.rawValue)"
-        }
-    }
 }
 
 /// Why admission could not decide whether the session is already running.
@@ -298,7 +284,7 @@ extension TerminalController {
         let elapsedMilliseconds = elapsed.seconds * 1_000
             + elapsed.attoseconds / 1_000_000_000_000_000
         cmuxDebugLog(
-            "agentRestore.admit kind=\(inputs.kind) session=\(inputs.sessionID) surface=\(inputs.surfaceID.uuidString) decision=\(decision.debugLabel) ms=\(elapsedMilliseconds)"
+            "agentRestore.admit kind=\(inputs.kind) session=\(inputs.sessionID) surface=\(inputs.surfaceID.uuidString) decision=\(String(reflecting: decision)) ms=\(elapsedMilliseconds)"
         )
 #endif
         switch decision {

@@ -1,3 +1,4 @@
+import CMUXAgentLaunch
 import CmuxNotifications
 import CmuxSidebar
 import CmuxWorkspaces
