@@ -46,6 +46,7 @@ import {
   unauthorized,
   verifyRequestIdentity,
 } from "../../../../services/vms/auth";
+import { rateLimitDeploymentPartition } from "../../../../services/rateLimitPartition";
 
 
 const MAX_BODY_BYTES = 4 * 1_024;
@@ -85,7 +86,7 @@ export interface RelayTokenDeps {
 }
 
 const productionDeps: RelayTokenDeps = {
-  verifyRequest: (request) => verifyRequestIdentity(request, { allowCookie: false }),
+  verifyRequest: (request) => verifyRequestIdentity(request, { allowCookie: false, allowStackFallback: false }),
   signingKey: relaySigningKey,
   nowSeconds: () => Math.floor(Date.now() / 1_000),
   signedPolicy: async (accountId, nowSeconds) => {
@@ -143,26 +144,6 @@ export async function handleRelayTokenRequest(
   request: Request,
   deps: RelayTokenDeps,
 ): Promise<Response> {
-  // Apply the cheap IP-scoped gate before calling Stack Auth. A storming
-  // client must not spend one upstream users/me request per retry. The clone
-  // preserves the existing auth-first semantics for malformed requests, which
-  // must not consume a valid relay-token budget.
-  if (await hasValidRelayEndpoint(request)) {
-    try {
-      await runRelayEffect(enforceRelayRateLimit({
-        request,
-        accountId: "pre-auth",
-        rateLimitKey: null,
-        ruleId: deps.rateLimitRuleId(),
-        check: deps.checkRateLimit,
-        isVercel: deps.isVercel(),
-        retryAfterSeconds: RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS,
-      }));
-    } catch (error) {
-      return relayErrorResponse(error);
-    }
-  }
-
   let user: { readonly id: string } | null;
   try {
     user = await deps.verifyRequest(request);
@@ -170,36 +151,18 @@ export async function handleRelayTokenRequest(
     return relayErrorResponse(relayAuthenticationError(error));
   }
   if (!user) return unauthorized();
-  const clientNamespace = request.headers.get("x-cmux-app-namespace") ?? "legacy";
-  if (!/^[A-Za-z0-9._:-]{1,255}$/.test(clientNamespace)) {
-    return jsonResponse({ error: "invalid_client_namespace" }, 400);
-  }
-  const proofRequest = request.clone();
 
   try {
+    const parsed = await parseRelayTokenRequest(request);
+    if (parsed instanceof Response) return parsed;
+    const { bindingProof, clientNamespace, endpointId } = parsed;
     const key = deps.signingKey();
-    const body = await readBoundedJsonObject(request, MAX_BODY_BYTES);
-    if (!body.ok) {
-      return jsonResponse(
-        { error: body.error },
-        body.error === "request_too_large" ? 413 : 400,
-      );
-    }
-    const rawEndpointId = body.value.endpointId;
-    if (typeof rawEndpointId !== "string" || !isValidEndpointId(rawEndpointId)) {
-      return jsonResponse({ error: "invalid_endpoint_id" }, 400);
-    }
-    const bindingProof = parseBindingRequestProof(
-      proofRequest,
-      new Uint8Array(await proofRequest.arrayBuffer()),
-    );
-    if (bindingProof instanceof Response) return bindingProof;
-    if (clientNamespace !== "legacy" && !bindingProof) {
-      return jsonResponse({ error: "binding_request_proof_required" }, 403);
-    }
-
     const nowSeconds = deps.nowSeconds();
-    const endpointId = rawEndpointId.toLowerCase();
+    // Namespaced requests always require a proof. Charge their credential
+    // partition before database/crypto work, including rejected signatures.
+    if (clientNamespace !== "legacy") {
+      await checkTokenQuota(request, deps, user.id, clientNamespace, endpointId, "credential", nowSeconds);
+    }
     const isEndpointAuthorized = await deps.isEndpointAuthorized({
       accountId: user.id,
       endpointId,
@@ -211,33 +174,21 @@ export async function handleRelayTokenRequest(
       return jsonResponse({ error: "invalid_binding_request_proof" }, 403);
     }
 
-    const policy = await deps.signedPolicy(user.id, nowSeconds);
     if (!key && deps.credentialSigningRequired()) {
       return jsonResponse({ error: "relay_token_not_configured" }, 503);
     }
-    const relayUrls = policy.payload.relays.map((relay) => relay.url);
     // A fresh endpoint must fetch policy before registration, then fetch its
     // bound credential immediately after registration. Renewals happen every
     // four minutes because both artifacts expire after five. Give bootstrap
     // and credential issuance separate one-minute partitions so the external
     // rule cannot make the valid two-leg bootstrap or renewal cadence
     // impossible. Duplicate work inside one phase and minute is still bounded.
-    const rateLimitBucket = Math.floor(
-      nowSeconds / RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS,
-    );
-    const rateLimitPhase = isEndpointAuthorized ? "credential" : "bootstrap";
-    const retryAfterSeconds = RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS -
-      (nowSeconds % RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS);
-    await runRelayEffect(enforceRelayRateLimit({
-      request,
-      accountId: user.id,
-      devicePartition:
-        `${endpointId}:${rateLimitPhase}:${rateLimitBucket}`,
-      ruleId: deps.rateLimitRuleId(),
-      check: deps.checkRateLimit,
-      isVercel: deps.isVercel(),
-      retryAfterSeconds,
-    }));
+    if (clientNamespace === "legacy") {
+      await checkTokenQuota(request, deps, user.id, clientNamespace, endpointId,
+        isEndpointAuthorized ? "credential" : "bootstrap", nowSeconds);
+    }
+    const policy = await deps.signedPolicy(user.id, nowSeconds);
+    const relayUrls = policy.payload.relays.map((relay) => relay.url);
 
     // Local and preview runtimes intentionally operate without the private
     // relay JWT signer. They still return the signed fleet policy so clients
@@ -282,6 +233,29 @@ export async function handleRelayTokenRequest(
   }
 }
 
+async function checkTokenQuota(
+  request: Request,
+  deps: RelayTokenDeps,
+  accountId: string,
+  namespace: string,
+  endpointId: string,
+  phase: "credential" | "bootstrap",
+  nowSeconds: number,
+): Promise<void> {
+  const bucket = Math.floor(nowSeconds / RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS);
+  await runRelayEffect(enforceRelayRateLimit({
+    request,
+    accountId,
+    deploymentPartition: rateLimitDeploymentPartition(),
+    devicePartition: `${namespace}:${endpointId}:${phase}:${bucket}`,
+    ruleId: deps.rateLimitRuleId(),
+    check: deps.checkRateLimit,
+    isVercel: deps.isVercel(),
+    retryAfterSeconds: RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS -
+      (nowSeconds % RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS),
+  }));
+}
+
 function hasExactCredentialSet(
   credentials: readonly ManagedRelayCredentialGrant[],
   relayUrls: readonly string[],
@@ -324,16 +298,46 @@ function homogeneousLegacyCredential(
   ) ? first : null;
 }
 
-export function POST(request: Request): Promise<Response> {
-  return handleRelayTokenRequest(request, productionDeps);
+type RelayTokenRequest = {
+  readonly bindingProof: IrohBindingRequestProof | undefined;
+  readonly clientNamespace: string;
+  readonly endpointId: string;
+};
+
+async function parseRelayTokenRequest(
+  request: Request,
+): Promise<RelayTokenRequest | Response> {
+  const clientNamespace = request.headers.get("x-cmux-app-namespace") ?? "legacy";
+  if (!/^[A-Za-z0-9._:-]{1,255}$/.test(clientNamespace)) {
+    return jsonResponse({ error: "invalid_client_namespace" }, 400);
+  }
+  const proofRequest = request.clone();
+  const body = await readBoundedJsonObject(request, MAX_BODY_BYTES);
+  if (!body.ok) {
+    return jsonResponse(
+      { error: body.error },
+      body.error === "request_too_large" ? 413 : 400,
+    );
+  }
+  const rawEndpointId = body.value.endpointId;
+  if (typeof rawEndpointId !== "string" || !isValidEndpointId(rawEndpointId)) {
+    return jsonResponse({ error: "invalid_endpoint_id" }, 400);
+  }
+  const bindingProof = parseBindingRequestProof(
+    proofRequest,
+    new Uint8Array(await proofRequest.arrayBuffer()),
+  );
+  if (bindingProof instanceof Response) return bindingProof;
+  if (clientNamespace !== "legacy" && !bindingProof) {
+    return jsonResponse({ error: "binding_request_proof_required" }, 403);
+  }
+  return {
+    bindingProof,
+    clientNamespace,
+    endpointId: rawEndpointId.toLowerCase(),
+  };
 }
 
-async function hasValidRelayEndpoint(request: Request): Promise<boolean> {
-  try {
-    const body = await readBoundedJsonObject(request.clone(), MAX_BODY_BYTES);
-    const endpointId = body.ok ? body.value.endpointId : undefined;
-    return typeof endpointId === "string" && isValidEndpointId(endpointId);
-  } catch {
-    return false;
-  }
+export function POST(request: Request): Promise<Response> {
+  return handleRelayTokenRequest(request, productionDeps);
 }
