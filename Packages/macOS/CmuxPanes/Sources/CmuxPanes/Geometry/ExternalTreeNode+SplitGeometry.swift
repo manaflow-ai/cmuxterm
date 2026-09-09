@@ -111,12 +111,13 @@ extension ExternalTreeNode {
         return SplitDividerAdjustment(splitId: splitId, position: clamped)
     }
 
-    /// Plans one incremental growth step on the nearest split matching `axis`.
+    /// Plans one incremental size adjustment on the nearest split matching `axis`.
     /// Unlike legacy directional resize, an invalid nearest split identifier
-    /// fails closed rather than applying the growth to a more distant split.
-    func growFocusedBranchAdjustment(
+    /// fails closed rather than applying the change to a more distant split.
+    func focusedBranchResizeAdjustment(
         targetPaneId: String,
         axis: PaneAxis,
+        adjustment: PaneSizeAdjustment,
         amountPixels: UInt16
     ) -> SplitDividerAdjustment? {
         var candidates: [ResizeSplitCandidate] = []
@@ -130,7 +131,8 @@ extension ExternalTreeNode {
         let currentShare = candidate.paneInFirstChild
             ? candidate.dividerPosition
             : 1 - candidate.dividerPosition
-        let requestedShare = currentShare + (CGFloat(amountPixels) / candidate.axisPixels)
+        let requestedShare = currentShare
+            + (adjustment.shareDeltaSign * CGFloat(amountPixels) / candidate.axisPixels)
         let clampedShare = min(max(requestedShare, 0.1), 0.9)
         let dividerPosition = candidate.paneInFirstChild ? clampedShare : 1 - clampedShare
         return SplitDividerAdjustment(splitId: splitId, position: dividerPosition)

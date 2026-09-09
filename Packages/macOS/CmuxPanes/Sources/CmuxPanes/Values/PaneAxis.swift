@@ -1,8 +1,8 @@
-/// Axis along which the focused pane's branch grows.
+/// Axis along which the focused pane's branch changes size.
 public enum PaneAxis: Sendable {
-    /// Selects the nearest left-to-right split and grows its width share.
+    /// Selects the nearest left-to-right split and adjusts its width share.
     case width
-    /// Selects the nearest top-to-bottom split and grows its height share.
+    /// Selects the nearest top-to-bottom split and adjusts its height share.
     case height
 
     var splitOrientation: String {

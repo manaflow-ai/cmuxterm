@@ -15,10 +15,12 @@ private typealias SimulatorStoredShortcut = cmux.StoredShortcut
 
 @Suite("Keyboard shortcut context")
 struct KeyboardShortcutContextSwiftTests {
-    @Test("Pane growth shortcut registries stay aligned")
-    func paneGrowthShortcutRegistriesStayAligned() throws {
+    @Test("Pane resize shortcut registries stay aligned")
+    func paneResizeShortcutRegistriesStayAligned() throws {
         let actions: [(KeyboardShortcutSettings.Action, ShortcutAction)] = [
+            (.shrinkPaneWidth, .shrinkPaneWidth),
             (.growPaneWidth, .growPaneWidth),
+            (.shrinkPaneHeight, .shrinkPaneHeight),
             (.growPaneHeight, .growPaneHeight),
         ]
 

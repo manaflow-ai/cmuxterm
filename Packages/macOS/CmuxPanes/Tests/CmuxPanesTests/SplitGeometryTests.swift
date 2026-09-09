@@ -227,9 +227,9 @@ struct SplitGeometryTests {
         #expect(adjustment?.position == 0.9)
     }
 
-    // MARK: Focused branch growth
+    // MARK: Focused branch resizing
 
-    @Test func growWidthIncreasesFocusedBranchOnEitherSide() throws {
+    @Test func widthAdjustmentChangesFocusedBranchOnEitherSide() throws {
         let splitId = UUID()
         let tree = split(
             splitId,
@@ -238,24 +238,40 @@ struct SplitGeometryTests {
             second: pane("right", x: 300, width: 300)
         )
 
-        let left = try #require(tree.growFocusedBranchAdjustment(
+        let growLeft = try #require(tree.focusedBranchResizeAdjustment(
             targetPaneId: "left",
             axis: .width,
+            adjustment: .grow,
             amountPixels: 60
         ))
-        let right = try #require(tree.growFocusedBranchAdjustment(
+        let shrinkLeft = try #require(tree.focusedBranchResizeAdjustment(
+            targetPaneId: "left",
+            axis: .width,
+            adjustment: .shrink,
+            amountPixels: 60
+        ))
+        let growRight = try #require(tree.focusedBranchResizeAdjustment(
             targetPaneId: "right",
             axis: .width,
+            adjustment: .grow,
+            amountPixels: 60
+        ))
+        let shrinkRight = try #require(tree.focusedBranchResizeAdjustment(
+            targetPaneId: "right",
+            axis: .width,
+            adjustment: .shrink,
             amountPixels: 60
         ))
 
-        #expect(left.splitId == splitId)
-        #expect(abs(left.position - 0.6) < 0.0001)
-        #expect(right.splitId == splitId)
-        #expect(abs(right.position - 0.4) < 0.0001)
+        #expect(growLeft.splitId == splitId)
+        #expect(abs(growLeft.position - 0.6) < 0.0001)
+        #expect(abs(shrinkLeft.position - 0.4) < 0.0001)
+        #expect(growRight.splitId == splitId)
+        #expect(abs(growRight.position - 0.4) < 0.0001)
+        #expect(abs(shrinkRight.position - 0.6) < 0.0001)
     }
 
-    @Test func growthChoosesNearestSplitOnRequestedAxis() throws {
+    @Test func sizeAdjustmentChoosesNearestSplitOnRequestedAxis() throws {
         let rootId = UUID()
         let innerId = UUID()
         let tree = split(
@@ -270,24 +286,26 @@ struct SplitGeometryTests {
             )
         )
 
-        let width = try #require(tree.growFocusedBranchAdjustment(
+        let width = try #require(tree.focusedBranchResizeAdjustment(
             targetPaneId: "c",
             axis: .width,
+            adjustment: .grow,
             amountPixels: 60
         ))
-        let height = try #require(tree.growFocusedBranchAdjustment(
+        let height = try #require(tree.focusedBranchResizeAdjustment(
             targetPaneId: "c",
             axis: .height,
+            adjustment: .shrink,
             amountPixels: 40
         ))
 
         #expect(width.splitId == rootId)
         #expect(abs(width.position - 0.4) < 0.0001)
         #expect(height.splitId == innerId)
-        #expect(abs(height.position - 0.4) < 0.0001)
+        #expect(abs(height.position - 0.6) < 0.0001)
     }
 
-    @Test func growthClampsAndFailsClosedForMissingOrInvalidSplits() throws {
+    @Test func sizeAdjustmentClampsAndFailsClosedForMissingOrInvalidSplits() throws {
         let splitId = UUID()
         let tree = split(
             splitId,
@@ -297,15 +315,24 @@ struct SplitGeometryTests {
             second: pane("right", x: 510, width: 90)
         )
 
-        let clamped = try #require(tree.growFocusedBranchAdjustment(
+        let growClamped = try #require(tree.focusedBranchResizeAdjustment(
             targetPaneId: "left",
             axis: .width,
+            adjustment: .grow,
             amountPixels: 300
         ))
-        #expect(clamped.position == 0.9)
-        #expect(tree.growFocusedBranchAdjustment(
+        let shrinkClamped = try #require(tree.focusedBranchResizeAdjustment(
+            targetPaneId: "right",
+            axis: .width,
+            adjustment: .shrink,
+            amountPixels: 300
+        ))
+        #expect(growClamped.position == 0.9)
+        #expect(shrinkClamped.position == 0.9)
+        #expect(tree.focusedBranchResizeAdjustment(
             targetPaneId: "left",
             axis: .height,
+            adjustment: .grow,
             amountPixels: 20
         ) == nil)
 
@@ -322,9 +349,10 @@ struct SplitGeometryTests {
                 second: pane("c", x: 450, width: 150)
             ))
         ))
-        #expect(invalidNearest.growFocusedBranchAdjustment(
+        #expect(invalidNearest.focusedBranchResizeAdjustment(
             targetPaneId: "b",
             axis: .width,
+            adjustment: .shrink,
             amountPixels: 20
         ) == nil)
     }

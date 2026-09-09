@@ -1,10 +1,14 @@
 import CmuxPanes
 
 extension TabManager {
-    /// Grows the focused pane in the selected local workspace by one stateless step on `axis`.
+    /// Adjusts the focused pane in the selected local workspace by one stateless step on `axis`.
     /// Remote tmux mirrors require authoritative resizing through tmux and are intentionally excluded.
     @discardableResult
-    func growSelectedPane(axis: PaneAxis, amountPixels: UInt16) -> Bool {
+    func adjustSelectedPaneSize(
+        axis: PaneAxis,
+        adjustment: PaneSizeAdjustment,
+        amountPixels: UInt16
+    ) -> Bool {
         guard amountPixels > 0,
               let workspace = selectedWorkspace,
               workspace.layoutMode != .canvas,
@@ -16,16 +20,17 @@ extension TabManager {
         }
 
         let controller = workspace.bonsplitController
-        let didGrow = paneLayout.growPane(
+        let didResize = paneLayout.adjustPaneSize(
             in: controller.treeSnapshot(),
             targetPaneId: paneId.id.uuidString,
             axis: axis,
+            adjustment: adjustment,
             amountPixels: amountPixels,
             controller: controller
         )
-        if didGrow {
+        if didResize {
             workspace.didProgrammaticallyChangeSplitGeometry()
         }
-        return didGrow
+        return didResize
     }
 }

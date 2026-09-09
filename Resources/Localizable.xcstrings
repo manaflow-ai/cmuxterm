@@ -235195,6 +235195,56 @@
         }
       }
     },
+    "shortcut.shrinkPaneHeight.label": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "تقليل ارتفاع اللوحة" } },
+        "bs": { "stringUnit": { "state": "translated", "value": "Smanji visinu panela" } },
+        "da": { "stringUnit": { "state": "translated", "value": "Formindsk panelhøjden" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Bereichshöhe verkleinern" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Shrink Pane Height" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Reducir altura del panel" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Réduire la hauteur du panneau" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Riduci altezza pannello" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ペインの高さを縮める" } },
+        "km": { "stringUnit": { "state": "translated", "value": "បន្ថយកម្ពស់ផ្ទាំង" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "패널 높이 줄이기" } },
+        "nb": { "stringUnit": { "state": "translated", "value": "Reduser panelhøyden" } },
+        "pl": { "stringUnit": { "state": "translated", "value": "Zmniejsz wysokość panelu" } },
+        "pt-BR": { "stringUnit": { "state": "translated", "value": "Reduzir altura do painel" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Уменьшить высоту панели" } },
+        "th": { "stringUnit": { "state": "translated", "value": "ลดความสูงบานหน้าต่าง" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Bölme Yüksekliğini Azalt" } },
+        "uk": { "stringUnit": { "state": "translated", "value": "Зменшити висоту панелі" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "减小面板高度" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "縮小面板高度" } }
+      }
+    },
+    "shortcut.shrinkPaneWidth.label": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "تقليل عرض اللوحة" } },
+        "bs": { "stringUnit": { "state": "translated", "value": "Smanji širinu panela" } },
+        "da": { "stringUnit": { "state": "translated", "value": "Formindsk panelbredden" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Bereichsbreite verkleinern" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Shrink Pane Width" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Reducir ancho del panel" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Réduire la largeur du panneau" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Riduci larghezza pannello" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ペインの幅を狭める" } },
+        "km": { "stringUnit": { "state": "translated", "value": "បន្ថយទទឹងផ្ទាំង" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "패널 너비 줄이기" } },
+        "nb": { "stringUnit": { "state": "translated", "value": "Reduser panelbredden" } },
+        "pl": { "stringUnit": { "state": "translated", "value": "Zmniejsz szerokość panelu" } },
+        "pt-BR": { "stringUnit": { "state": "translated", "value": "Reduzir largura do painel" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Уменьшить ширину панели" } },
+        "th": { "stringUnit": { "state": "translated", "value": "ลดความกว้างบานหน้าต่าง" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Bölme Genişliğini Azalt" } },
+        "uk": { "stringUnit": { "state": "translated", "value": "Зменшити ширину панелі" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "减小面板宽度" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "縮小面板寬度" } }
+      }
+    },
     "shortcut.growPaneHeight.label": {
       "extractionState": "manual",
       "localizations": {

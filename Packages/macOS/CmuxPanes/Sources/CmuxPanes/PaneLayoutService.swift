@@ -53,13 +53,14 @@ public struct PaneLayoutService {
         return controller.setDividerPosition(adjustment.position, forSplit: adjustment.splitId, fromExternal: true)
     }
 
-    /// Grows the focused branch on the nearest split matching `axis`.
+    /// Adjusts the focused branch on the nearest split matching `axis`.
     ///
     /// ```swift
-    /// layout.growPane(
+    /// layout.adjustPaneSize(
     ///     in: controller.treeSnapshot(),
     ///     targetPaneId: focusedPaneId,
     ///     axis: .width,
+    ///     adjustment: .grow,
     ///     amountPixels: 20,
     ///     controller: controller
     /// )
@@ -67,29 +68,32 @@ public struct PaneLayoutService {
     ///
     /// - Parameter node: The current external split-tree snapshot.
     /// - Parameter targetPaneId: The identifier of the focused pane.
-    /// - Parameter axis: The split axis whose focused branch should grow.
+    /// - Parameter axis: The split axis whose focused branch should change.
+    /// - Parameter adjustment: Whether to grow or shrink the focused branch.
     /// - Parameter amountPixels: The positive number of pixels requested.
     /// - Parameter controller: The live controller that owns the split tree.
     /// - Returns: Whether a matching divider was found and updated.
     @discardableResult
-    public func growPane(
+    public func adjustPaneSize(
         in node: ExternalTreeNode,
         targetPaneId: String,
         axis: PaneAxis,
+        adjustment: PaneSizeAdjustment,
         amountPixels: UInt16,
         controller: BonsplitController
     ) -> Bool {
         guard amountPixels > 0,
-              let adjustment = node.growFocusedBranchAdjustment(
+              let dividerAdjustment = node.focusedBranchResizeAdjustment(
                 targetPaneId: targetPaneId,
                 axis: axis,
+                adjustment: adjustment,
                 amountPixels: amountPixels
               ) else {
             return false
         }
         return controller.setDividerPosition(
-            adjustment.position,
-            forSplit: adjustment.splitId,
+            dividerAdjustment.position,
+            forSplit: dividerAdjustment.splitId,
             fromExternal: true
         )
     }

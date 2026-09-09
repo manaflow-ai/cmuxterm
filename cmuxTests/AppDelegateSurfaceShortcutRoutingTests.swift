@@ -571,89 +571,108 @@ struct AppDelegateSurfaceShortcutRoutingTests {
         }
     }
 
-    @Test func growPaneShortcutsRepeatWithoutCrossWorkspaceState() throws {
-        try withTemporaryShortcut(action: .growPaneHeight) {
-            try withTemporaryShortcut(action: .growPaneWidth) {
-                let appDelegate = try #require(AppDelegate.shared)
-                let windowId = appDelegate.createMainWindow()
-                defer { closeWindow(withId: windowId) }
+    @Test func paneResizeShortcutsAreInverseAndKeepNoCrossWorkspaceState() throws {
+        try withIsolatedShortcutSettings {
+            let appDelegate = try #require(AppDelegate.shared)
+            let windowId = appDelegate.createMainWindow()
+            defer { closeWindow(withId: windowId) }
 
-                let window = try #require(mainWindow(for: windowId))
-                let manager = try #require(appDelegate.tabManagerFor(windowId: windowId))
-                let firstWorkspace = try #require(manager.selectedWorkspace)
-                let firstPanelId = try #require(firstWorkspace.focusedPanelId)
-                let rightPanel = try #require(
-                    firstWorkspace.newTerminalSplit(from: firstPanelId, orientation: .horizontal)
-                )
-                let bottomPanel = try #require(
-                    firstWorkspace.newTerminalSplit(from: rightPanel.id, orientation: .vertical)
-                )
-                firstWorkspace.bonsplitController.setContainerFrame(
-                    CGRect(x: 0, y: 0, width: 900, height: 600)
-                )
-                firstWorkspace.focusPanel(bottomPanel.id)
-                window.makeKeyAndOrderFront(nil)
-                window.displayIfNeeded()
+            let window = try #require(mainWindow(for: windowId))
+            let manager = try #require(appDelegate.tabManagerFor(windowId: windowId))
+            let firstWorkspace = try #require(manager.selectedWorkspace)
+            let firstPanelId = try #require(firstWorkspace.focusedPanelId)
+            let rightPanel = try #require(
+                firstWorkspace.newTerminalSplit(from: firstPanelId, orientation: .horizontal)
+            )
+            let bottomPanel = try #require(
+                firstWorkspace.newTerminalSplit(from: rightPanel.id, orientation: .vertical)
+            )
+            firstWorkspace.bonsplitController.setContainerFrame(
+                CGRect(x: 0, y: 0, width: 900, height: 600)
+            )
+            firstWorkspace.focusPanel(bottomPanel.id)
+            window.makeKeyAndOrderFront(nil)
+            window.displayIfNeeded()
 
-                let widthEvent = try #require(makeKeyDownEvent(
-                    key: "0",
-                    modifiers: [.command, .option],
-                    keyCode: 29,
-                    windowNumber: window.windowNumber
-                ))
-                let widthRepeatEvent = try #require(makeKeyDownEvent(
-                    key: "0",
-                    modifiers: [.command, .option],
-                    keyCode: 29,
-                    windowNumber: window.windowNumber,
-                    isARepeat: true
-                ))
-                let heightEvent = try #require(makeKeyDownEvent(
-                    key: "0",
-                    modifiers: [.command, .option, .shift],
-                    keyCode: 29,
-                    windowNumber: window.windowNumber
-                ))
-                let heightRepeatEvent = try #require(makeKeyDownEvent(
-                    key: "0",
-                    modifiers: [.command, .option, .shift],
-                    keyCode: 29,
-                    windowNumber: window.windowNumber,
-                    isARepeat: true
-                ))
-                let snapshot = firstWorkspace.bonsplitController.treeSnapshot()
-                let widthSplitId = try #require(splitNodes(in: snapshot, orientation: "horizontal").first?.id)
-                let heightSplitId = try #require(splitNodes(in: snapshot, orientation: "vertical").first?.id)
-                let originalWidth = try #require(dividerPosition(of: widthSplitId, in: snapshot))
-                let originalHeight = try #require(dividerPosition(of: heightSplitId, in: snapshot))
+            let growWidthEvent = try #require(makeKeyDownEvent(
+                key: "→",
+                modifiers: [.command, .control],
+                keyCode: 124,
+                windowNumber: window.windowNumber
+            ))
+            let shrinkWidthEvent = try #require(makeKeyDownEvent(
+                key: "←",
+                modifiers: [.command, .control],
+                keyCode: 123,
+                windowNumber: window.windowNumber,
+                isARepeat: true
+            ))
+            let growHeightEvent = try #require(makeKeyDownEvent(
+                key: "↓",
+                modifiers: [.command, .control],
+                keyCode: 125,
+                windowNumber: window.windowNumber
+            ))
+            let shrinkHeightEvent = try #require(makeKeyDownEvent(
+                key: "↑",
+                modifiers: [.command, .control],
+                keyCode: 126,
+                windowNumber: window.windowNumber,
+                isARepeat: true
+            ))
+            let snapshot = firstWorkspace.bonsplitController.treeSnapshot()
+            let widthSplitId = try #require(splitNodes(in: snapshot, orientation: "horizontal").first?.id)
+            let heightSplitId = try #require(splitNodes(in: snapshot, orientation: "vertical").first?.id)
+            let originalWidth = try #require(dividerPosition(of: widthSplitId, in: snapshot))
+            let originalHeight = try #require(dividerPosition(of: heightSplitId, in: snapshot))
 
 #if DEBUG
-                #expect(appDelegate.debugHandleCustomShortcut(event: widthEvent))
-                #expect(appDelegate.debugHandleCustomShortcut(event: widthRepeatEvent))
-                #expect(appDelegate.debugHandleCustomShortcut(event: heightEvent))
-                #expect(appDelegate.debugHandleCustomShortcut(event: heightRepeatEvent))
+            #expect(appDelegate.debugHandleCustomShortcut(event: growWidthEvent))
+            #expect(appDelegate.debugHandleCustomShortcut(event: growWidthEvent))
+            #expect(appDelegate.debugHandleCustomShortcut(event: growHeightEvent))
+            #expect(appDelegate.debugHandleCustomShortcut(event: growHeightEvent))
 #else
-                Issue.record("debugHandleCustomShortcut is only available in DEBUG")
+            Issue.record("debugHandleCustomShortcut is only available in DEBUG")
 #endif
-                let grownSnapshot = firstWorkspace.bonsplitController.treeSnapshot()
-                let grownWidth = try #require(dividerPosition(of: widthSplitId, in: grownSnapshot))
-                let grownHeight = try #require(dividerPosition(of: heightSplitId, in: grownSnapshot))
-                #expect(abs(grownWidth - (originalWidth - (40.0 / 900.0))) < 0.000_1)
-                #expect(abs(grownHeight - (originalHeight - (40.0 / 600.0))) < 0.000_1)
-                #expect(firstWorkspace.focusedPanelId == bottomPanel.id)
+            let grownSnapshot = firstWorkspace.bonsplitController.treeSnapshot()
+            let grownWidth = try #require(dividerPosition(of: widthSplitId, in: grownSnapshot))
+            let grownHeight = try #require(dividerPosition(of: heightSplitId, in: grownSnapshot))
+            #expect(abs(grownWidth - (originalWidth - (40.0 / 900.0))) < 0.000_1)
+            #expect(abs(grownHeight - (originalHeight - (40.0 / 600.0))) < 0.000_1)
+            #expect(firstWorkspace.focusedPanelId == bottomPanel.id)
 
-                _ = manager.addWorkspace(select: true, eagerLoadTerminal: false)
 #if DEBUG
-                #expect(appDelegate.debugHandleCustomShortcut(event: widthEvent))
+            #expect(appDelegate.debugHandleCustomShortcut(event: shrinkWidthEvent))
+            #expect(appDelegate.debugHandleCustomShortcut(event: shrinkWidthEvent))
+            #expect(appDelegate.debugHandleCustomShortcut(event: shrinkHeightEvent))
+            #expect(appDelegate.debugHandleCustomShortcut(event: shrinkHeightEvent))
 #endif
-                let unchangedSnapshot = firstWorkspace.bonsplitController.treeSnapshot()
-                #expect(dividerPosition(of: widthSplitId, in: unchangedSnapshot) == grownWidth)
-                #expect(dividerPosition(of: heightSplitId, in: unchangedSnapshot) == grownHeight)
-            }
+            let restoredSnapshot = firstWorkspace.bonsplitController.treeSnapshot()
+            let restoredWidth = try #require(dividerPosition(of: widthSplitId, in: restoredSnapshot))
+            let restoredHeight = try #require(dividerPosition(of: heightSplitId, in: restoredSnapshot))
+            #expect(abs(restoredWidth - originalWidth) < 0.000_1)
+            #expect(abs(restoredHeight - originalHeight) < 0.000_1)
+
+            firstWorkspace.isRemoteTmuxMirror = true
+#if DEBUG
+            #expect(appDelegate.debugHandleCustomShortcut(event: growWidthEvent))
+#endif
+            let remoteMirrorSnapshot = firstWorkspace.bonsplitController.treeSnapshot()
+            #expect(dividerPosition(of: widthSplitId, in: remoteMirrorSnapshot) == originalWidth)
+            #expect(dividerPosition(of: heightSplitId, in: remoteMirrorSnapshot) == originalHeight)
+            firstWorkspace.isRemoteTmuxMirror = false
+
+            _ = manager.addWorkspace(select: true, eagerLoadTerminal: false)
+#if DEBUG
+            #expect(appDelegate.debugHandleCustomShortcut(event: growWidthEvent))
+#endif
+            let unchangedSnapshot = firstWorkspace.bonsplitController.treeSnapshot()
+            #expect(dividerPosition(of: widthSplitId, in: unchangedSnapshot) == originalWidth)
+            #expect(dividerPosition(of: heightSplitId, in: unchangedSnapshot) == originalHeight)
         }
     }
 
-    @Test func explicitLegacyBindingWinsOverImplicitPaneGrowthDefault() throws {
+    @Test func explicitLegacyBindingWinsOverImplicitPaneResizeDefault() throws {
         try withIsolatedShortcutSettings {
             let appDelegate = try #require(AppDelegate.shared)
             let windowId = appDelegate.createMainWindow()
@@ -664,17 +683,17 @@ struct AppDelegateSurfaceShortcutRoutingTests {
             let workspace = try #require(manager.selectedWorkspace)
             let paneCount = workspace.bonsplitController.allPaneIds.count
             let shortcut = StoredShortcut(
-                key: "0",
+                key: "→",
                 command: true,
                 shift: false,
-                option: true,
-                control: false
+                option: false,
+                control: true
             )
             KeyboardShortcutSettings.setShortcut(shortcut, for: .splitRight)
             let event = try #require(makeKeyDownEvent(
-                key: "0",
-                modifiers: [.command, .option],
-                keyCode: 29,
+                key: "→",
+                modifiers: [.command, .control],
+                keyCode: 124,
                 windowNumber: window.windowNumber
             ))
 
