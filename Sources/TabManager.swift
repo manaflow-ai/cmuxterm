@@ -454,7 +454,7 @@ class TabManager: ObservableObject {
     /// Sidebar multi-selection state + sync events (CmuxSidebar).
     let sidebarMultiSelection = SidebarMultiSelectionModel()
     /// Typed synchronous settings access (CmuxSettings).
-    private let settings: any SettingsWriting
+    let settings: any SettingsWriting
     private let settingsCatalog = SettingCatalog()
     private let defaultWorkspaceWorkingDirectoryProvider: () -> String
     let workspaceCustomizationStore: WorkspaceCustomizationStore
@@ -494,6 +494,8 @@ class TabManager: ObservableObject {
     private var closeConfirmationInFlight = false
     let closeTabWarningDefaults: UserDefaults
     let tabDragTransferRegistry: TabDragTransferRegistry
+    /// Immutable chrome palette snapshot inherited by every workspace in this window.
+    var chromePalette = ChromePalette.resolve(theme: .default, colorScheme: .light)
     /// File-backed panels in every workspace and Dock owned by this window
     /// share this injected invalidation pipeline.
     let fileContentChangeCoordinator: FileContentChangeCoordinator
@@ -562,7 +564,8 @@ class TabManager: ObservableObject {
         nativeSSHConnectionBroker: NativeSSHConnectionBroker = NativeSSHConnectionBroker(),
         agentChatResumeIntentRecorder: any AgentChatResumeIntentRecording = AgentChatTranscriptResumeIntentRecorder(),
         closeTabWarningDefaults: UserDefaults = .standard,
-        fileContentChangeCoordinator: FileContentChangeCoordinator? = nil
+        fileContentChangeCoordinator: FileContentChangeCoordinator? = nil,
+        chromePalette: ChromePalette = ChromePalette.resolve(theme: .default, colorScheme: .light)
     ) {
         let tabDragTransferRegistry = tabDragTransferRegistry ?? TabDragTransferRegistry()
         self.settings = settings
@@ -581,6 +584,7 @@ class TabManager: ObservableObject {
         self.panelTitleUpdateCoalescer = panelTitleUpdateCoalescer ?? NotificationBurstCoalescer()
         self.windowTitleWriter = windowTitleWriter ?? WindowTitleWriter()
         self.closeTabWarningDefaults = closeTabWarningDefaults
+        self.chromePalette = chromePalette
         self.tabDragTransferRegistry = tabDragTransferRegistry
         self.fileContentChangeCoordinator =
             fileContentChangeCoordinator ?? FileContentChangeCoordinator()
@@ -1139,7 +1143,8 @@ class TabManager: ObservableObject {
             closeTabWarningDefaults: closeTabWarningDefaults,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
             fileContentChangeCoordinator: fileContentChangeCoordinator,
-            nativeSSHConnectionBroker: nativeSSHConnectionBroker
+            nativeSSHConnectionBroker: nativeSSHConnectionBroker,
+            chromePalette: chromePalette
         )
     }
 
@@ -1161,7 +1166,8 @@ class TabManager: ObservableObject {
             initialDetachedSurface: detachedSurface,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
             fileContentChangeCoordinator: fileContentChangeCoordinator,
-            nativeSSHConnectionBroker: nativeSSHConnectionBroker
+            nativeSSHConnectionBroker: nativeSSHConnectionBroker,
+            chromePalette: chromePalette
         )
     }
 
@@ -6652,7 +6658,8 @@ extension TabManager {
                 closeTabWarningDefaults: closeTabWarningDefaults,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
                 fileContentChangeCoordinator: fileContentChangeCoordinator,
-                nativeSSHConnectionBroker: nativeSSHConnectionBroker
+                nativeSSHConnectionBroker: nativeSSHConnectionBroker,
+                chromePalette: chromePalette
             )
             workspace.owningTabManager = self
             let restoredPanelIds = workspace.restoreSessionSnapshot(
@@ -6688,7 +6695,8 @@ extension TabManager {
                 closeTabWarningDefaults: closeTabWarningDefaults,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
                 fileContentChangeCoordinator: fileContentChangeCoordinator,
-                nativeSSHConnectionBroker: nativeSSHConnectionBroker
+                nativeSSHConnectionBroker: nativeSSHConnectionBroker,
+                chromePalette: chromePalette
             )
             fallback.owningTabManager = self
             wireClosedBrowserTracking(for: fallback)
