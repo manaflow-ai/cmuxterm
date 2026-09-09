@@ -662,7 +662,7 @@
       ]
     },
     "pro": {
-      "name": "Profi",
+      "name": "Pro",
       "cta": "Holen Sie sich Pro",
       "featuresLead": "Alles kostenlos, plus:",
       "features": [
@@ -707,24 +707,24 @@
       "rows": [
         {
           "label": "Natives macOS-Terminal, Open Source",
-          "free": "wahr",
-          "pro": "wahr",
-          "team": "wahr",
-          "enterprise": "wahr"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Lokale CLI-Agenten mit Ihren eigenen Schlüsseln",
-          "free": "wahr",
-          "pro": "wahr",
-          "team": "wahr",
-          "enterprise": "wahr"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Vertikale Tabs, Teilungen, Benachrichtigungen, Socket-API",
-          "free": "wahr",
-          "pro": "wahr",
-          "team": "wahr",
-          "enterprise": "wahr"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Sitzungsverlauf",
@@ -736,37 +736,37 @@
         },
         {
           "label": "cmux Vault: Cloud-Sitzungssicherung",
-          "free": "falsch",
-          "pro": "wahr",
-          "team": "wahr",
-          "enterprise": "wahr",
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true",
           "vault": true
         },
         {
           "label": "Durchsuchen Sie alle Ihre Sitzungen",
-          "free": "falsch",
-          "pro": "wahr",
-          "team": "wahr",
-          "enterprise": "wahr",
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true",
           "vault": true
         },
         {
           "label": "Cloud-Agenten auf Cloud-VMs",
-          "free": "falsch",
-          "pro": "wahr",
-          "team": "wahr",
-          "enterprise": "wahr"
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Gleichzeitige Cloud-VMs",
-          "free": "falsch",
+          "free": "false",
           "pro": "50",
           "team": "50 pro Benutzer",
           "enterprise": "Benutzerdefiniert"
         },
         {
           "label": "Ressourcen pro Cloud-VM",
-          "free": "falsch",
+          "free": "false",
           "pro": "Standardmäßig 8 GB RAM und 32 GB Festplatte; 4 bis 64 GB RAM, Festplatte bis 256 GB",
           "team": "Standardmäßig 8 GB RAM und 32 GB Festplatte; 4 bis 64 GB RAM, Festplatte bis 256 GB",
           "enterprise": "Benutzerdefiniert"
@@ -780,10 +780,10 @@
         },
         {
           "label": "iOS-App",
-          "free": "falsch",
-          "pro": "wahr",
-          "team": "wahr",
-          "enterprise": "wahr"
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Netzwerk, um Ihren Mac zu erreichen",
@@ -795,38 +795,38 @@
         },
         {
           "label": "SSO- und SAML-Anmeldung",
-          "free": "falsch",
-          "pro": "falsch",
-          "team": "falsch",
-          "enterprise": "wahr"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "Selbstgehostete und Air-Gap-Ausführung",
-          "free": "falsch",
-          "pro": "falsch",
-          "team": "falsch",
-          "enterprise": "wahr"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "Audit-Protokolle: Sitzungen, Netzwerk, Browser",
-          "free": "falsch",
-          "pro": "falsch",
-          "team": "falsch",
-          "enterprise": "wahr"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "Mengenpreise",
-          "free": "falsch",
-          "pro": "falsch",
-          "team": "falsch",
-          "enterprise": "wahr"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "SOC 2 und ein SLA",
-          "free": "falsch",
-          "pro": "falsch",
-          "team": "falsch",
-          "enterprise": "wahr"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "Unterstützung",
