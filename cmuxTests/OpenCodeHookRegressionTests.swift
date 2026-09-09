@@ -22,9 +22,8 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         )
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
         // Keep the Unix socket path short enough for macOS's sockaddr_un limit.
-        // The runner's temporary-directory prefix is long, and appending a
-        // process-unique suffix to it would be truncated by the kernel and
-        // still collide with a stale listener.
+        // The runner's temporary-directory prefix is long enough to be
+        // truncated by the kernel and collide with a stale listener.
         let socketPath = "/tmp/cmux-opencode-\(UUID().uuidString).sock"
         defer {
             try? fileManager.removeItem(at: root)
@@ -124,10 +123,7 @@ const fs = require("node:fs");
 
 (async () => {
   const [pluginPath, socketPath] = process.argv.slice(2);
-  // Keep the transport on a Unix socket, but add a process-unique suffix so
-  // a reused self-hosted runner cannot collide with a stale prior listener.
-  const boundSocketPath = `${socketPath}-${process.pid}-${Math.random().toString(16).slice(2)}`;
-  try { fs.unlinkSync(boundSocketPath); } catch (_) {}
+  try { fs.unlinkSync(socketPath); } catch (_) {}
   const frames = [];
   let resolveFrames;
   const framesReady = new Promise((resolve) => { resolveFrames = resolve; });
@@ -152,10 +148,10 @@ const fs = require("node:fs");
   });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(boundSocketPath, () => { server.off("error", reject); resolve(); });
+    server.listen(socketPath, () => { server.off("error", reject); resolve(); });
   });
 
-  process.env.CMUX_SOCKET_PATH = boundSocketPath;
+  process.env.CMUX_SOCKET_PATH = socketPath;
   const source = fs.readFileSync(pluginPath, "utf8")
     .replace("export const CMUXFeed = async", "globalThis.CMUXFeed = async");
   eval(source);
@@ -179,7 +175,7 @@ const fs = require("node:fs");
   await framesReady;
   for (const socket of sockets) socket.destroy();
   await new Promise((resolve) => server.close(resolve));
-  try { fs.unlinkSync(boundSocketPath); } catch (_) {}
+  try { fs.unlinkSync(socketPath); } catch (_) {}
   console.log(JSON.stringify(frames));
 })().catch((error) => {
   console.error(error && error.stack ? error.stack : String(error));
