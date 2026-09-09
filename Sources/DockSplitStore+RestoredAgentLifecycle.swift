@@ -240,7 +240,6 @@ extension DockSplitStore {
         )
 #endif
     }
-
     private func retireAgentHookResumeBinding(
         panelId: UUID,
         matching restoredAgent: SessionRestorableAgentSnapshot? = nil
@@ -521,7 +520,6 @@ extension DockSplitStore {
             self.resolveDeferredAgentResumeRestores(using: index)
         }
     }
-
     private func resolveDeferredAgentResumeRestores(
         using index: RestorableAgentSessionIndex
     ) {
@@ -664,7 +662,6 @@ extension DockSplitStore {
                 cancelDeferredAgentResumeRestore(panelId: panelId, restore: restore)
                 continue
             }
-
             let startupInput: String?
             let claim: (kind: String, sessionId: String)?
             if let restorableAgent = restore.restorableAgent {
@@ -681,7 +678,8 @@ extension DockSplitStore {
                 claim = (restorableAgent.kind.rawValue, restorableAgent.sessionId)
             } else if let binding = currentResumeBinding ?? restore.resumeBinding {
                 if restore.restoresRemoteWorkspaceTerminalSnapshot {
-                    guard binding.launchFlavor.remoteContext == restore.remoteResumeContext else {
+                    guard binding.launchFlavor.remoteContext == restore.remoteResumeContext,
+                          !binding.isAgentHookBinding || binding.hasExactRestoreWorkingDirectorySelection else {
                         cancelDeferredAgentResumeRestore(panelId: panelId, restore: restore)
                         continue
                     }
@@ -781,7 +779,9 @@ extension DockSplitStore {
             }
         }
     }
-
+#if DEBUG
+    func resolveDeferredAgentResumeRestoresForTesting(using index: RestorableAgentSessionIndex) { resolveDeferredAgentResumeRestores(using: index) }
+#endif
     /// Builds a transfer-scoped persistent-SSH attach that prints the live-owner
     /// notice without replaying the embedded agent command.
     private func detachedRemoteLiveOwnerNoticeAttachCommand(

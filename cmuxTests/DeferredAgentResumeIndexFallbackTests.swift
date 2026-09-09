@@ -245,6 +245,66 @@ struct DeferredAgentResumeIndexFallbackTests {
         #expect(!panel.surface.admitStartupRestoreRuntime(initialInput: "unexpected\n"))
     }
 
+    @Test("Deferred remote restore cancels a binding without an exact cwd policy")
+    func deferredRemoteRestoreFailsClosedWithoutExactWorkingDirectory() throws {
+        let store = DockSplitStore(workspaceId: UUID(), baseDirectoryProvider: { nil })
+        defer { store.closeAllPanels() }
+        let panel = TerminalPanel(workspaceId: store.workspaceId)
+        store.panels[panel.id] = panel
+        let workingDirectory = "/remote/project"
+        let sessionID = "recorded-fallback-deferred-remote-session"
+        let persistentPTYSessionID = "recorded-fallback-deferred-remote-pty"
+        let context = SurfaceResumeRemoteContext(
+            workspaceID: store.workspaceId,
+            surfaceID: panel.id,
+            persistentPTYSessionID: persistentPTYSessionID
+        )
+        let binding = SurfaceResumeBindingSnapshot(
+            kind: "codex",
+            command: "codex resume \(sessionID)",
+            cwd: workingDirectory,
+            checkpointId: sessionID,
+            source: "agent-hook",
+            restoreWorkingDirectorySelection: .recordedFallback(
+                preferred: workingDirectory
+            ),
+            autoResume: true,
+            launchFlavor: .persistentSSH(context)
+        )
+        store.surfaceResumeBindingsByPanelId[panel.id] = binding
+        store.terminalStartupRestoreCoordinator.stage(
+            panel: panel,
+            snapshot: nil,
+            resumeBinding: binding,
+            manualResumeAvailable: true,
+            willRunStartupCommand: false,
+            willRunStartupInput: false,
+            resumeWorkingDirectory: workingDirectory,
+            chatWorkingDirectory: workingDirectory,
+            defersStartupRestoreAdmission: true
+        )
+        store.terminalStartupRestoreCoordinator.commitPendingRestores(
+            panelIDs: [panel.id]
+        )
+        store.deferredAgentResumeRestoresByPanelId[panel.id] = DeferredAgentResumeRestore(
+            stablePanelID: panel.id,
+            restorableAgent: nil,
+            resumeBinding: binding,
+            restoresRemoteWorkspaceTerminalSnapshot: true,
+            remoteResumeContext: context,
+            workingDirectory: workingDirectory,
+            resumeWorkingDirectory: workingDirectory
+        )
+
+        store.resolveDeferredAgentResumeRestoresForTesting(using: .empty)
+
+        #expect(store.deferredAgentResumeRestoresByPanelId[panel.id] == nil)
+        #expect(store.restoredAgentLifecycle.startupInput(panelId: panel.id) == nil)
+        #expect(store.restoredAgentResumeStatesByPanelId[panel.id] == .manualResumeAvailable)
+        #expect(store.surfaceResumeBindingsByPanelId[panel.id]?.autoResume == false)
+        #expect(panel.surface.admitStartupRestoreRuntime(initialInput: "unexpected\n"))
+    }
+
     @Test("A positive ownership decision still retires the binding")
     func ownershipCancelRetiresBinding() throws {
         let workspace = Workspace()

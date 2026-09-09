@@ -2,6 +2,12 @@ import CMUXAgentLaunch
 import Foundation
 
 extension SurfaceResumeBindingSnapshot {
+    var hasExactRestoreWorkingDirectorySelection: Bool {
+        guard let selection = restoreWorkingDirectorySelection else { return false }
+        if case .exact = selection { return true }
+        return false
+    }
+
     /// Allows a persistent-SSH transport reattach when exact policy intentionally omits input.
     var permitsTransportOnlyPersistentSSHRestore: Bool {
         isAgentHookBinding &&
@@ -34,9 +40,14 @@ extension SurfaceResumeBindingSnapshot {
                 Workspace.restorableAgentForSessionRestore($0, resumeBinding: registered)
             }
             let kind = matchingRestorableAgent?.kind.rawValue ?? registered.kind ?? ""
+            let matchingSelectionIsExact = matchingRestorableAgent?.restoreWorkingDirectorySelection
+                .map { if case .exact = $0 { true } else { false } } == true
             if matchingRestorableAgent?.registration?.cwd == .ignore {
                 registered.restoreWorkingDirectorySelection = .exact(nil)
-            } else if registered.cwd != nil {
+            } else if matchingRestorableAgent?.restoreWorkingDirectorySelection == .unavailable {
+                registered.restoreWorkingDirectorySelection = .unavailable
+            } else if registered.cwd != nil,
+                      (restorableAgent == nil || matchingSelectionIsExact) {
                 registered.restoreWorkingDirectorySelection = .exact(registered.cwd)
             } else if AgentResumeWorkingDirectory().cwdNamespacing(forKind: kind) == .cwdInFile {
                 registered.restoreWorkingDirectorySelection = .exact(nil)

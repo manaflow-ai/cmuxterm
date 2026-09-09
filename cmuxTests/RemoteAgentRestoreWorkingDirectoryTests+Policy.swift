@@ -411,6 +411,44 @@ extension RemoteAgentRestoreWorkingDirectoryTests {
         )
     }
 
+    @Test func persistentSSHRegistrationDoesNotTrustCapturedCwdWithoutRemoteSelection() {
+        let sessionID = "persistent-captured-cwd-session"
+        let context = SurfaceResumeRemoteContext(
+            workspaceID: UUID(),
+            surfaceID: UUID(),
+            persistentPTYSessionID: "persistent-captured-cwd-pty"
+        )
+        let registration = CmuxVaultAgentRegistration(
+            id: "captured-cwd-agent",
+            name: "Captured CWD Agent",
+            detect: CmuxVaultAgentDetectRule(processName: "captured-cwd-agent"),
+            sessionIdSource: .argvOption("--session"),
+            resumeCommand: "captured-cwd-agent --session {{sessionId}}",
+            cwd: .preserve
+        )
+        let binding = SurfaceResumeBindingSnapshot(
+            kind: registration.id,
+            command: "captured-cwd-agent --session \(sessionID)",
+            cwd: "/Users/alice/local-project",
+            checkpointId: sessionID,
+            source: "agent-hook",
+            autoResume: true
+        )
+        let capturedAgent = SessionRestorableAgentSnapshot(
+            kind: .custom(registration.id),
+            sessionId: sessionID,
+            workingDirectory: "/Users/alice/local-project",
+            registration: registration
+        )
+
+        let registered = binding.registeredForPersistentSSH(
+            context,
+            restorableAgent: capturedAgent
+        )
+
+        #expect(registered.restoreWorkingDirectorySelection == .unavailable)
+    }
+
     @Test func unavailableRestorePolicyDoesNotAdvertiseForkSupport() async {
         let snapshot = SessionRestorableAgentSnapshot(
             kind: .claude,
