@@ -8613,8 +8613,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         insertFirst: Bool = false,
         focus: Bool = true,
         workingDirectory: String? = nil,
-        initialCommand: String? = nil,
-        tmuxStartCommand: String? = nil,
+        initialCommand: String? = nil, initialInput: String? = nil, tmuxStartCommand: String? = nil,
         startupEnvironment: [String: String] = [:],
         initialDividerPosition: CGFloat? = nil,
         remotePTYSessionID: String? = nil,
@@ -8627,7 +8626,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             insertFirst: insertFirst,
             focus: focus,
             workingDirectory: workingDirectory,
-            initialCommand: initialCommand,
+            initialCommand: initialCommand, initialInput: initialInput,
             tmuxStartCommand: tmuxStartCommand,
             startupEnvironment: startupEnvironment,
             initialDividerPosition: initialDividerPosition,
@@ -8637,7 +8636,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         ).panel
     }
 
-    /// Like ``newTerminalSplit(from:orientation:insertFirst:focus:workingDirectory:initialCommand:tmuxStartCommand:startupEnvironment:initialDividerPosition:remotePTYSessionID:)``
+    /// Like ``newTerminalSplit(from:orientation:insertFirst:focus:workingDirectory:initialCommand:initialInput:tmuxStartCommand:startupEnvironment:initialDividerPosition:remotePTYSessionID:)``
     /// but distinguishes a split routed to the remote tmux mirror from a genuine
     /// failure, so socket/CLI handlers can report the routed request as accepted.
     /// (Reporting an error makes automation retry and duplicate remote panes.)
@@ -8647,7 +8646,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         insertFirst: Bool = false,
         focus: Bool = true,
         workingDirectory: String? = nil,
-        initialCommand: String? = nil,
+        initialCommand: String? = nil, initialInput: String? = nil,
         tmuxStartCommand: String? = nil,
         startupEnvironment: [String: String] = [:],
         initialDividerPosition: CGFloat? = nil,
@@ -8676,11 +8675,12 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         }
         // A split next to a pane projecting a cloud resource creates the terminal ON
         // that machine and projects it back (Workspace+CloudPaneRouting). Only plain
-        // requests route: an explicit command, cwd, PTY session, or restore scaffold
-        // is a local-terminal request by construction (including the attach panes the
-        // routed create itself materializes, whose initialCommand is the attach argv).
-        if initialCommand == nil, tmuxStartCommand == nil, remotePTYSessionID == nil,
-           workingDirectory == nil, !suppressWorkspaceRemoteStartupCommand,
+        // requests route: an explicit command or input, cwd, PTY session, or restore
+        // scaffold is local-terminal by construction (including attach panes whose
+        // initialCommand is the attach argv).
+        if initialCommand == nil, initialInput == nil, tmuxStartCommand == nil,
+           remotePTYSessionID == nil, workingDirectory == nil,
+           !suppressWorkspaceRemoteStartupCommand,
            routeCloudPaneTerminalSplit(from: panelId, orientation: orientation, insertFirst: insertFirst, focus: focus) {
             return .routedToRemote
         }
@@ -8690,7 +8690,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             insertFirst: insertFirst,
             focus: focus,
             workingDirectory: workingDirectory,
-            initialCommand: initialCommand,
+            initialCommand: initialCommand, initialInput: initialInput,
             tmuxStartCommand: tmuxStartCommand,
             startupEnvironment: startupEnvironment,
             initialDividerPosition: initialDividerPosition,
@@ -8707,7 +8707,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         insertFirst: Bool,
         focus: Bool,
         workingDirectory: String?,
-        initialCommand: String?,
+        initialCommand: String?, initialInput: String?,
         tmuxStartCommand: String?,
         startupEnvironment: [String: String],
         initialDividerPosition: CGFloat?,
@@ -8794,7 +8794,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             workingDirectory: splitWorkingDirectory,
             portOrdinal: portOrdinal,
             initialCommand: startupCommand,
-            tmuxStartCommand: tmuxStartCommand,
+            tmuxStartCommand: tmuxStartCommand, initialInput: initialInput,
             additionalEnvironment: effectiveStartupEnvironment
         )
         configureNewTerminalPanel(
