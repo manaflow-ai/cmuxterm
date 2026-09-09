@@ -11,8 +11,11 @@ import Testing
 
 @MainActor
 @Suite struct VaultHistoryLaunchTransactionTests {
-    @Test(arguments: [false, true])
-    func discardedLaunchWindowDoesNotPublishEvents(discardAfterCommit: Bool) async {
+    @Test(arguments: [false, true], [VaultHistoryRecordingPhase.launching, .restoring])
+    func discardedLaunchWindowDoesNotPublishEvents(
+        discardAfterCommit: Bool,
+        phaseAtCommit: VaultHistoryRecordingPhase
+    ) async {
         let log = VaultHistoryEventLog(store: VaultHistoryEventStore(fileURL: nil))
         let discardedWindowId = UUID()
         let retainedWindowId = UUID()
@@ -29,6 +32,7 @@ import Testing
         if !discardAfterCommit {
             log.discardWindowCreation(windowId: discardedWindowId)
         }
+        log.transition(to: phaseAtCommit)
         log.commitWindowCreation(windowId: discardedWindowId)
         log.commitWindowCreation(windowId: retainedWindowId)
         log.transition(to: .restoring)
@@ -40,6 +44,74 @@ import Testing
 
         #expect(await log.recentEvents().map(\.id) == ["retained"])
         #expect(log.revision == 1)
+    }
+
+    @Test(
+        arguments: [VaultHistoryRecordingPhase.launching, .active],
+        [VaultHistoryRecordingPhase.restoring, .terminating]
+    )
+    func committedSnapshotsSurvivePhaseChanges(
+        initialPhase: VaultHistoryRecordingPhase,
+        phaseAtCommit: VaultHistoryRecordingPhase
+    ) async {
+        let log = VaultHistoryEventLog(store: VaultHistoryEventStore(fileURL: nil), phase: initialPhase)
+        let windowId = UUID()
+        let acceptedEvent = VaultHistoryEvent(
+            id: "accepted",
+            timestamp: Date(timeIntervalSince1970: 1_800_000_000),
+            kind: .windowOpened,
+            title: "Original snapshot",
+            subject: VaultHistorySubject(windowId: windowId)
+        )
+        log.beginWindowCreation(windowId: windowId)
+        log.record(acceptedEvent)
+        log.transition(to: phaseAtCommit)
+        log.record(VaultHistoryEvent(
+            id: "suppressed",
+            timestamp: acceptedEvent.timestamp.addingTimeInterval(1),
+            kind: .windowClosed,
+            title: "Restore or shutdown must remain silent",
+            subject: acceptedEvent.subject
+        ))
+        log.commitWindowCreation(windowId: windowId)
+        log.commitWindowCreation(windowId: windowId)
+
+        #expect(log.hasPendingRecords)
+        if phaseAtCommit == .restoring {
+            await log.flushPendingRecords()
+            #expect(await log.recentEvents().isEmpty)
+            #expect(log.revision == 0)
+            log.transition(to: .active)
+        }
+        await log.flushPendingRecords()
+        // Repeated lifecycle notifications must not replay an accepted batch.
+        log.transition(to: .terminating)
+        await log.flushPendingRecords()
+
+        #expect(await log.recentEvents() == [acceptedEvent])
+        #expect(log.revision == 1)
+        #expect(!log.hasPendingRecords)
+    }
+
+    @Test(arguments: [VaultHistoryRecordingPhase.restoring, .terminating])
+    func transactionsStartedDuringSuppressionDoNotPublishEvents(phase: VaultHistoryRecordingPhase) async {
+        let log = VaultHistoryEventLog(store: VaultHistoryEventStore(fileURL: nil), phase: phase)
+        let windowId = UUID()
+        log.beginWindowCreation(windowId: windowId)
+        log.record(VaultHistoryEvent(
+            id: "suppressed",
+            timestamp: Date(timeIntervalSince1970: 1_800_000_000),
+            kind: .windowOpened,
+            title: "Programmatic window",
+            subject: VaultHistorySubject(windowId: windowId)
+        ))
+        log.transition(to: .active)
+        log.commitWindowCreation(windowId: windowId)
+        await log.flushPendingRecords()
+
+        #expect(await log.recentEvents().isEmpty)
+        #expect(log.revision == 0)
+        #expect(!log.hasPendingRecords)
     }
 }
 
