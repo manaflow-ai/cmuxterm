@@ -293666,7 +293666,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "音声入力を切り替え"
+            "value": "音声入力の切り替え"
           }
         }
       }
@@ -293684,6 +293684,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "マイクを開始できませんでした"
+          }
+        }
+      }
+    },
+    "voice.error.audioCapture.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux couldn’t start audio capture. Check that an input device is connected, then try again."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmuxで音声入力を開始できませんでした。入力デバイスが接続されていることを確認して、もう一度お試しください。"
           }
         }
       }
@@ -293773,6 +293790,23 @@
         }
       }
     },
+    "voice.error.modelDownload.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux couldn’t prepare the on-device speech model. Check your connection and try again. Audio and transcripts stay on this Mac."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmuxでデバイス上の音声モデルを準備できませんでした。接続を確認して、もう一度お試しください。音声と文字起こし結果はこのMacにのみ保存されます。"
+          }
+        }
+      }
+    },
     "voice.error.openSystemSettings": {
       "extractionState": "manual",
       "localizations": {
@@ -293837,6 +293871,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "音声入力が予期せず停止しました"
+          }
+        }
+      }
+    },
+    "voice.error.transcription.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice dictation stopped unexpectedly. Try again. Audio and transcripts stay on this Mac."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音声入力が予期せず停止しました。もう一度お試しください。音声と文字起こし結果はこのMacにのみ保存されます。"
           }
         }
       }
