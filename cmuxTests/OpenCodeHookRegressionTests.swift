@@ -113,21 +113,33 @@ final class OpenCodeHookRegressionTests: XCTestCase {
     }
 
     private static func javascriptRuntimeExecutable() -> String {
-        let pathEntries = (ProcessInfo.processInfo.environment["PATH"] ?? "")
+        let environment = ProcessInfo.processInfo.environment
+        let pathEntries = (environment["PATH"] ?? "")
             .split(separator: ":", omittingEmptySubsequences: true)
             .map(String.init)
+
+        var candidates: [String] = []
         for runtime in ["node", "bun"] {
-            if pathEntries.contains(where: { directory in
-                FileManager.default.isExecutableFile(
-                    atPath: URL(fileURLWithPath: directory)
-                        .appendingPathComponent(runtime)
-                        .path
-                )
-            }) {
-                return runtime
+            candidates.append(contentsOf: pathEntries.map {
+                URL(fileURLWithPath: $0).appendingPathComponent(runtime).path
+            })
+            if runtime == "bun", let bunInstall = environment["BUN_INSTALL"] {
+                candidates.append(URL(fileURLWithPath: bunInstall)
+                    .appendingPathComponent("bin/bun").path)
             }
         }
-        return "node"
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        candidates.append(contentsOf: [
+            "\(home)/.bun/bin/bun",
+            "/opt/homebrew/bin/node",
+            "/opt/homebrew/bin/bun",
+            "/usr/local/bin/node",
+            "/usr/local/bin/bun",
+            "/usr/bin/node",
+            "/usr/bin/bun",
+        ])
+
+        return candidates.first(where: FileManager.default.isExecutableFile(atPath:)) ?? "/usr/bin/node"
     }
 
     private static let openCodeFeedEventHarness = #"""
