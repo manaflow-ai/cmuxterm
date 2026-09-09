@@ -332,7 +332,7 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
 
         XCTAssertFalse(result.timedOut, result.stderr)
         XCTAssertEqual(result.status, 0, result.stderr)
-        XCTAssertEqual(result.stdout, "OK\n")
+        XCTAssertEqual(result.stdout, "{}\n")
         XCTAssertTrue(
             context.state.commands.contains { $0 == "clear_notifications --tab=\(context.workspaceId) --panel=\(context.surfaceId)" },
             "Expected clear SessionStart to clear only the current pane, saw \(context.state.commands)"
@@ -1923,7 +1923,7 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
 
         XCTAssertFalse(result.timedOut, result.stderr)
         XCTAssertEqual(result.status, 0, result.stderr)
-        XCTAssertEqual(result.stdout, "OK\n")
+        XCTAssertEqual(result.stdout, "{}\n")
         let savedState = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: stateURL)) as? [String: Any])
         let savedSessions = try XCTUnwrap(savedState["sessions"] as? [String: Any])
         XCTAssertNil(
@@ -2456,6 +2456,102 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         XCTAssertTrue(
             parentStopCommands.contains { $0.hasPrefix("set_status gemini ") && $0.contains(" Idle ") },
             "The generic parent Stop must still mark Gemini idle, saw \(parentStopCommands)"
+        )
+    }
+
+    func testAmpLatePromptCannotResurrectSettledTurn() throws {
+        let context = try makeClaudeHookContext(name: "amp-terminal-turn-replay")
+        defer { context.cleanup() }
+
+        let sessionId = "amp-terminal-turn-replay-session"
+        let turnId = "amp-turn-1"
+        let launchEnvironment = agentLaunchEnvironment(
+            context: context,
+            kind: "amp",
+            executable: "/usr/local/bin/amp"
+        )
+        startAgentHookMockServerAccepting(context: context)
+
+        let prompt = runAgentHook(
+            context: context,
+            agent: "amp",
+            subcommand: "prompt-submit",
+            standardInput: #"{"session_id":"\#(sessionId)","turn_id":"\#(turnId)","cwd":"\#(context.root.path)","hook_event_name":"UserPromptSubmit"}"#,
+            extraEnvironment: launchEnvironment
+        )
+        XCTAssertFalse(prompt.timedOut, prompt.stderr)
+        XCTAssertEqual(prompt.status, 0, prompt.stderr)
+
+        let stop = runAgentHook(
+            context: context,
+            agent: "amp",
+            subcommand: "stop",
+            standardInput: #"{"session_id":"\#(sessionId)","turn_id":"\#(turnId)","cwd":"\#(context.root.path)","hook_event_name":"Stop","cmux_turn_boundary":"settled","cmux_active_background_work_count":0,"last_assistant_message":"done"}"#,
+            extraEnvironment: launchEnvironment
+        )
+        XCTAssertFalse(stop.timedOut, stop.stderr)
+        XCTAssertEqual(stop.status, 0, stop.stderr)
+
+        let latePromptStart = context.state.snapshot().count
+        let latePrompt = runAgentHook(
+            context: context,
+            agent: "amp",
+            subcommand: "prompt-submit",
+            standardInput: #"{"session_id":"\#(sessionId)","turn_id":"\#(turnId)","cwd":"\#(context.root.path)","hook_event_name":"UserPromptSubmit"}"#,
+            extraEnvironment: launchEnvironment
+        )
+        XCTAssertFalse(latePrompt.timedOut, latePrompt.stderr)
+        XCTAssertEqual(latePrompt.status, 0, latePrompt.stderr)
+
+        let latePromptCommands = Array(
+            context.state.snapshot().dropFirst(latePromptStart)
+        )
+        XCTAssertFalse(
+            latePromptCommands.contains {
+                $0.contains("set_agent_lifecycle amp running")
+                    || $0.hasPrefix("set_status amp Running ")
+                    || $0.hasPrefix("clear_notifications ")
+            },
+            "A detached Amp prompt hook arriving after the same turn settled "
+                + "must not resurrect Running or clear completion, saw "
+                + "\(latePromptCommands)"
+        )
+    }
+
+    func testAmpThreadsShareOneProcessScopedPIDOwner() throws {
+        let context = try makeClaudeHookContext(
+            name: "amp-process-scoped-pid-owner"
+        )
+        defer { context.cleanup() }
+
+        let launchEnvironment = agentLaunchEnvironment(
+            context: context,
+            kind: "amp",
+            executable: "/usr/local/bin/amp"
+        )
+        startAgentHookMockServerAccepting(context: context)
+
+        for index in 1 ... 2 {
+            let result = runAgentHook(
+                context: context,
+                agent: "amp",
+                subcommand: "prompt-submit",
+                standardInput: #"{"session_id":"amp-thread-\#(index)","turn_id":"amp-turn-\#(index)","cwd":"\#(context.root.path)","hook_event_name":"UserPromptSubmit"}"#,
+                extraEnvironment: launchEnvironment
+            )
+            XCTAssertFalse(result.timedOut, result.stderr)
+            XCTAssertEqual(result.status, 0, result.stderr)
+        }
+
+        let pidRegistrations = context.state.commands.filter {
+            $0.hasPrefix("set_agent_pid amp.")
+        }
+        XCTAssertFalse(pidRegistrations.isEmpty)
+        XCTAssertTrue(
+            pidRegistrations.allSatisfy {
+                $0.hasPrefix("set_agent_pid amp.process ")
+            },
+            "Amp's long-lived plugin process must own one stable PID key, saw \(pidRegistrations)"
         )
     }
 
@@ -3657,6 +3753,39 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         )
     }
 
+    func testManagedCodexSubagentSessionStartDoesNotPublishVisibleLifecycle() throws {
+        let context = try makeClaudeHookContext(name: "codex-managed-start-guard")
+        defer { context.cleanup() }
+
+        let sessionId = "managed-child-session-start"
+        startAgentHookMockServerAccepting(context: context)
+        let result = runCodexHook(
+            context: context,
+            subcommand: "session-start",
+            standardInput: #"{"session_id":"\#(sessionId)","cwd":"\#(context.root.path)","hook_event_name":"SessionStart"}"#,
+            extraEnvironment: codexLaunchEnvironment(
+                context: context,
+                sessionId: sessionId
+            ).merging([
+                "CMUX_AGENT_MANAGED_SUBAGENT": "1",
+                "CMUX_CODEX_TEAMS_THREAD_ID": "child-thread",
+                "CMUX_CODEX_TEAMS_PARENT_THREAD_ID": "root-thread",
+                "CMUX_CODEX_TEAMS_DEPTH": "1",
+            ], uniquingKeysWith: { _, new in new })
+        )
+
+        XCTAssertFalse(result.timedOut, result.stderr)
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertEqual(result.stdout, "{}\n")
+        XCTAssertFalse(
+            context.state.commands.contains {
+                $0.hasPrefix("set_agent_pid codex.")
+                    || $0.contains("set_agent_lifecycle codex ")
+            },
+            "Managed subagent SessionStart should persist routing without mutating the visible parent's PID or lifecycle, saw \(context.state.commands)"
+        )
+    }
+
     func testCodexStopIgnoresStaleSubagentRelayFromCompletedTurnWithoutTurnId() throws {
         let context = try makeClaudeHookContext(name: "codex-stale-relay")
         defer { context.cleanup() }
@@ -3695,6 +3824,103 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         XCTAssertTrue(
             stopCommands.contains { $0.hasPrefix("notify_target_async \(context.workspaceId) \(context.surfaceId) Codex|") },
             "Stale completed-turn subagent relay should not suppress the parent completion notification, saw \(stopCommands)"
+        )
+    }
+
+    func testCodexStopWaitsForStructuredSubagentSettlementWithoutTranscriptParsing() throws {
+        let context = try makeClaudeHookContext(name: "codex-structured-subagent-settlement")
+        defer { context.cleanup() }
+
+        let sessionId = "codex-structured-subagent-session"
+        let turnId = "turn-with-active-subagent"
+        let launchEnvironment = codexLaunchEnvironment(context: context, sessionId: sessionId)
+        startAgentHookMockServerAccepting(context: context)
+
+        let prompt = runCodexHook(
+            context: context,
+            subcommand: "prompt-submit",
+            standardInput: #"{"session_id":"\#(sessionId)","turn_id":"\#(turnId)","cwd":"\#(context.root.path)","hook_event_name":"UserPromptSubmit","prompt":"delegate this"}"#,
+            extraEnvironment: launchEnvironment
+        )
+        XCTAssertFalse(prompt.timedOut, prompt.stderr)
+        XCTAssertEqual(prompt.status, 0, prompt.stderr)
+
+        let subagentStart = runFeedHook(
+            context: context,
+            source: "codex",
+            event: "SubagentStart",
+            standardInput: #"{"session_id":"\#(sessionId)","turn_id":"\#(turnId)","agent_id":"subagent-1","hook_event_name":"SubagentStart","cwd":"\#(context.root.path)"}"#,
+            extraEnvironment: launchEnvironment
+        )
+        XCTAssertFalse(subagentStart.timedOut, subagentStart.stderr)
+        XCTAssertEqual(subagentStart.status, 0, subagentStart.stderr)
+
+        let prematureStopStart = context.state.snapshot().count
+        let prematureStop = runCodexHook(
+            context: context,
+            subcommand: "stop",
+            standardInput: #"{"session_id":"\#(sessionId)","turn_id":"\#(turnId)","cwd":"\#(context.root.path)","hook_event_name":"Stop","last_assistant_message":"parent yielded"}"#,
+            extraEnvironment: launchEnvironment
+        )
+        XCTAssertFalse(prematureStop.timedOut, prematureStop.stderr)
+        XCTAssertEqual(prematureStop.status, 0, prematureStop.stderr)
+        let prematureCommands = Array(context.state.snapshot().dropFirst(prematureStopStart))
+        XCTAssertFalse(
+            prematureCommands.contains {
+                $0.hasPrefix("notify_target_async \(context.workspaceId) \(context.surfaceId) Codex|")
+            },
+            "A structured active subagent must suppress the parent completion, saw \(prematureCommands)"
+        )
+        XCTAssertTrue(
+            context.state.snapshot().contains {
+                $0.contains("set_agent_lifecycle codex running")
+            },
+            "The prompt must establish Running before a provisional Stop, saw \(context.state.snapshot())"
+        )
+        XCTAssertFalse(
+            prematureCommands.contains {
+                $0.contains("set_agent_lifecycle codex ")
+            },
+            "A provisional Stop must preserve existing lifecycle instead of racing a newer settlement, saw \(prematureCommands)"
+        )
+
+        let settledStopStart = context.state.snapshot().count
+        let subagentStop = runFeedHook(
+            context: context,
+            source: "codex",
+            event: "SubagentStop",
+            standardInput: #"{"session_id":"\#(sessionId)","turn_id":"\#(turnId)","agent_id":"subagent-1","hook_event_name":"SubagentStop","cwd":"\#(context.root.path)"}"#,
+            extraEnvironment: launchEnvironment
+        )
+        XCTAssertFalse(subagentStop.timedOut, subagentStop.stderr)
+        XCTAssertEqual(subagentStop.status, 0, subagentStop.stderr)
+
+        XCTAssertTrue(
+            waitForMockSocketCommand(in: context.state) {
+                $0.hasPrefix(
+                    "notify_target_async \(context.workspaceId) \(context.surfaceId) Codex|"
+                )
+            },
+            "Codex must replay completion when the structured subagent set becomes empty, saw \(context.state.snapshot())"
+        )
+        XCTAssertTrue(
+            waitForMockSocketCommand(in: context.state) {
+                $0.contains("set_agent_lifecycle codex idle")
+            },
+            "Settled Codex work must publish Idle, saw \(context.state.snapshot())"
+        )
+        let settledCommands = Array(context.state.snapshot().dropFirst(settledStopStart))
+        XCTAssertTrue(
+            settledCommands.contains {
+                $0.hasPrefix("notify_target_async \(context.workspaceId) \(context.surfaceId) Codex|")
+            },
+            "Codex must replay completion when the structured subagent set becomes empty, saw \(settledCommands)"
+        )
+        XCTAssertTrue(
+            settledCommands.contains {
+                $0.contains("set_agent_lifecycle codex idle")
+            },
+            "Settled Codex work must publish Idle, saw \(settledCommands)"
         )
     }
 
@@ -4018,109 +4244,6 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         XCTAssertTrue(sshOptions.contains("ForwardAgent=no"), "ssh_options: \(sshOptions)")
         XCTAssertEqual(initialEnv["SSH_AUTH_SOCK"], agentSocketPath)
         XCTAssertEqual(configureParams["ssh_auth_sock"] as? String, agentSocketPath)
-    }
-
-    private func assertSSHPTYAttachAuthUsesRetryLoop(
-        _ script: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        XCTAssertTrue(
-            script.contains("cmux_ssh_attach_foreground_auth"),
-            "missing cmux_ssh_attach_foreground_auth: \(script)",
-            file: file,
-            line: line
-        )
-        XCTAssertTrue(
-            script.contains("CMUX_SSH_PTY_ATTACH_MANAGED_RECONNECT=1"),
-            "missing CMUX_SSH_PTY_ATTACH_MANAGED_RECONNECT=1: \(script)",
-            file: file,
-            line: line
-        )
-        XCTAssertTrue(
-            script.contains("CMUX_SSH_PTY_ATTACH_SUPPRESS_REPLAY"),
-            "missing CMUX_SSH_PTY_ATTACH_SUPPRESS_REPLAY: \(script)",
-            file: file,
-            line: line
-        )
-        XCTAssertFalse(
-            script.contains("[cmux] ssh exited with status"),
-            "legacy exit-status message still present: \(script)",
-            file: file,
-            line: line
-        )
-    }
-
-    private func assertSSHPersistentPTYUsesReusableForegroundAuthControlConnection(
-        run: MockedSSHRun,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) throws {
-        let createParams = try XCTUnwrap(params(for: "workspace.create", in: run.requests))
-        let configureParams = try XCTUnwrap(params(for: "workspace.remote.configure", in: run.requests))
-        let initialCommand = try XCTUnwrap(createParams["initial_command"] as? String)
-        let terminalStartupCommand = try XCTUnwrap(configureParams["terminal_startup_command"] as? String)
-        let initialScript = try XCTUnwrap(decodedReusableStartupScript(from: initialCommand))
-        let terminalStartupScript = try XCTUnwrap(decodedReusableStartupScript(from: terminalStartupCommand))
-        XCTAssertTrue(initialScript.contains("ssh-pty-attach"), initialScript)
-        XCTAssertTrue(initialScript.contains("--wait"), initialScript)
-        XCTAssertTrue(initialScript.contains("ssh-session-end") && initialScript.contains("--lifecycle-only"), initialScript)
-        XCTAssertTrue(initialScript.contains("CMUX_WORKSPACE_ID"), initialScript)
-        XCTAssertTrue(initialScript.contains("CMUX_SURFACE_ID"), initialScript)
-        XCTAssertTrue(
-            initialScript.contains("required workspace context missing for SSH PTY attach"),
-            initialScript
-        )
-        XCTAssertTrue(
-            initialScript.contains("required terminal context missing for SSH PTY attach"),
-            initialScript
-        )
-        XCTAssertTrue(
-            initialScript.contains("CMUX_SSH_PTY_SESSION_ID=\"ssh-${CMUX_WORKSPACE_ID:-}-${CMUX_SURFACE_ID:-}\""),
-            initialScript
-        )
-        XCTAssertTrue(initialScript.contains("cmux_ssh_attach_session_id=\"${CMUX_SSH_PTY_SESSION_ID:-}\""), initialScript)
-        XCTAssertTrue(initialScript.contains("--session-id \"$cmux_ssh_attach_session_id\""), initialScript)
-        XCTAssertTrue(initialScript.contains("--lifecycle-id \"$cmux_ssh_attach_lifecycle_id\""), initialScript)
-        assertSSHPTYAttachAuthUsesRetryLoop(initialScript)
-        assertSSHPTYAttachOmitsSurfaceArgument(initialScript)
-        XCTAssertTrue(
-            initialScript.contains("--workspace \"$CMUX_WORKSPACE_ID\""),
-            initialScript
-        )
-        XCTAssertEqual(initialScript.components(separatedBy: "workspace.remote.foreground_auth_ready").count - 1, 2, initialScript)
-        XCTAssertTrue(terminalStartupScript.contains("ssh-pty-attach"), terminalStartupScript)
-        XCTAssertTrue(terminalStartupScript.contains("ssh-session-end") && terminalStartupScript.contains("--lifecycle-only"), terminalStartupScript)
-        XCTAssertTrue(terminalStartupScript.contains("CMUX_WORKSPACE_ID"), terminalStartupScript)
-        XCTAssertTrue(terminalStartupScript.contains("CMUX_SURFACE_ID"), terminalStartupScript)
-        XCTAssertTrue(
-            terminalStartupScript.contains("required workspace context missing for SSH PTY attach"),
-            terminalStartupScript
-        )
-        XCTAssertTrue(
-            terminalStartupScript.contains("required terminal context missing for SSH PTY attach"),
-            terminalStartupScript
-        )
-        XCTAssertTrue(
-            terminalStartupScript.contains("CMUX_SSH_PTY_SESSION_ID=\"ssh-${CMUX_WORKSPACE_ID:-}-${CMUX_SURFACE_ID:-}\""),
-            terminalStartupScript
-        )
-        XCTAssertTrue(terminalStartupScript.contains("cmux_ssh_attach_session_id=\"${CMUX_SSH_PTY_SESSION_ID:-}\""), terminalStartupScript)
-        XCTAssertTrue(terminalStartupScript.contains("--session-id \"$cmux_ssh_attach_session_id\""), terminalStartupScript)
-        XCTAssertTrue(terminalStartupScript.contains("--lifecycle-id \"$cmux_ssh_attach_lifecycle_id\""), terminalStartupScript)
-        assertSSHPTYAttachAuthUsesRetryLoop(terminalStartupScript)
-        assertSSHPTYAttachOmitsSurfaceArgument(terminalStartupScript)
-        XCTAssertTrue(
-            terminalStartupScript.contains("--workspace \"$CMUX_WORKSPACE_ID\""),
-            terminalStartupScript
-        )
-        XCTAssertEqual(terminalStartupScript.components(separatedBy: "workspace.remote.foreground_auth_ready").count - 1, 2, terminalStartupScript)
-        XCTAssertEqual(configureParams["auto_connect"] as? Bool, false)
-        XCTAssertNotNil(configureParams["foreground_auth_token"] as? String)
-        XCTAssertEqual(configureParams["preserve_after_terminal_exit"] as? Bool, true)
-        let persistentDaemonSlot = try XCTUnwrap(configureParams["persistent_daemon_slot"] as? String)
-        XCTAssertTrue(persistentDaemonSlot.hasPrefix("ssh-"), persistentDaemonSlot)
-        XCTAssertNotNil(UUID(uuidString: String(persistentDaemonSlot.dropFirst(4))))
     }
 
     func testSSHPersistentPTYFallsBackWhenForegroundAuthCannotBeReused() throws {
@@ -9512,225 +9635,6 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         let request = try XCTUnwrap(clearRequests.first)
         XCTAssertEqual(request["window_id"] as? String, windowId)
         XCTAssertEqual(request["surface_id"] as? String, surfaceId)
-    }
-
-    struct ClaudeHookContext {
-        let cliPath: String
-        let socketPath: String
-        let listenerFD: Int32
-        let state: MockSocketServerState
-        let root: URL
-        let workspaceId: String
-        let surfaceId: String
-
-        func cleanup() {
-            Darwin.close(listenerFD)
-            unlink(socketPath)
-            try? FileManager.default.removeItem(at: root)
-        }
-    }
-
-    private func codexLaunchEnvironment(context: ClaudeHookContext, sessionId: String) -> [String: String] {
-        agentLaunchEnvironment(
-            context: context,
-            kind: "codex",
-            executable: "/usr/local/bin/codex",
-            arguments: ["/usr/local/bin/codex", "--model", "gpt-5.4"]
-        )
-    }
-
-    private func agentLaunchEnvironment(
-        context: ClaudeHookContext,
-        kind: String,
-        executable: String,
-        arguments: [String]? = nil
-    ) -> [String: String] {
-        [
-            "CMUX_AGENT_LAUNCH_KIND": kind,
-            "CMUX_AGENT_LAUNCH_EXECUTABLE": executable,
-            "CMUX_AGENT_LAUNCH_CWD": context.root.path,
-            "CMUX_AGENT_LAUNCH_ARGV_B64": base64NULSeparated(arguments ?? [executable]),
-        ]
-    }
-
-    private func writeCodexTerminalTranscript(
-        context: ClaudeHookContext,
-        name: String,
-        turnId: String,
-        eventType: String = "turn_complete"
-    ) throws -> URL {
-        let transcriptURL = context.root.appendingPathComponent(name)
-        try [
-            #"{"type":"turn_context","payload":{"turn_id":"\#(turnId)"}}"#,
-            #"{"type":"event_msg","payload":{"type":"\#(eventType)","turn_id":"\#(turnId)"}}"#,
-        ].joined(separator: "\n").write(to: transcriptURL, atomically: true, encoding: .utf8)
-        return transcriptURL
-    }
-
-    private func runCodexHook(
-        context: ClaudeHookContext,
-        subcommand: String,
-        standardInput: String,
-        extraEnvironment: [String: String] = [:]
-    ) -> ProcessRunResult {
-        runAgentHook(
-            context: context,
-            agent: "codex",
-            subcommand: subcommand,
-            standardInput: standardInput,
-            extraEnvironment: extraEnvironment
-        )
-    }
-
-    func runAgentHook(
-        context: ClaudeHookContext,
-        agent: String,
-        subcommand: String,
-        standardInput: String,
-        extraEnvironment: [String: String] = [:]
-    ) -> ProcessRunResult {
-        var environment = [
-            "HOME": context.root.path,
-            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
-            "PWD": context.root.path,
-            "CMUX_SOCKET_PATH": context.socketPath,
-            "CMUX_WORKSPACE_ID": context.workspaceId,
-            "CMUX_SURFACE_ID": context.surfaceId,
-            "CMUX_AGENT_HOOK_STATE_DIR": context.root.path,
-            "CMUX_CLI_SENTRY_DISABLED": "1",
-        ]
-        environment.merge(extraEnvironment, uniquingKeysWith: { _, new in new })
-
-        return runProcess(
-            executablePath: context.cliPath,
-            arguments: ["hooks", agent, subcommand],
-            environment: environment,
-            standardInput: standardInput,
-            timeout: 5
-        )
-    }
-
-    /// Serves this context's agent-hook mock socket for the rest of the test. One
-    /// accept loop answers every connection, including the CLI's extra `system.top`
-    /// lookup connection, and the registry reaps the loop at teardown.
-    func startAgentHookMockServerAccepting(context: ClaudeHookContext) {
-        let state = context.state
-        let mockResponse: @Sendable (String) -> String = { line in
-            self.agentHookMockResponse(line: line, context: context)
-        }
-        CLIMockAcceptLoopRegistry.shared.start(listenerFD: context.listenerFD, onConnection: { clientFD in
-            defer { Darwin.close(clientFD) }
-            cliMockServeLineFramedConnection(clientFD: clientFD) { line in
-                state.append(line)
-                return mockResponse(line)
-            }
-        }, onListenerClosed: {})
-    }
-
-    private func agentHookMockResponse(line: String, context: ClaudeHookContext) -> String {
-        guard let payload = jsonObject(line) else {
-            return "OK"
-        }
-        guard let id = payload["id"] as? String, let method = payload["method"] as? String else {
-            return malformedRequestResponse(id: payload["id"] as? String, raw: line)
-        }
-        switch method {
-        case "surface.list":
-            return surfaceListResponse(id: id, surfaceId: context.surfaceId)
-        case "feed.push":
-            return v2Response(id: id, ok: true, result: [:])
-        case "surface.resume.set":
-            return v2Response(id: id, ok: true, result: ["resume_binding": [:]])
-        case "surface.resume.clear":
-            return v2Response(id: id, ok: true, result: ["cleared": true])
-        default:
-            return v2Response(id: id, ok: false, error: ["code": "unrecognized_method", "message": "unexpected method: \(method)"])
-        }
-    }
-
-    func makeClaudeHookContext(name: String) throws -> ClaudeHookContext {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-\(name)-\(UUID().uuidString)", isDirectory: true)
-        let socketPath = makeSocketPath(String(name.prefix(6)))
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return ClaudeHookContext(
-            cliPath: try bundledCLIPath(),
-            socketPath: socketPath,
-            listenerFD: try bindUnixSocket(at: socketPath),
-            state: MockSocketServerState(),
-            root: root,
-            workspaceId: "11111111-1111-1111-1111-111111111111",
-            surfaceId: "22222222-2222-2222-2222-222222222222"
-        )
-    }
-
-    private func runClaudeHook(
-        context: ClaudeHookContext,
-        arguments: [String],
-        standardInput: String,
-        extraEnvironment: [String: String] = [:]
-    ) -> ProcessRunResult {
-        let serverHandled = startMockServer(listenerFD: context.listenerFD, state: context.state) { line in
-            guard let payload = self.jsonObject(line) else {
-                return "OK"
-            }
-            guard let id = payload["id"] as? String, let method = payload["method"] as? String else {
-                return self.malformedRequestResponse(id: payload["id"] as? String, raw: line)
-            }
-            switch method {
-            case "surface.list":
-                return self.surfaceListResponse(id: id, surfaceId: context.surfaceId)
-            case "feed.push":
-                return self.v2Response(id: id, ok: true, result: [:])
-            case "surface.resume.clear":
-                return self.v2Response(id: id, ok: true, result: ["cleared": true])
-            default:
-                return self.v2Response(id: id, ok: false, error: ["code": "unrecognized_method", "message": "unexpected method: \(method)"])
-            }
-        }
-
-        var environment = [
-            "HOME": context.root.path,
-            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
-            "CMUX_SOCKET_PATH": context.socketPath,
-            "CMUX_WORKSPACE_ID": context.workspaceId,
-            "CMUX_SURFACE_ID": context.surfaceId,
-            "CMUX_CLAUDE_HOOK_STATE_PATH": context.root.appendingPathComponent("claude-hook-sessions.json").path,
-            "CMUX_CLI_SENTRY_DISABLED": "1",
-            "CMUX_CLAUDE_HOOK_SENTRY_DISABLED": "1",
-        ]
-        for (key, value) in extraEnvironment {
-            environment[key] = value
-        }
-
-        let result = runProcess(
-            executablePath: context.cliPath,
-            arguments: arguments,
-            environment: environment,
-            standardInput: standardInput,
-            timeout: 5
-        )
-        wait(for: [serverHandled], timeout: 5)
-        return result
-    }
-
-    func readClaudeHookSession(_ sessionId: String, context: ClaudeHookContext) throws -> [String: Any] {
-        let stateURL = context.root.appendingPathComponent("claude-hook-sessions.json")
-        let state = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: stateURL)) as? [String: Any])
-        let sessions = try XCTUnwrap(state["sessions"] as? [String: Any])
-        return try XCTUnwrap(sessions[sessionId] as? [String: Any])
-    }
-
-    private func feedPushEvents(in context: ClaudeHookContext) -> [[String: Any]] {
-        context.state.snapshot().compactMap { line in
-            guard let payload = jsonObject(line),
-                  payload["method"] as? String == "feed.push",
-                  let params = payload["params"] as? [String: Any],
-                  let event = params["event"] as? [String: Any] else {
-                return nil
-            }
-            return event
-        }
     }
 
     func testBrowserImportDefaultsNonInteractiveInCodingAgent() throws {

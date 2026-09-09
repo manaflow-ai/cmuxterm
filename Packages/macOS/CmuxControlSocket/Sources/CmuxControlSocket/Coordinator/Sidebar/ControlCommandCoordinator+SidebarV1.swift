@@ -345,6 +345,49 @@ extension ControlCommandCoordinator {
         return (panelId, nil)
     }
 
+    /// Parses an optional all-or-nothing PID generation tuple. Accepting only
+    /// the complete tuple prevents a caller from accidentally downgrading an
+    /// exact process identity back to a recyclable numeric PID.
+    nonisolated func sidebarParseAgentProcessGeneration(
+        options: [String: String],
+        usage: String,
+        strings: ControlSidebarAgentStrings
+    ) -> (
+        generation: ControlSidebarAgentProcessGeneration?,
+        error: String?
+    ) {
+        let rawPID = options["pid"]
+        let rawStartSeconds = options["pid-start-seconds"]
+        let rawStartMicroseconds = options["pid-start-microseconds"]
+        guard rawPID != nil
+                || rawStartSeconds != nil
+                || rawStartMicroseconds != nil else {
+            return (nil, nil)
+        }
+        guard let rawPID,
+              let rawStartSeconds,
+              let rawStartMicroseconds,
+              let pid = Int32(rawPID),
+              pid > 0,
+              let startSeconds = Int64(rawStartSeconds),
+              startSeconds >= 0,
+              let startMicroseconds = Int64(rawStartMicroseconds),
+              (0 ..< 1_000_000).contains(startMicroseconds) else {
+            return (
+                nil,
+                strings.invalidProcessGeneration(usage: usage)
+            )
+        }
+        return (
+            ControlSidebarAgentProcessGeneration(
+                pid: pid,
+                startSeconds: startSeconds,
+                startMicroseconds: startMicroseconds
+            ),
+            nil
+        )
+    }
+
     /// Resolves the explicit shell-integration scope when both `--tab` and
     /// `--panel` are UUIDs. A supplied terminal lifecycle token is parsed as
     /// part of that same scope so telemetry cannot lose process-generation

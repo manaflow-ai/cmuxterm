@@ -161,7 +161,9 @@ extension AgentJournalLifecycleCenter {
 
     @MainActor
     static func apply(_ assignment: AgentLifecycleAssignment, workspaceHint: String?) {
-        guard AgentHibernationLifecycleStatusKeys.isAllowed(assignment.agentKey) else { return }
+        guard AgentHibernationLifecycleStatusKeys(rawValue: assignment.agentKey).isAllowed else {
+            return
+        }
         guard let panelId = UUID(uuidString: assignment.surfaceId) else { return }
         let owner: ControlSidebarPanelOwner?
         if let dock = DockSplitStore.liveStores.first(where: { $0.containsPanel(panelId) }) {

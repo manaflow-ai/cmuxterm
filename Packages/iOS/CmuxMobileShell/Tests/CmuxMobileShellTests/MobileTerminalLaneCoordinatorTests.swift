@@ -146,11 +146,13 @@ struct MobileTerminalLaneCoordinatorTests {
             consume: { _ in .accepted(outputReady: true) },
             readinessChanged: { _ in }
         ))
-        try await Task.sleep(for: .milliseconds(10))
+        // `deactivateAll()` awaits the in-flight lane task, so this assertion
+        // observes the provider decision causally instead of relying on a
+        // timing-sensitive sleep.
+        await coordinator.deactivateAll()
 
         #expect(await inputProvider.requestCount() == 0)
         #expect(await coordinator.isOutputReady(surfaceID: Self.surfaceID) == false)
-        await coordinator.deactivateAll()
     }
 
     @Test

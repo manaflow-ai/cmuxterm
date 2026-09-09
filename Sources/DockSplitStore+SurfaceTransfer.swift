@@ -620,7 +620,7 @@ extension DockSplitStore {
         focus: Bool,
         reconcileReason: String
     ) {
-        installSubscription(for: panel)
+        installSubscription(for: panel); FeedCoordinator.shared.retargetAgentAttention(panelId: panel.id, to: .dock(self))
         withCoalescedTerminalViewReattach {
             applyVisibility(to: panel)
             if let terminal = panel as? TerminalPanel {

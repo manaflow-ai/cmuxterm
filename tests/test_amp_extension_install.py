@@ -26,21 +26,6 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
-def read_json_records(path: Path) -> list[dict[str, object]]:
-    records: list[dict[str, object]] = []
-    for chunk in read_text(path).split("\n---\n"):
-        chunk = chunk.strip()
-        if not chunk:
-            continue
-        try:
-            value = json.loads(chunk)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(value, dict):
-            records.append(value)
-    return records
-
-
 def main() -> int:
     # Amp loads `.ts` plugins itself via Node, so use Node for the import
     # check too. Requires Node 22.6+ for `--experimental-strip-types`
@@ -64,10 +49,7 @@ def main() -> int:
         print(f"FAIL: {exc}")
         return 1
 
-    with tempfile.TemporaryDirectory(
-        prefix="cmux-amp-extension-",
-        ignore_cleanup_errors=True,
-    ) as td:
+    with tempfile.TemporaryDirectory(prefix="cmux-amp-extension-") as td:
         root = Path(td)
         # `amp` has no documented config-dir override, so install resolves
         # the plugin path against $HOME. Point HOME at the temp dir for the
@@ -81,7 +63,7 @@ def main() -> int:
             text=True,
             check=False,
             env=env,
-            timeout=35,
+            timeout=20,
         )
         if install.returncode != 0:
             print("FAIL: amp plugin install failed")
@@ -98,29 +80,129 @@ def main() -> int:
         if "cmux-amp-session-extension-marker" not in extension_text:
             print(f"FAIL: expected cmux marker in {extension_path}")
             return 1
-        installed_stat = extension_path.stat()
-        refresh = subprocess.run(
-            [cli_path, "hooks", "amp", "install", "--yes"],
+
+        extension_path.write_text(
+            "// cmux-amp-session-extension-marker v2\n"
+            "// stale managed fixture without settled turn boundaries\n",
+            encoding="utf-8",
+        )
+        workspace_id = "55555555-5555-5555-5555-555555555555"
+        surface_id = "66666666-6666-6666-6666-666666666666"
+        refresh_env = env.copy()
+        refresh_env["CMUX_WORKSPACE_ID"] = workspace_id
+        refresh_env["CMUX_SURFACE_ID"] = surface_id
+        refresh_result = subprocess.run(
+            [
+                cli_path,
+                "--socket",
+                str(root / "missing-amp-refresh.sock"),
+                "hooks",
+                "amp",
+                "session-start",
+                "--workspace",
+                workspace_id,
+                "--surface",
+                surface_id,
+            ],
+            input=json.dumps(
+                {
+                    "session_id": "amp-managed-plugin-refresh",
+                    "cwd": str(root),
+                    "hook_event_name": "SessionStart",
+                }
+            ),
             capture_output=True,
             text=True,
             check=False,
-            env=env,
+            env=refresh_env,
             timeout=20,
         )
-        refreshed_stat = extension_path.stat()
-        if refresh.returncode != 0:
-            print("FAIL: idempotent Amp plugin refresh failed")
-            print(f"exit={refresh.returncode}")
-            print(f"stdout={refresh.stdout.strip()}")
-            print(f"stderr={refresh.stderr.strip()}")
+        if refresh_result.returncode == 0:
+            print("FAIL: Amp refresh fixture unexpectedly connected to its missing socket")
             return 1
-        if (
-            refreshed_stat.st_ino != installed_stat.st_ino
-            or refreshed_stat.st_mtime_ns != installed_stat.st_mtime_ns
-            or extension_path.read_text(encoding="utf-8") != extension_text
-        ):
-            print("FAIL: idempotent Amp plugin refresh rewrote the managed extension")
+        refreshed_text = extension_path.read_text(encoding="utf-8")
+        if refreshed_text != extension_text:
+            print("FAIL: Amp session-start did not refresh the stale cmux-managed plugin")
             return 1
+        if "cmux-amp-session-extension-marker" not in refreshed_text:
+            print("FAIL: Amp session-start rewrote the plugin without the cmux marker")
+            return 1
+
+        # The event-time refresh path is only allowed to replace a file that
+        # cmux previously marked as its own. An unmarked empty file can be a
+        # user placeholder, so preserve it just like any other custom file.
+        extension_path.write_text("", encoding="utf-8")
+        empty_refresh = subprocess.run(
+            [
+                cli_path,
+                "--socket",
+                str(root / "missing-amp-refresh-empty.sock"),
+                "hooks",
+                "amp",
+                "session-start",
+                "--workspace",
+                workspace_id,
+                "--surface",
+                surface_id,
+            ],
+            input=json.dumps(
+                {
+                    "session_id": "amp-unmarked-empty-plugin",
+                    "cwd": str(root),
+                    "hook_event_name": "SessionStart",
+                }
+            ),
+            capture_output=True,
+            text=True,
+            check=False,
+            env=refresh_env,
+            timeout=20,
+        )
+        if empty_refresh.returncode == 0:
+            print("FAIL: empty Amp refresh fixture unexpectedly connected to its missing socket")
+            return 1
+        if extension_path.read_text(encoding="utf-8") != "":
+            print("FAIL: Amp refresh overwrote an unmarked empty plugin")
+            return 1
+
+        custom_plugin = "// user-owned Amp plugin\nexport default () => {};\n"
+        extension_path.write_text(custom_plugin, encoding="utf-8")
+        custom_refresh = subprocess.run(
+            [
+                cli_path,
+                "--socket",
+                str(root / "missing-amp-refresh-custom.sock"),
+                "hooks",
+                "amp",
+                "session-start",
+                "--workspace",
+                workspace_id,
+                "--surface",
+                surface_id,
+            ],
+            input=json.dumps(
+                {
+                    "session_id": "amp-unmarked-custom-plugin",
+                    "cwd": str(root),
+                    "hook_event_name": "SessionStart",
+                }
+            ),
+            capture_output=True,
+            text=True,
+            check=False,
+            env=refresh_env,
+            timeout=20,
+        )
+        if custom_refresh.returncode == 0:
+            print("FAIL: custom Amp refresh fixture unexpectedly connected to its missing socket")
+            return 1
+        if extension_path.read_text(encoding="utf-8") != custom_plugin:
+            print("FAIL: Amp refresh overwrote an unmarked custom plugin")
+            return 1
+
+        # Restore the managed fixture for the import and lifecycle checks
+        # below; those checks intentionally exercise cmux's generated source.
+        extension_path.write_text(extension_text, encoding="utf-8")
 
         fake_cmux = root / "fake-cmux"
         fake_args_log = root / "fake-cmux-args.log"
@@ -132,267 +214,60 @@ def main() -> int:
         make_executable(fake_amp, "#!/usr/bin/env bash\nexit 0\n")
         make_executable(
             fake_cmux,
-            """#!/usr/bin/perl
-use Fcntl qw(:flock);
-
-sub append {
-    my ($path, $value) = @_;
-    open my $handle, ">>", $path or die $!;
-    flock($handle, LOCK_EX) or die $!;
-    print {$handle} $value;
-    close $handle;
-}
-
-my $stdin = do { local $/; <STDIN> // "" };
-append($ENV{"FAKE_CMUX_ARGS_LOG"}, join(" ", @ARGV) . "\\n");
-append($ENV{"FAKE_CMUX_STDIN_LOG"}, $stdin . "\\n---\\n");
-append($ENV{"FAKE_CMUX_ENV_LOG"}, sprintf(
-    "kind=%s\\ncwd=%s\\nargv=%s\\namp_api_key=%s\\n",
-    $ENV{"CMUX_AGENT_LAUNCH_KIND"} // "",
-    $ENV{"CMUX_AGENT_LAUNCH_CWD"} // "",
-    $ENV{"CMUX_AGENT_LAUNCH_ARGV_B64"} // "",
-    $ENV{"AMP_API_KEY"} // "",
-));
+            """#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$FAKE_CMUX_ARGS_LOG"
+if [[ "$*" == hooks\\ amp\\ __native-attention\\ identify\\ --pid\\ * ]]; then
+  requested_pid="${*##* --pid }"
+  requested_pid="${requested_pid%% *}"
+  printf '{"pid":%s,"pid_start_seconds":1234,"pid_start_microseconds":5678}\n' "$requested_pid"
+  exit 0
+fi
+cat >> "$FAKE_CMUX_STDIN_LOG"
+printf '\n---\n' >> "$FAKE_CMUX_STDIN_LOG"
+{
+  printf 'kind=%s\n' "${CMUX_AGENT_LAUNCH_KIND-}"
+  printf 'cwd=%s\n' "${CMUX_AGENT_LAUNCH_CWD-}"
+  printf 'argv=%s\n' "${CMUX_AGENT_LAUNCH_ARGV_B64-}"
+  printf 'workspace_id=%s\n' "${CMUX_WORKSPACE_ID-}"
+  printf 'amp_api_key=%s\n' "${AMP_API_KEY-}"
+  printf 'socket_password=%s\n' "${CMUX_SOCKET_PASSWORD-}"
+  printf 'socket_capability=%s\n' "${CMUX_SOCKET_CAPABILITY-}"
+} >> "$FAKE_CMUX_ENV_LOG"
 """,
         )
 
         check_env = env.copy()
+        check_env.pop("CMUX_AMP_HOOKS_DISABLED", None)
+        for key in tuple(check_env):
+            if key.startswith("CMUX_AGENT_LAUNCH_"):
+                check_env.pop(key)
         check_env["CMUX_TEST_AMP_EXTENSION_PATH"] = str(extension_path)
         check_env["CMUX_SURFACE_ID"] = "surface-amp-test"
-        check_env["CMUX_WORKSPACE_ID"] = "workspace-amp-test"
-        invalid_cmux_override = root / "cmux-directory"
-        invalid_cmux_override.mkdir()
-        check_env["CMUX_AMP_CMUX_BIN"] = str(invalid_cmux_override)
-        check_env["CMUX_BUNDLED_CLI_PATH"] = str(fake_cmux)
+        check_env["CMUX_WORKSPACE_ID"] = (
+            "55555555-5555-5555-5555-555555555555"
+        )
+        check_env["CMUX_AMP_CMUX_BIN"] = str(fake_cmux)
         check_env["AMP_API_KEY"] = "secret-should-not-propagate"
+        check_env["CMUX_SOCKET_PASSWORD"] = "socket-password-should-not-propagate"
+        check_env["CMUX_SOCKET_CAPABILITY"] = "socket-capability-should-not-propagate"
         check_env["FAKE_CMUX_ARGS_LOG"] = str(fake_args_log)
         check_env["FAKE_CMUX_STDIN_LOG"] = str(fake_stdin_log)
         check_env["FAKE_CMUX_ENV_LOG"] = str(fake_env_log)
         check_env["PWD"] = "/tmp/amp-project"
         check_env["PATH"] = f"{fake_bin}{os.pathsep}{env.get('PATH', '')}"
-        for key in (
-            "CMUX_AMP_HOOKS_DISABLED",
-            "CMUX_AGENT_LAUNCH_KIND",
-            "CMUX_AGENT_LAUNCH_EXECUTABLE",
-            "CMUX_AGENT_LAUNCH_ARGV_B64",
-            "CMUX_AGENT_LAUNCH_CWD",
-        ):
-            check_env.pop(key, None)
-        # Amp runs plugin callbacks from its system plugin directory rather than
-        # the terminal's project directory. The managed wrapper's launch
-        # capture is the authoritative cwd that hooks must persist.
-        check_env["CMUX_AGENT_LAUNCH_KIND"] = "amp"
-        check_env["CMUX_AGENT_LAUNCH_EXECUTABLE"] = str(fake_amp)
-        check_env["CMUX_AGENT_LAUNCH_ARGV_B64"] = base64.b64encode(
-            f"{fake_amp}\0--mode\0geppetto\0".encode("utf-8")
-        ).decode("ascii")
-        expected_launch_cwd = "/tmp/amp-project"
-        check_env["CMUX_AGENT_LAUNCH_CWD"] = expected_launch_cwd
         check_source = """
-import * as fs from "node:fs";
 const extensionPath = process.env.CMUX_TEST_AMP_EXTENSION_PATH;
 const mod = await import(extensionPath);
 if (typeof mod.default !== "function") throw new Error("missing default export");
 const handlers = new Map();
-const POLL_ATTEMPTS = 500;
-let stateSubscriber = null;
-let titleSubscriber = null;
-let unsubscribeCount = 0;
-let currentState = "idle";
-let titleGetter = async () => "Initial Amp title";
-const thread = {
-  id: "T-amp-session-test",
-  state: {
-    get: async () => currentState,
-    subscribe(cb) {
-      stateSubscriber = cb;
-      return { unsubscribe() { unsubscribeCount += 1; } };
-    }
-  },
-  title: {
-    get: () => titleGetter(),
-    subscribe(cb) {
-      titleSubscriber = cb;
-      return { unsubscribe() { unsubscribeCount += 1; } };
-    }
-  }
-};
-let replacementStateSubscriber = null;
-let replacementTitleSubscriber = null;
-const replacementThread = {
-  id: "T-amp-session-test",
-  state: {
-    get: async () => "awaiting-approval",
-    subscribe(cb) {
-      replacementStateSubscriber = cb;
-      return { unsubscribe() { unsubscribeCount += 1; } };
-    }
-  },
-  title: {
-    get: async () => "Replacement Amp title",
-    subscribe(cb) {
-      replacementTitleSubscriber = cb;
-      return { unsubscribe() { unsubscribeCount += 1; } };
-    }
-  }
-};
-let secondStateSubscriber = null;
-let secondState = "idle";
-const secondThread = {
-  id: "T-amp-session-second",
-  state: {
-    get: async () => secondState,
-    subscribe(cb) {
-      secondStateSubscriber = cb;
-      return { unsubscribe() { unsubscribeCount += 1; } };
-    }
-  },
-  title: {
-    get: async () => "Second Amp title",
-    subscribe() { return { unsubscribe() { unsubscribeCount += 1; } }; }
-  }
-};
-let thirdStateSubscriber = null;
-let thirdState = "idle";
-const thirdThread = {
-  id: "T-amp-session-third",
-  state: {
-    get: async () => thirdState,
-    subscribe(cb) {
-      thirdStateSubscriber = cb;
-      return { unsubscribe() { unsubscribeCount += 1; } };
-    }
-  },
-  title: {
-    get: async () => "Third Amp title",
-    subscribe() { return { unsubscribe() { unsubscribeCount += 1; } }; }
-  }
-};
-const legacyThread = {
-  id: "T-amp-session-legacy",
-  title: {
-    get: async () => "Legacy Amp title",
-    subscribe() { return { unsubscribe() { unsubscribeCount += 1; } }; }
-  }
-};
-let activeThreadSubscriber = null;
-const activeThread = {
-  current: thread,
-  subscribe(cb) {
-    activeThreadSubscriber = cb;
-    return { unsubscribe() { unsubscribeCount += 1; } };
-  }
-};
 mod.default({
   on(name, handler) {
     handlers.set(name, handler);
-  },
-  thread,
-  activeThread,
-  threads: {
-    get(id) {
-      if (id === replacementThread.id) return replacementThread;
-      if (id === thread.id) return thread;
-      return { id };
-    }
   }
 });
-if (typeof stateSubscriber !== "function" || typeof titleSubscriber !== "function") {
-  throw new Error("initial active thread was not reconciled at plugin startup");
-}
-for (const name of ["session.start", "agent.start", "tool.call", "agent.end"]) {
+for (const name of ["session.start", "agent.start", "agent.end"]) {
   if (typeof handlers.get(name) !== "function") throw new Error(`missing ${name}`);
-}
-function selectThread(nextThread) {
-  activeThread.current = nextThread;
-  activeThreadSubscriber(nextThread);
-}
-function statusCount(fragment) {
-  const text = fs.existsSync(process.env.FAKE_CMUX_ARGS_LOG)
-    ? fs.readFileSync(process.env.FAKE_CMUX_ARGS_LOG, "utf8")
-    : "";
-  return text.split("\\n").filter((line) => line.startsWith("set-status amp ") && line.includes(fragment)).length;
-}
-async function waitForProjectedStatus(fragment, minimumCount) {
-  for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt += 1) {
-    if (statusCount(fragment) >= minimumCount) return;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  throw new Error(`Amp status count did not reach ${minimumCount} for ${fragment}`);
-}
-function commandCount(fragment) {
-  const text = fs.existsSync(process.env.FAKE_CMUX_ARGS_LOG)
-    ? fs.readFileSync(process.env.FAKE_CMUX_ARGS_LOG, "utf8")
-    : "";
-  return text.split("\\n").filter((line) => line.includes(fragment)).length;
-}
-async function waitForCommandCount(fragment, minimumCount) {
-  for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt += 1) {
-    if (commandCount(fragment) >= minimumCount) return;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  throw new Error(`cmux command count did not reach ${minimumCount} for ${fragment}`);
-}
-async function waitForInputFragment(fragment) {
-  for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt += 1) {
-    const text = fs.existsSync(process.env.FAKE_CMUX_STDIN_LOG)
-      ? fs.readFileSync(process.env.FAKE_CMUX_STDIN_LOG, "utf8")
-      : "";
-    if (text.includes(fragment)) return;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  throw new Error(`cmux hook input did not contain ${fragment}`);
-}
-async function waitForLifecycle(sessionId) {
-  for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt += 1) {
-    const text = fs.existsSync(process.env.FAKE_CMUX_STDIN_LOG)
-      ? fs.readFileSync(process.env.FAKE_CMUX_STDIN_LOG, "utf8")
-      : "";
-    const found = text.split("\\n---\\n").some((chunk) => {
-      try {
-        const payload = JSON.parse(chunk);
-        return payload.session_id === sessionId && payload.hook_event_name === "Lifecycle";
-      } catch (_) {
-        return false;
-      }
-    });
-    if (found) return;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  throw new Error(`cmux lifecycle input did not contain ${sessionId}`);
-}
-function readJsonRecords() {
-  const text = fs.existsSync(process.env.FAKE_CMUX_STDIN_LOG)
-    ? fs.readFileSync(process.env.FAKE_CMUX_STDIN_LOG, "utf8")
-    : "";
-  return text.split("\\n---\\n").flatMap((chunk) => {
-    try {
-      const payload = JSON.parse(chunk);
-      return payload && typeof payload === "object" ? [payload] : [];
-    } catch (_) {
-      return [];
-    }
-  });
-}
-function lifecycleStateCount(sessionId, state) {
-  return readJsonRecords().filter((payload) =>
-    payload.session_id === sessionId
-      && payload.hook_event_name === "Lifecycle"
-      && payload.agent_state === state
-  ).length;
-}
-async function waitForLifecycleState(sessionId, state, minimumCount) {
-  for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt += 1) {
-    if (lifecycleStateCount(sessionId, state) >= minimumCount) return;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  throw new Error(`cmux lifecycle state count did not reach ${minimumCount} for ${sessionId}/${state}`);
-}
-function projectedStatusCount() {
-  const text = fs.existsSync(process.env.FAKE_CMUX_ARGS_LOG)
-    ? fs.readFileSync(process.env.FAKE_CMUX_ARGS_LOG, "utf8")
-    : "";
-  return text.split("\\n").filter((line) => line.startsWith("set-status amp ")).length;
 }
 process.argv.splice(
   0,
@@ -402,298 +277,11 @@ process.argv.splice(
   "--mode",
   "geppetto"
 );
+const thread = { id: "T-amp-session-test" };
 const ctx = { thread };
 await handlers.get("session.start")({ thread }, ctx);
-if (typeof stateSubscriber !== "function") throw new Error("missing thread.state subscription");
-if (typeof activeThreadSubscriber !== "function") throw new Error("missing activeThread subscription");
-let resolveStaleTitle = null;
-titleGetter = () => new Promise((resolve) => { resolveStaleTitle = resolve; });
 await handlers.get("agent.start")({ thread, message: "hello amp", id: "msg-user-1" }, ctx);
-currentState = "running";
-await stateSubscriber(currentState);
-if (typeof titleSubscriber === "function") titleSubscriber("Updated Amp title");
-if (typeof resolveStaleTitle !== "function") throw new Error("missing deferred title lookup");
-resolveStaleTitle("Stale Amp title");
 await handlers.get("agent.end")({ thread, message: "hello amp", id: "msg-user-1", status: "done", messages: [] }, ctx);
-currentState = "awaiting-approval";
-await stateSubscriber(currentState);
-currentState = "idle";
-await stateSubscriber(currentState);
-
-// Amp may replace a thread handle without changing its native ID. The new
-// handle is authoritative; observers and deferred reads from the old handle
-// must not continue to mutate the shared lifecycle or title.
-await waitForLifecycleState("T-amp-session-test", "idle", 1);
-await waitForLifecycleState("T-amp-session-test", "awaiting-approval", 1);
-const staleStateSubscriber = stateSubscriber;
-const staleTitleSubscriber = titleSubscriber;
-const replacementActiveValue = { id: replacementThread.id };
-const idleBeforeReplacement = lifecycleStateCount("T-amp-session-test", "idle");
-const awaitingBeforeReplacement = lifecycleStateCount("T-amp-session-test", "awaiting-approval");
-selectThread(replacementActiveValue);
-if (typeof replacementStateSubscriber !== "function" || typeof replacementTitleSubscriber !== "function") {
-  throw new Error("same-ID active-thread replacement was not rebound");
-}
-await waitForLifecycleState("T-amp-session-test", "awaiting-approval", awaitingBeforeReplacement + 1);
-await waitForInputFragment('"title":"Replacement Amp title"');
-staleStateSubscriber("idle");
-staleTitleSubscriber("Stale replacement title");
-await new Promise((resolve) => setTimeout(resolve, 20));
-if (lifecycleStateCount("T-amp-session-test", "idle") !== idleBeforeReplacement) {
-  throw new Error("a stale same-ID state observer mutated the replacement lifecycle");
-}
-if (readJsonRecords().some((payload) => payload.title === "Stale replacement title")) {
-  throw new Error("a stale same-ID title observer overwrote the replacement title");
-}
-selectThread(thread);
-
-titleGetter = async () => "Updated Amp title";
-await handlers.get("agent.start")({ thread, message: "settle first", id: "msg-user-2" }, ctx);
-currentState = "running";
-await stateSubscriber(currentState);
-currentState = "idle";
-await stateSubscriber(currentState);
-await handlers.get("agent.end")({ thread, message: "settle first", id: "msg-user-2", status: "done", messages: [] }, ctx);
-
-await handlers.get("agent.start")({ thread, message: "fail now", id: "msg-user-3" }, ctx);
-currentState = "running";
-await stateSubscriber(currentState);
-await handlers.get("agent.end")({ thread, message: "fail now", id: "msg-user-3", status: "error", messages: [] }, ctx);
-currentState = "error";
-await stateSubscriber(currentState);
-
-await handlers.get("agent.start")({ thread, message: "idle error", id: "msg-user-4" }, ctx);
-currentState = "running";
-await stateSubscriber(currentState);
-await handlers.get("agent.end")({ thread, message: "idle error", id: "msg-user-4", status: "error", messages: [] }, ctx);
-currentState = "idle";
-await stateSubscriber(currentState);
-
-await handlers.get("session.start")({ thread: secondThread }, { thread: secondThread });
-await handlers.get("session.start")({ thread: thirdThread }, { thread: thirdThread });
-if (typeof secondStateSubscriber !== "function" || typeof thirdStateSubscriber !== "function") {
-  throw new Error("missing per-thread state subscriptions");
-}
-await handlers.get("agent.start")(
-  { thread: secondThread, message: "finish second", id: "turn-second" },
-  { thread: secondThread }
-);
-secondState = "running";
-await secondStateSubscriber(secondState);
-await handlers.get("tool.call")({
-  thread: secondThread,
-  tool: "Bash",
-  input: { command: "echo second" }
-});
-const runningStatusFragment = "running --icon terminal --color #ffd700";
-const runningStatusCount = statusCount(runningStatusFragment);
-selectThread(secondThread);
-await waitForProjectedStatus(runningStatusFragment, runningStatusCount + 1);
-selectThread(thread);
-secondState = "awaiting-approval";
-await secondStateSubscriber(secondState);
-const needsInputStatusFragment = "__cmux_amp_status_needs_input --icon bell.fill --color #4C8DFF";
-const needsInputStatusCount = statusCount(needsInputStatusFragment);
-selectThread(secondThread);
-await waitForProjectedStatus(needsInputStatusFragment, needsInputStatusCount + 1);
-secondState = "running";
-await secondStateSubscriber(secondState);
-await handlers.get("agent.start")(
-  { thread: thirdThread, message: "fail third", id: "turn-third" },
-  { thread: thirdThread }
-);
-thirdState = "running";
-await thirdStateSubscriber(thirdState);
-await handlers.get("agent.end")({
-  thread: secondThread,
-  id: "turn-second",
-  status: "done",
-  messages: [{
-    role: "assistant",
-    content: [{ type: "text", text: "Second thread completed" }]
-  }]
-}, { thread: secondThread });
-secondState = "idle";
-await secondStateSubscriber(secondState);
-selectThread(thread);
-
-// Amp can begin another turn through a thread-state transition without
-// emitting a second agent.start event. That transition must re-arm terminal
-// delivery so the follow-up completion is not swallowed by the prior turn.
-secondState = "running";
-await secondStateSubscriber(secondState);
-await handlers.get("agent.end")({
-  thread: secondThread,
-  id: "turn-second-follow-up",
-  status: "done",
-  messages: [{
-    role: "assistant",
-    content: [{ type: "text", text: "Second thread follow-up completed" }]
-  }]
-}, { thread: secondThread });
-secondState = "idle";
-await secondStateSubscriber(secondState);
-
-await handlers.get("agent.end")({
-  thread: thirdThread,
-  id: "turn-third",
-  status: "error",
-  messages: [{
-    role: "assistant",
-    content: [{ type: "text", text: "Third thread failed" }]
-  }]
-}, { thread: thirdThread });
-thirdState = "error";
-await thirdStateSubscriber(thirdState);
-const errorStatusFragment = "__cmux_amp_status_error --icon xmark.circle --color #ff5555";
-const errorStatusCount = statusCount(errorStatusFragment);
-selectThread(thirdThread);
-await waitForProjectedStatus(errorStatusFragment, errorStatusCount + 1);
-const clearCountBeforeNoActiveThread = commandCount("clear-status amp");
-selectThread(null);
-await waitForCommandCount("clear-status amp", clearCountBeforeNoActiveThread + 1);
-secondState = "running";
-await secondStateSubscriber(secondState);
-const activeStatusMarker = "set-status amp __cmux_amp_status_error --icon xmark.circle --color #ff5555";
-const activeStatusCount = commandCount(activeStatusMarker);
-selectThread(thirdThread);
-await waitForCommandCount(activeStatusMarker, activeStatusCount + 1);
-if (statusCount(activeStatusMarker) !== activeStatusCount + 1) {
-  throw new Error("a background Amp thread repainted status with no active thread");
-}
-
-// A get-only state observable can answer out of order. Only the newest read
-// may reconcile the thread, otherwise a stale idle result can erase a live turn.
-let readOnlyResolvers = [];
-const readOnlyThread = {
-  id: "T-amp-read-only",
-  state: {
-    get: () => new Promise((resolve) => readOnlyResolvers.push(resolve)),
-  },
-  title: {
-    get: async () => "Read-only Amp title",
-    subscribe() { return { unsubscribe() {} }; },
-  },
-};
-await handlers.get("session.start")({ thread: readOnlyThread }, { thread: readOnlyThread });
-await handlers.get("agent.start")(
-  { thread: readOnlyThread, message: "read-only turn", id: "turn-read-only" },
-  { thread: readOnlyThread }
-);
-if (readOnlyResolvers.length !== 2) {
-  throw new Error(`expected two overlapping get-only state reads, got ${readOnlyResolvers.length}`);
-}
-const staleRead = readOnlyResolvers.shift();
-const newestRead = readOnlyResolvers.shift();
-newestRead("running");
-await waitForLifecycleState("T-amp-read-only", "running", 1);
-staleRead("idle");
-await handlers.get("agent.start")(
-  { thread: readOnlyThread, message: "read-only follow-up", id: "turn-read-only-follow-up" },
-  { thread: readOnlyThread }
-);
-if (readOnlyResolvers.length !== 1) {
-  throw new Error(`expected one follow-up get-only state read, got ${readOnlyResolvers.length}`);
-}
-readOnlyResolvers.shift()("running");
-await waitForLifecycleState("T-amp-read-only", "running", 2);
-if (lifecycleStateCount("T-amp-read-only", "idle") !== 0) {
-  throw new Error("an out-of-order get-only state read reconciled stale idle state");
-}
-
-// A long-lived Amp process must not retain every completed thread forever.
-const previousHooksDisabled = process.env.CMUX_AMP_HOOKS_DISABLED;
-process.env.CMUX_AMP_HOOKS_DISABLED = "1";
-let resumableStateSubscriber = null;
-let resumableStateUnsubscribed = false;
-const resumableThread = {
-  id: "T-amp-resumable",
-  state: {
-    get: async () => "idle",
-    subscribe(cb) {
-      resumableStateSubscriber = cb;
-      return { unsubscribe() { resumableStateUnsubscribed = true; } };
-    },
-  },
-  title: {
-    get: async () => "Resumable Amp title",
-    subscribe() { return { unsubscribe() {} }; },
-  },
-};
-await handlers.get("session.start")({ thread: resumableThread }, { thread: resumableThread });
-for (let index = 0; index < 132; index += 1) {
-  const boundedThread = {
-    id: `T-amp-bounded-${index}`,
-    state: {
-      get: async () => "idle",
-      subscribe() {
-        return { unsubscribe() { unsubscribeCount += 1; } };
-      },
-    },
-    title: {
-      get: async () => `Bounded Amp title ${index}`,
-      subscribe() {
-        return { unsubscribe() { unsubscribeCount += 1; } };
-      },
-    },
-  };
-  await handlers.get("session.start")({ thread: boundedThread }, { thread: boundedThread });
-}
-if (previousHooksDisabled === undefined) delete process.env.CMUX_AMP_HOOKS_DISABLED;
-else process.env.CMUX_AMP_HOOKS_DISABLED = previousHooksDisabled;
-if (unsubscribeCount === 0) throw new Error("Amp thread subscriptions were never evicted");
-if (typeof resumableStateSubscriber !== "function" || resumableStateUnsubscribed) {
-  throw new Error("Amp evicted the state observer needed for a follow-up turn");
-}
-await resumableStateSubscriber("running");
-
-// The managed-launch capture above models a wrapped terminal launch.
-// Clear it before the custom-launcher case so normalizedLaunchArgv()
-// still proves its fallback behavior for an unrecognized argv.
-delete process.env.CMUX_AGENT_LAUNCH_ARGV_B64;
-delete process.env.CMUX_AGENT_LAUNCH_EXECUTABLE;
-delete process.env.CMUX_AGENT_LAUNCH_CWD;
-process.argv.splice(
-  0,
-  process.argv.length,
-  "/Users/example/custom-amp-launcher",
-  "--mode",
-  "fallback"
-);
-await handlers.get("session.start")({ thread: legacyThread }, { thread: legacyThread });
-await handlers.get("agent.start")(
-  { thread: legacyThread, message: "legacy finish", id: "turn-legacy" },
-  { thread: legacyThread }
-);
-const legacyEnd = {
-  thread: legacyThread,
-  id: "turn-legacy",
-  status: "done",
-  messages: [{
-    role: "assistant",
-    content: [{ type: "text", text: "Legacy thread completed" }]
-  }]
-};
-await handlers.get("agent.end")(legacyEnd, { thread: legacyThread });
-await handlers.get("agent.end")(legacyEnd, { thread: legacyThread });
-await waitForInputFragment('"session_id":"T-amp-session-legacy"');
-for (const fragment of [
-  '"session_id":"T-amp-session-test"',
-  '"agent_state":"awaiting-approval"',
-  '"agent_state":"error"',
-  '"turn_id":"turn-second-follow-up"',
-  '"turn_id":"turn-third"',
-]) {
-  await waitForInputFragment(fragment);
-}
-for (const sessionId of [
-  "T-amp-session-test",
-  "T-amp-session-second",
-  "T-amp-session-third",
-  "T-amp-session-legacy",
-]) {
-  await waitForLifecycle(sessionId);
-}
 """
         check_script = root / "check.mjs"
         check_script.write_text(check_source, encoding="utf-8")
@@ -704,7 +292,7 @@ for (const sessionId of [
             text=True,
             check=False,
             env=check_env,
-            timeout=35,
+            timeout=20,
         )
         if check.returncode != 0:
             print("FAIL: generated Amp plugin is not importable")
@@ -713,34 +301,1218 @@ for (const sessionId of [
             print(f"stderr={check.stderr.strip()}")
             return 1
 
-        deadline = time.monotonic() + 15
+        # Exercise turn settlement through an observable spawn seam. The real
+        # plugin deliberately unrefs its cmux subprocesses, so observing the
+        # spawn calls directly avoids timing assertions on detached children.
+        fake_spawn_path = extension_path.parent / "cmux-test-spawn.mjs"
+        fake_spawn_path.write_text(
+            """
+let nativeAttentionIdentifyAttempts = 0;
+const nativeAttentionEndAttempts = new Map();
+
+export function spawn(command, args, options) {
+  const call = { command, args: Array.from(args || []), options, stdin: "" };
+  globalThis.__cmuxAmpSpawnCalls.push(call);
+  let closeStatus = 0;
+  let hangs = false;
+  let stdout = "";
+  if (
+    call.args.slice(0, 5).join(" ")
+      === "hooks amp __native-attention identify --pid"
+  ) {
+    const attempt = nativeAttentionIdentifyAttempts;
+    nativeAttentionIdentifyAttempts += 1;
+    const pidIndex = call.args.indexOf("--pid");
+    const requestedPid = Number(call.args[pidIndex + 1]);
+    if (globalThis.__cmuxAmpFailAllIdentityCaptures === true || attempt === 0) {
+      closeStatus = 1;
+    } else {
+      stdout = JSON.stringify({
+        pid: requestedPid,
+        pid_start_seconds: 1234,
+        pid_start_microseconds: 5678,
+      });
+    }
+  }
+  if (
+    call.args.slice(0, 4).join(" ")
+      === "hooks amp __native-attention end"
+  ) {
+    const observationIndex = call.args.indexOf("--observation-id");
+    const observationId = call.args[observationIndex + 1] || "missing";
+    const attempt = nativeAttentionEndAttempts.get(observationId) || 0;
+    nativeAttentionEndAttempts.set(observationId, attempt + 1);
+    if (globalThis.__cmuxAmpHangNextEndAttempts > 0) {
+      globalThis.__cmuxAmpHangNextEndAttempts -= 1;
+      hangs = true;
+    } else if (globalThis.__cmuxAmpSkipNextEndTimeout === true) {
+      globalThis.__cmuxAmpSkipNextEndTimeout = false;
+    } else if (attempt === 0) {
+      hangs = true;
+    }
+  }
+  if (
+    call.args.slice(0, 4).join(" ")
+      === "hooks amp __native-attention begin"
+    && globalThis.__cmuxAmpHangNextBegin === true
+  ) {
+    globalThis.__cmuxAmpHangNextBegin = false;
+    hangs = true;
+  }
+  const handlers = new Map();
+  const stdoutHandlers = new Map();
+  const child = {
+    on(name, callback) {
+      handlers.set(name, callback);
+      return child;
+    },
+    unref() {},
+    kill(signal) {
+      call.killedWith = signal;
+      return true;
+    },
+    stdout: {
+      on(name, callback) {
+        stdoutHandlers.set(name, callback);
+        return child.stdout;
+      },
+    },
+    stdin: {
+      on() {},
+      end(value) { call.stdin = String(value || ""); },
+    },
+  };
+  queueMicrotask(() => {
+    if (hangs) return;
+    if (stdout) stdoutHandlers.get("data")?.(stdout);
+    call.closedWith = closeStatus;
+    handlers.get("close")?.(closeStatus);
+  });
+  return child;
+}
+
+export function spawnSync(command, args, options) {
+  const call = { command, args: Array.from(args || []), options, stdin: "" };
+  globalThis.__cmuxAmpSpawnCalls.push(call);
+  const pidIndex = call.args.indexOf("--pid");
+  if (pidIndex < 0 || !call.args[pidIndex + 1]) {
+    throw new Error("missing --pid in identify call");
+  }
+  const requestedPid = Number(call.args[pidIndex + 1]);
+  if (!Number.isSafeInteger(requestedPid) || requestedPid <= 0) {
+    throw new Error(`invalid --pid in identify call: ${call.args[pidIndex + 1]}`);
+  }
+  return {
+    status: 0,
+    stdout: JSON.stringify({
+      pid: requestedPid,
+      pid_start_seconds: 1234,
+      pid_start_microseconds: 5678,
+    }),
+    stderr: "",
+  };
+}
+""",
+            encoding="utf-8",
+        )
+        instrumented_path = extension_path.parent / "cmux-session-instrumented.ts"
+        if extension_text.count('from "node:child_process";') != 1:
+            print("FAIL: Amp plugin no longer has exactly one child_process import")
+            return 1
+        instrumented_text = extension_text.replace(
+            'from "node:child_process";',
+            'from "./cmux-test-spawn.mjs";',
+            1,
+        )
+        if instrumented_text == extension_text:
+            print("FAIL: could not install Amp spawn seam")
+            return 1
+        instrumented_path.write_text(instrumented_text, encoding="utf-8")
+
+        settlement_source = """
+globalThis.__cmuxAmpSpawnCalls = [];
+const platformSetTimeout = globalThis.setTimeout;
+const platformClearTimeout = globalThis.clearTimeout;
+const controlledTimers = new Set();
+globalThis.setTimeout = (callback, delay = 0, ...args) => {
+  const timer = {
+    callback,
+    delay: Number(delay) || 0,
+    args,
+    cancelled: false,
+    handle: null
+  };
+  const handle = {
+    timer,
+    unref() { return handle; }
+  };
+  timer.handle = handle;
+  controlledTimers.add(timer);
+  return handle;
+};
+globalThis.clearTimeout = (handle) => {
+  const timer = handle?.timer;
+  if (!timer) return;
+  timer.cancelled = true;
+  controlledTimers.delete(timer);
+};
+const dispatchControlledTimers = async (delay) => {
+  let dispatched = 0;
+  for (let pass = 0; pass < 100; pass += 1) {
+    await Promise.resolve();
+    const due = Array.from(controlledTimers).filter(
+      (timer) => !timer.cancelled && timer.delay === delay
+    );
+    if (due.length === 0) return dispatched;
+    for (const timer of due) {
+      controlledTimers.delete(timer);
+      if (timer.cancelled) continue;
+      dispatched += 1;
+      timer.callback(...timer.args);
+    }
+  }
+  throw new Error(`Amp controlled timer queue did not quiesce for ${delay}ms`);
+};
+const dispatchControlledTimersOrFail = async (delay) => {
+  const dispatched = await dispatchControlledTimers(delay);
+  if (dispatched === 0) {
+    throw new Error(
+      `Amp scheduled no ${delay}ms timer; pending delays=${
+        JSON.stringify(Array.from(controlledTimers, (timer) => timer.delay))
+      }`
+    );
+  }
+  return dispatched;
+};
+const extensionPath = process.env.CMUX_TEST_AMP_INSTRUMENTED_PATH;
+const mod = await import(extensionPath);
+const handlers = new Map();
+mod.default({
+  on(name, handler) {
+    handlers.set(name, handler);
+  }
+});
+for (const name of [
+  "session.start",
+  "agent.start",
+  "tool.call",
+  "tool.result",
+  "agent.end"
+]) {
+  if (typeof handlers.get(name) !== "function") throw new Error(`missing ${name}`);
+}
+const stopCalls = () => globalThis.__cmuxAmpSpawnCalls.filter(
+  (call) => call.args.join(" ") === "hooks amp stop"
+);
+const statusCalls = () => globalThis.__cmuxAmpSpawnCalls.filter(
+  (call) => call.args[0] === "set-status" && call.args[1] === "amp"
+);
+const attentionCalls = (action) => globalThis.__cmuxAmpSpawnCalls.filter(
+  (call) =>
+    call.args.slice(0, 4).join(" ")
+      === `hooks amp __native-attention ${action}`
+);
+const waitFor = async (predicate, description, timeout = 4000) => {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => platformSetTimeout(resolve, 5));
+  }
+  throw new Error(
+    `${description}: ${JSON.stringify(globalThis.__cmuxAmpSpawnCalls)}`
+  );
+};
+if (globalThis.__cmuxAmpSpawnCalls.length !== 0) {
+  throw new Error("Amp synchronously spawned cmux while loading the plugin");
+}
+const makeThread = (
+  id,
+  initialState = "running",
+  deferInitialGet = false,
+  failures = { get: false, subscribe: false },
+) => {
+  let currentState = initialState;
+  const observers = new Set();
+  let resolveInitialGet = null;
+  const initialGet = deferInitialGet
+    ? new Promise((resolve) => {
+        resolveInitialGet = resolve;
+      })
+    : null;
+  return {
+    id,
+    state: {
+      async get() {
+        if (failures.get) throw new Error("native thread state get failed");
+        return initialGet ?? currentState;
+      },
+      subscribe(observer) {
+        if (failures.subscribe) {
+          throw new Error("native thread state subscribe failed");
+        }
+        observers.add(observer);
+        return {
+          unsubscribe() {
+            observers.delete(observer);
+          }
+        };
+      }
+    },
+    setState(nextState) {
+      currentState = nextState;
+      for (const observer of observers) observer(nextState);
+    },
+    resolveInitialGet(value) {
+      if (!resolveInitialGet) {
+        throw new Error("thread has no deferred native-state snapshot");
+      }
+      resolveInitialGet(value);
+      resolveInitialGet = null;
+    },
+    observerCount() {
+      return observers.size;
+    }
+  };
+};
+const thread = makeThread("T-amp-settlement-test");
+const ctx = { thread };
+const otherThread = { id: "T-amp-other-thread" };
+const otherCtx = { thread: otherThread };
+await handlers.get("agent.start")({ thread, message: "delegate", id: "msg-1" }, ctx);
+thread.setState("awaiting-approval");
+thread.setState("awaiting-approval");
+await waitFor(
+  () => attentionCalls("identify").length >= 1
+    && attentionCalls("identify")[0].closedWith === 1,
+  "Amp did not observe the transient process-identity failure"
+);
+await waitFor(
+  () => attentionCalls("identify").length === 2
+    && attentionCalls("begin").length === 1
+    && attentionCalls("begin")[0].closedWith === 0,
+  "Amp did not retry identity capture while approval remained pending"
+);
+thread.setState("running");
+thread.setState("running");
+await waitFor(
+  () => attentionCalls("end").length === 1,
+  "Amp did not start the first approval conclusion"
+);
+await dispatchControlledTimersOrFail(2_000);
+await waitFor(
+  () => attentionCalls("end").length === 2
+    && attentionCalls("end")[1].closedWith === 0,
+  "Amp did not retry one timed-out approval conclusion exactly once"
+);
+const beginAttention = attentionCalls("begin")[0].args;
+const endAttentionAttempts = attentionCalls("end").map((call) => call.args);
+const endAttention = endAttentionAttempts.at(-1);
+const identifyAttention = attentionCalls("identify").at(-1).args;
+if (attentionCalls("end")[0].killedWith !== "SIGKILL") {
+  throw new Error("Amp did not kill a timed-out native-attention subprocess");
+}
+const option = (args, name) => args[args.indexOf(name) + 1];
+if (
+  option(identifyAttention, "--pid") !== option(beginAttention, "--pid")
+  || option(beginAttention, "--pid") !== option(endAttention, "--pid")
+  || option(beginAttention, "--scope-id") !== option(endAttention, "--scope-id")
+  || option(beginAttention, "--observation-id")
+    !== option(endAttention, "--observation-id")
+  || option(beginAttention, "--pid-start-seconds")
+    !== option(endAttention, "--pid-start-seconds")
+  || option(beginAttention, "--pid-start-microseconds")
+    !== option(endAttention, "--pid-start-microseconds")
+  || option(beginAttention, "--session-id")
+    !== option(endAttention, "--session-id")
+) {
+  throw new Error(
+    `Amp approval conclusion did not match its begin: begin=${
+      JSON.stringify(beginAttention)
+    } end=${JSON.stringify(endAttention)}`
+  );
+}
+for (const attemptedEnd of endAttentionAttempts) {
+  if (
+    option(attemptedEnd, "--pid") !== option(beginAttention, "--pid")
+    || option(attemptedEnd, "--pid-start-seconds")
+      !== option(beginAttention, "--pid-start-seconds")
+    || option(attemptedEnd, "--pid-start-microseconds")
+      !== option(beginAttention, "--pid-start-microseconds")
+    || option(attemptedEnd, "--scope-id")
+      !== option(beginAttention, "--scope-id")
+    || option(attemptedEnd, "--observation-id")
+      !== option(beginAttention, "--observation-id")
+    || option(attemptedEnd, "--session-id")
+      !== option(beginAttention, "--session-id")
+  ) {
+    throw new Error(
+      `Amp retry changed native-attention identity: begin=${
+        JSON.stringify(beginAttention)
+      } end=${JSON.stringify(attemptedEnd)}`
+    );
+  }
+}
+thread.setState("awaiting-approval");
+await waitFor(
+  () => attentionCalls("begin").length === 2
+    && attentionCalls("begin")[1].closedWith === 0,
+  "Amp did not publish a second approval episode in the same turn"
+);
+const secondBeginAttention = attentionCalls("begin")[1].args;
+if (
+  option(secondBeginAttention, "--scope-id")
+    === option(beginAttention, "--scope-id")
+  || option(secondBeginAttention, "--observation-id")
+    === option(beginAttention, "--observation-id")
+) {
+  throw new Error(
+    `Amp reused a concluded approval identity: first=${
+      JSON.stringify(beginAttention)
+    } second=${JSON.stringify(secondBeginAttention)}`
+  );
+}
+thread.setState("running");
+await waitFor(
+  () => attentionCalls("end").length === 3,
+  "Amp did not start the second approval conclusion"
+);
+await dispatchControlledTimersOrFail(2_000);
+await waitFor(
+  () => attentionCalls("end").length === 4
+    && attentionCalls("end")[3].closedWith === 0,
+  "Amp did not conclude the second approval episode"
+);
+for (const attemptedEnd of attentionCalls("end").slice(2)) {
+  if (
+    option(attemptedEnd.args, "--scope-id")
+      !== option(secondBeginAttention, "--scope-id")
+    || option(attemptedEnd.args, "--observation-id")
+      !== option(secondBeginAttention, "--observation-id")
+  ) {
+    throw new Error(
+      `Amp changed the second approval identity during conclusion: begin=${
+        JSON.stringify(secondBeginAttention)
+      } end=${JSON.stringify(attemptedEnd.args)}`
+    );
+  }
+}
+globalThis.__cmuxAmpHangNextBegin = true;
+globalThis.__cmuxAmpSkipNextEndTimeout = true;
+thread.setState("awaiting-approval");
+await waitFor(
+  () => attentionCalls("begin").length === 3,
+  "Amp did not start the acknowledgement-timeout approval episode"
+);
+const unacknowledgedBegin = attentionCalls("begin")[2].args;
+const unacknowledgedEndCount = attentionCalls("end").length;
+thread.setState("running");
+await dispatchControlledTimersOrFail(2_000);
+await waitFor(
+  () => attentionCalls("end")
+    .slice(unacknowledgedEndCount)
+    .some((call) => call.closedWith === 0),
+  "Amp did not conservatively conclude an unacknowledged approval begin"
+);
+const unacknowledgedConclusion = attentionCalls("end")
+  .slice(unacknowledgedEndCount)
+  .find((call) => call.closedWith === 0).args;
+if (
+  option(unacknowledgedConclusion, "--scope-id")
+    !== option(unacknowledgedBegin, "--scope-id")
+  || option(unacknowledgedConclusion, "--observation-id")
+    !== option(unacknowledgedBegin, "--observation-id")
+) {
+  throw new Error(
+    `Amp concluded the wrong unacknowledged approval episode: begin=${
+      JSON.stringify(unacknowledgedBegin)
+    } end=${JSON.stringify(unacknowledgedConclusion)}`
+  );
+}
+const identityFailureThread = makeThread(
+  "T-amp-native-identity-exhausted",
+  "running"
+);
+const identityFailureCtx = { thread: identityFailureThread };
+await handlers.get("agent.start")({
+  thread: identityFailureThread,
+  message: "release status after identity retries",
+  id: "msg-identity-exhausted"
+}, identityFailureCtx);
+globalThis.__cmuxAmpFailAllIdentityCaptures = true;
+const identityFailureBeginCount = attentionCalls("identify").length;
+identityFailureThread.setState("awaiting-approval");
+await waitFor(
+  () => attentionCalls("identify").length
+    >= identityFailureBeginCount + 3,
+  "Amp did not exhaust bounded native identity retries"
+);
+globalThis.__cmuxAmpFailAllIdentityCaptures = false;
+const statusBeforeIdentityRecovery = statusCalls().length;
+const identityRecoveryThread = makeThread(
+  "T-amp-native-identity-recovery",
+  "running"
+);
+const identityRecoveryCtx = { thread: identityRecoveryThread };
+await handlers.get("agent.start")({
+  thread: identityRecoveryThread,
+  message: "status after identity retry exhaustion",
+  id: "msg-identity-recovery"
+}, identityRecoveryCtx);
+await handlers.get("tool.call")({
+  thread: identityRecoveryThread,
+  toolUseID: "tool-identity-recovery",
+  tool: "Task",
+  input: { prompt: "prove status fanout recovered" }
+}, identityRecoveryCtx);
+if (statusCalls().length <= statusBeforeIdentityRecovery) {
+  throw new Error(
+    "Amp native identity retry exhaustion permanently suppressed status fanout"
+  );
+}
+identityFailureThread.setState("running");
+
+const approvalStatusThread = makeThread("T-amp-status-approval", "running");
+const approvalStatusCtx = { thread: approvalStatusThread };
+const siblingStatusThread = makeThread("T-amp-status-sibling", "running");
+const siblingStatusCtx = { thread: siblingStatusThread };
+await handlers.get("agent.start")({
+  thread: approvalStatusThread,
+  message: "approval owns aggregate status",
+  id: "msg-status-approval"
+}, approvalStatusCtx);
+await handlers.get("agent.start")({
+  thread: siblingStatusThread,
+  message: "sibling status work",
+  id: "msg-status-sibling"
+}, siblingStatusCtx);
+await handlers.get("tool.call")({
+  thread: siblingStatusThread,
+  toolUseID: "tool-status-sibling",
+  tool: "Task",
+  input: { prompt: "retain shared status" }
+}, siblingStatusCtx);
+const aggregateApprovalBeginCount = attentionCalls("begin").length;
+approvalStatusThread.setState("awaiting-approval");
+await waitFor(
+  () => attentionCalls("begin").length === aggregateApprovalBeginCount + 1
+    && attentionCalls("begin").at(-1).closedWith === 0,
+  "Amp did not publish the aggregate-status approval"
+);
+const statusCountDuringApproval = statusCalls().length;
+const transientSessionThread = { id: "T-amp-status-session-start" };
+await handlers.get("session.start")(
+  { thread: transientSessionThread },
+  { thread: transientSessionThread }
+);
+await handlers.get("tool.result")({
+  thread: siblingStatusThread,
+  toolUseID: "tool-status-sibling",
+  tool: "Task",
+  status: "done",
+  output: "sibling work finished"
+}, siblingStatusCtx);
+if (statusCalls().length !== statusCountDuringApproval) {
+  throw new Error(
+    "another Amp thread overwrote the shared Needs input status"
+  );
+}
+const aggregateApprovalEndCount = attentionCalls("end").length;
+approvalStatusThread.setState("running");
+await waitFor(
+  () => attentionCalls("end").length === aggregateApprovalEndCount + 1,
+  "Amp did not start the aggregate-status approval conclusion"
+);
+await dispatchControlledTimersOrFail(2_000);
+await waitFor(
+  () => attentionCalls("end").length === aggregateApprovalEndCount + 2
+    && attentionCalls("end").at(-1).closedWith === 0,
+  "Amp did not conclude the aggregate-status approval"
+);
+await handlers.get("tool.call")({
+  thread: siblingStatusThread,
+  toolUseID: "tool-status-sibling-2",
+  tool: "Task",
+  input: { prompt: "keep active tool visible" }
+}, siblingStatusCtx);
+const secondTransientSessionThread = { id: "T-amp-status-session-start-2" };
+await handlers.get("session.start")(
+  { thread: secondTransientSessionThread },
+  { thread: secondTransientSessionThread }
+);
+if (statusCalls().at(-1)?.args[2] !== "subagent") {
+  throw new Error(
+    `an idle session hid an active sibling tool: ${
+      JSON.stringify(statusCalls().at(-1))
+    }`
+  );
+}
+await handlers.get("tool.result")({
+  thread: siblingStatusThread,
+  toolUseID: "tool-status-sibling-2",
+  tool: "Task",
+  status: "done",
+  output: "second sibling work finished"
+}, siblingStatusCtx);
+const discardedAttentionThread = makeThread(
+  "T-amp-discarded-attention",
+  "running"
+);
+const discardedAttentionCtx = { thread: discardedAttentionThread };
+await handlers.get("agent.start")({
+  thread: discardedAttentionThread,
+  message: "discard an in-flight approval",
+  id: "msg-discarded-attention"
+}, discardedAttentionCtx);
+globalThis.__cmuxAmpHangNextBegin = true;
+const discardedBeginCount = attentionCalls("begin").length;
+discardedAttentionThread.setState("awaiting-approval");
+await waitFor(
+  () => attentionCalls("begin").length === discardedBeginCount + 1,
+  "Amp did not start the approval that will be discarded"
+);
+const discardedBeginCall = attentionCalls("begin").at(-1);
+await handlers.get("session.start")(
+  { thread: discardedAttentionThread },
+  discardedAttentionCtx
+);
+await dispatchControlledTimersOrFail(2_000);
+await waitFor(
+  () => discardedBeginCall.killedWith === "SIGKILL",
+  "Amp did not finish the abandoned approval subprocess deadline"
+);
+const postDiscardThread = makeThread(
+  "T-amp-post-discard-status",
+  "running"
+);
+const postDiscardCtx = { thread: postDiscardThread };
+await handlers.get("agent.start")({
+  thread: postDiscardThread,
+  message: "publish after discarded attention",
+  id: "msg-post-discard-status"
+}, postDiscardCtx);
+await handlers.get("tool.call")({
+  thread: postDiscardThread,
+  toolUseID: "tool-post-discard-status",
+  tool: "Task",
+  input: { prompt: "prove aggregate status ownership was released" }
+}, postDiscardCtx);
+if (statusCalls().at(-1)?.args[2] !== "subagent") {
+  throw new Error(
+    `discarded Amp attention kept shared status ownership: ${
+      JSON.stringify(statusCalls().at(-1))
+    }`
+  );
+}
+await handlers.get("tool.result")({
+  thread: postDiscardThread,
+  toolUseID: "tool-post-discard-status",
+  tool: "Task",
+  status: "done",
+  output: "post-discard proof complete"
+}, postDiscardCtx);
+await handlers.get("agent.end")({
+  thread: postDiscardThread,
+  message: "post-discard proof complete",
+  id: "msg-post-discard-status",
+  status: "done",
+  messages: []
+}, postDiscardCtx);
+postDiscardThread.setState("idle");
+for (const [statusThread, statusCtx, messageId] of [
+  [approvalStatusThread, approvalStatusCtx, "msg-status-approval"],
+  [siblingStatusThread, siblingStatusCtx, "msg-status-sibling"]
+]) {
+  await handlers.get("agent.end")({
+    thread: statusThread,
+    message: "aggregate status complete",
+    id: messageId,
+    status: "done",
+    messages: []
+  }, statusCtx);
+  statusThread.setState("idle");
+}
+await handlers.get("tool.call")({
+  toolUseID: "tool-main",
+  tool: "Task",
+  input: { prompt: "keep working in the background" }
+}, ctx);
+await handlers.get("agent.start")({
+  thread: otherThread,
+  message: "other work",
+  id: "msg-other"
+}, otherCtx);
+await handlers.get("tool.call")({
+  thread: otherThread,
+  toolUseID: "tool-other",
+  tool: "Task",
+  input: { prompt: "unrelated concurrent work" }
+}, otherCtx);
+const completionCount = stopCalls().length;
+await handlers.get("agent.end")({
+  thread: otherThread,
+  message: "other work",
+  id: "msg-other",
+  status: "done",
+  messages: []
+}, otherCtx);
+if (stopCalls().length !== completionCount + 1) {
+  throw new Error("agent.end did not publish exactly one provisional boundary");
+}
+const provisional = JSON.parse(stopCalls().at(-1).stdin);
+if (
+  provisional.cmux_turn_boundary !== "turn_end" ||
+  provisional.cmux_active_background_work_count !== 1 ||
+  typeof provisional.turn_id !== "string" ||
+  provisional.turn_id.length === 0
+) {
+  throw new Error(
+    `agent.end emitted a final completion instead of provisional evidence: ${JSON.stringify(provisional)}`
+  );
+}
+await handlers.get("tool.result")({
+  toolUseID: "tool-main",
+  tool: "Task",
+  status: "done",
+  output: "background work finished"
+}, ctx);
+if (stopCalls().length !== completionCount + 1) {
+  throw new Error("another thread's tool result settled the pending turn");
+}
+await handlers.get("tool.result")({
+  thread: otherThread,
+  toolUseID: "tool-other",
+  tool: "Task",
+  status: "done",
+  output: "unrelated work finished"
+}, otherCtx);
+if (stopCalls().length !== completionCount + 2) {
+  throw new Error(
+    "a settled Amp sibling was retained behind another active thread"
+  );
+}
+const siblingSettlement = JSON.parse(stopCalls().at(-1).stdin);
+if (
+  siblingSettlement.cmux_turn_boundary !== "settled" ||
+  siblingSettlement.cmux_active_background_work_count !== 0 ||
+  siblingSettlement.cmux_active_sibling_turn_count !== 1 ||
+  siblingSettlement.turn_id !== provisional.turn_id ||
+  siblingSettlement.session_id !== "T-amp-other-thread"
+) {
+  throw new Error(
+    `Amp did not settle the exact sibling while preserving aggregate work: ${
+      JSON.stringify(siblingSettlement)
+    }`
+  );
+}
+const finalCompletionCount = stopCalls().length;
+await handlers.get("agent.end")({
+  thread,
+  message: "delegate",
+  id: "msg-1",
+  status: "done",
+  messages: []
+}, ctx);
+if (stopCalls().length !== finalCompletionCount + 1) {
+  throw new Error(
+    "draining structured tools settled before Amp's native thread became idle"
+  );
+}
+const finalProvisional = JSON.parse(stopCalls().at(-1).stdin);
+if (
+  finalProvisional.cmux_turn_boundary !== "turn_end" ||
+  finalProvisional.cmux_active_background_work_count !== 0 ||
+  finalProvisional.turn_id === provisional.turn_id
+) {
+  throw new Error(
+    `the remaining thread did not retain its own provisional identity: ${
+      JSON.stringify(finalProvisional)
+    }`
+  );
+}
+thread.setState("idle");
+await waitFor(
+  () => stopCalls().length === finalCompletionCount + 2,
+  "Amp did not settle the final thread after every thread drained"
+);
+const finalSettlement = JSON.parse(stopCalls().at(-1).stdin);
+if (
+  finalSettlement.cmux_turn_boundary !== "settled" ||
+  finalSettlement.cmux_active_background_work_count !== 0 ||
+  finalSettlement.cmux_active_sibling_turn_count !== 0 ||
+  finalSettlement.turn_id !== finalProvisional.turn_id ||
+  finalSettlement.session_id !== "T-amp-settlement-test"
+) {
+  throw new Error(
+    `Amp did not publish the final thread's exact settlement: ${
+      JSON.stringify(finalSettlement)
+    }`
+  );
+}
+const racedThread = makeThread(
+  "T-amp-native-state-race",
+  "running",
+  true
+);
+const racedCtx = { thread: racedThread };
+const racedStart = handlers.get("agent.start")({
+  thread: racedThread,
+  message: "race native snapshot",
+  id: "msg-race"
+}, racedCtx);
+racedThread.setState("idle");
+racedThread.resolveInitialGet("running");
+await racedStart;
+const racedCompletionCount = stopCalls().length;
+await handlers.get("agent.end")({
+  thread: racedThread,
+  message: "race native snapshot",
+  id: "msg-race",
+  status: "done",
+  messages: []
+}, racedCtx);
+if (stopCalls().length !== racedCompletionCount + 2) {
+  throw new Error(
+    "a stale native get() snapshot overwrote the newer idle subscription"
+  );
+}
+const raceSettled = JSON.parse(stopCalls().at(-1).stdin);
+if (raceSettled.cmux_turn_boundary !== "settled") {
+  throw new Error(
+    `Amp native-state race did not settle: ${JSON.stringify(raceSettled)}`
+  );
+}
+for (const failure of ["get", "subscribe"]) {
+  const failedNativeThread = makeThread(
+    `T-amp-native-state-failure-${failure}`,
+    "running",
+    false,
+    { get: failure === "get", subscribe: failure === "subscribe" },
+  );
+  const failedNativeCtx = { thread: failedNativeThread };
+  await handlers.get("agent.start")({
+    thread: failedNativeThread,
+    message: `native state ${failure} failure`,
+    id: `msg-failure-${failure}`
+  }, failedNativeCtx);
+  const beforeFailedNativeEnd = stopCalls().length;
+  await handlers.get("agent.end")({
+    thread: failedNativeThread,
+    message: `native state ${failure} failure`,
+    id: `msg-failure-${failure}`,
+    status: "done",
+    messages: []
+  }, failedNativeCtx);
+  if (stopCalls().length !== beforeFailedNativeEnd + 1) {
+    throw new Error(
+      `Amp native-state ${failure} failure wedged the pending turn`
+    );
+  }
+  const failedNativeSettlement = JSON.parse(stopCalls().at(-1).stdin);
+  if (failedNativeSettlement.cmux_turn_boundary !== "settled") {
+    throw new Error(
+      `Amp native-state ${failure} failure did not use structured fallback`
+    );
+  }
+  if (failedNativeThread.observerCount() !== 0) {
+    throw new Error(
+      `Amp native-state ${failure} failure retained a failed observer`
+    );
+  }
+}
+try {
+  const hangingThread = makeThread(
+    "T-amp-native-state-hang",
+    "running",
+    true
+  );
+  const hangingCtx = { thread: hangingThread };
+  const hangingStart = handlers.get("agent.start")({
+    thread: hangingThread,
+    message: "native state never resolves",
+    id: "msg-hang"
+  }, hangingCtx);
+  await dispatchControlledTimersOrFail(1_000);
+  await hangingStart;
+
+  const beforeHangingEnd = stopCalls().length;
+  const hangingEnd = handlers.get("agent.end")({
+    thread: hangingThread,
+    message: "native state never resolves",
+    id: "msg-hang",
+    status: "done",
+    messages: []
+  }, hangingCtx);
+  await hangingEnd;
+  if (stopCalls().length !== beforeHangingEnd + 2) {
+    throw new Error(
+      "the hanging native state did not fall back after its snapshot deadline"
+    );
+  }
+  const hangingSettlement = JSON.parse(stopCalls().at(-1).stdin);
+  if (hangingSettlement.cmux_turn_boundary !== "settled") {
+    throw new Error(
+      `Amp snapshot timeout did not publish settlement: ${
+        JSON.stringify(hangingSettlement)
+      }`
+    );
+  }
+  if (hangingThread.observerCount() !== 0) {
+    throw new Error("a settled native-state observer was not released");
+  }
+
+  const approvalLeaseThread = makeThread(
+    "T-amp-native-approval-lease",
+    "running"
+  );
+  const approvalLeaseCtx = { thread: approvalLeaseThread };
+  await handlers.get("agent.start")({
+    thread: approvalLeaseThread,
+    message: "wait for durable approval",
+    id: "msg-approval-lease"
+  }, approvalLeaseCtx);
+  const approvalBeginCount = attentionCalls("begin").length;
+  approvalLeaseThread.setState("awaiting-approval");
+  await waitFor(
+    () => attentionCalls("begin").length === approvalBeginCount + 1
+      && attentionCalls("begin").at(-1).closedWith === 0,
+    "Amp did not publish the lease-retention approval"
+  );
+  const approvalEndCount = attentionCalls("end").length;
+  await dispatchControlledTimers(30 * 60 * 1_000);
+  if (approvalLeaseThread.observerCount() !== 1) {
+    throw new Error("a confirmed approval expired on the observation lease");
+  }
+  if (attentionCalls("end").length !== approvalEndCount) {
+    throw new Error("the observation lease cleared a confirmed approval");
+  }
+  approvalLeaseThread.setState("running");
+  await waitFor(
+    () => attentionCalls("end").length === approvalEndCount + 1,
+    "Amp did not start the lease-retention approval conclusion"
+  );
+  await dispatchControlledTimersOrFail(2_000);
+  await waitFor(
+    () => attentionCalls("end").length === approvalEndCount + 2
+      && attentionCalls("end").at(-1).closedWith === 0,
+    "Amp did not conclude the lease-retention approval from native state"
+  );
+  const beforeApprovalLeaseEnd = stopCalls().length;
+  await handlers.get("agent.end")({
+    thread: approvalLeaseThread,
+    message: "wait for durable approval",
+    id: "msg-approval-lease",
+    status: "done",
+    messages: []
+  }, approvalLeaseCtx);
+  approvalLeaseThread.setState("idle");
+  await waitFor(
+    () => stopCalls().length === beforeApprovalLeaseEnd + 2,
+    "the approval-retention turn did not settle normally"
+  );
+
+  const maximumRetainedTurnStateCount = 128;
+  const boundedThreads = [];
+  for (let index = 0; index <= maximumRetainedTurnStateCount; index += 1) {
+    const boundedThread = makeThread(
+      `T-amp-bounded-pending-${index}`,
+      "running",
+      true
+    );
+    const boundedCtx = { thread: boundedThread };
+    const boundedStart = handlers.get("agent.start")({
+      thread: boundedThread,
+      message: "bounded pending native state",
+      id: `msg-bounded-${index}`
+    }, boundedCtx);
+    await dispatchControlledTimersOrFail(1_000);
+    await boundedStart;
+    await handlers.get("agent.end")({
+      thread: boundedThread,
+      message: "bounded pending native state",
+      id: `msg-bounded-${index}`,
+      status: "done",
+      messages: []
+    }, boundedCtx);
+    boundedThreads.push(boundedThread);
+  }
+  const retainedObserverCount = boundedThreads.reduce(
+    (count, boundedThread) => count + boundedThread.observerCount(),
+    0
+  );
+  if (retainedObserverCount !== maximumRetainedTurnStateCount) {
+    throw new Error(
+      `Amp retained ${retainedObserverCount} silent pending observers; `
+      + `expected ${maximumRetainedTurnStateCount}`
+    );
+  }
+  if (boundedThreads[0].observerCount() !== 0) {
+    throw new Error("Amp did not evict the least-recent silent pending turn");
+  }
+  if (boundedThreads.at(-1).observerCount() !== 1) {
+    throw new Error("Amp evicted the most recent silent pending turn");
+  }
+  const beforeEvictedIdle = stopCalls().length;
+  boundedThreads[0].setState("idle");
+  if (stopCalls().length !== beforeEvictedIdle) {
+    throw new Error("an evicted Amp turn retained settlement ownership");
+  }
+  // A late agent.end must not recreate an empty state for the evicted turn.
+  // Resolve the old deferred snapshot to idle so an unsafely recreated state
+  // would settle immediately and make the regression deterministic.
+  boundedThreads[0].resolveInitialGet("idle");
+  const beforeEvictedEnd = stopCalls().length;
+  await handlers.get("agent.end")({
+    thread: boundedThreads[0],
+    message: "bounded pending native state",
+    id: "msg-bounded-0",
+    status: "done",
+    messages: []
+  }, { thread: boundedThreads[0] });
+  const evictedEndSettlements = stopCalls()
+    .slice(beforeEvictedEnd)
+    .map((call) => JSON.parse(call.stdin))
+    .filter((payload) => payload.cmux_turn_boundary === "settled");
+  if (evictedEndSettlements.length !== 0) {
+    throw new Error(
+      `an evicted Amp turn was recreated and settled: ${JSON.stringify(evictedEndSettlements)}`
+    );
+  }
+  const beforeRetainedIdle = stopCalls().length;
+  boundedThreads.at(-1).setState("idle");
+  await waitFor(
+    () => stopCalls().length === beforeRetainedIdle + 1,
+    "the most recent bounded Amp turn lost settlement ownership"
+  );
+  const retainedSettlement = JSON.parse(stopCalls().at(-1).stdin);
+  if (
+    retainedSettlement.cmux_active_sibling_turn_count
+      !== maximumRetainedTurnStateCount
+  ) {
+    throw new Error(
+      `Amp settlement dropped the evicted sibling from its conservative count: ${
+        JSON.stringify(retainedSettlement)
+      }`
+    );
+  }
+
+  // Fill the bounded tombstone table and exercise its overflow recovery. A
+  // later authoritative session.start must make that one owner eligible
+  // again; a process-wide latch that never recovers would drop its turn.
+  for (let index = 0; index < 128; index += 1) {
+    const latchThread = makeThread(
+      `T-amp-overflow-latch-${index}`,
+      "running"
+    );
+    const latchCtx = { thread: latchThread };
+    await handlers.get("agent.start")({
+      thread: latchThread,
+      message: "fill bounded Amp overflow tombstones",
+      id: `msg-overflow-latch-${index}`
+    }, latchCtx);
+    await handlers.get("agent.end")({
+      thread: latchThread,
+      message: "fill bounded Amp overflow tombstones",
+      id: `msg-overflow-latch-${index}`,
+      status: "done",
+      messages: []
+    }, latchCtx);
+  }
+  const recoveryThread = makeThread(
+    "T-amp-overflow-recovery",
+    "running"
+  );
+  const recoveryCtx = { thread: recoveryThread };
+  await handlers.get("session.start")(
+    { thread: recoveryThread },
+    recoveryCtx
+  );
+  await handlers.get("agent.start")({
+    thread: recoveryThread,
+    message: "recover after bounded Amp overflow",
+    id: "msg-overflow-recovery"
+  }, recoveryCtx);
+  const beforeRecoveryEnd = stopCalls().length;
+  await handlers.get("agent.end")({
+    thread: recoveryThread,
+    message: "recover after bounded Amp overflow",
+    id: "msg-overflow-recovery",
+    status: "done",
+    messages: []
+  }, recoveryCtx);
+  recoveryThread.setState("idle");
+  await waitFor(
+    () => stopCalls().length === beforeRecoveryEnd + 2,
+    "authoritative Amp session cleanup did not recover overflowed turn tracking"
+  );
+
+  const overflowThread = makeThread(
+    "T-amp-active-tool-overflow",
+    "running"
+  );
+  const overflowCtx = { thread: overflowThread };
+  await handlers.get("agent.start")({
+    thread: overflowThread,
+    message: "retain bounded active tools",
+    id: "msg-active-tool-overflow"
+  }, overflowCtx);
+  const maximumRetainedActiveToolsPerTurn = 128;
+  for (
+    let index = 0;
+    index <= maximumRetainedActiveToolsPerTurn;
+    index += 1
+  ) {
+    await handlers.get("tool.call")({
+      thread: overflowThread,
+      toolUseID: `tool-overflow-${index}`,
+      tool: "Task",
+      input: { prompt: `bounded tool ${index}` }
+    }, overflowCtx);
+  }
+  const beforeOverflowEnd = stopCalls().length;
+  await handlers.get("agent.end")({
+    thread: overflowThread,
+    message: "retain bounded active tools",
+    id: "msg-active-tool-overflow",
+    status: "done",
+    messages: []
+  }, overflowCtx);
+  const overflowProvisional = JSON.parse(stopCalls().at(-1).stdin);
+  if (
+    stopCalls().length !== beforeOverflowEnd + 1
+    || overflowProvisional.cmux_active_background_work_count
+      !== maximumRetainedActiveToolsPerTurn + 1
+  ) {
+    throw new Error(
+      `Amp did not latch active-tool overflow: ${
+        JSON.stringify(overflowProvisional)
+      }`
+    );
+  }
+  for (
+    let index = 0;
+    index <= maximumRetainedActiveToolsPerTurn;
+    index += 1
+  ) {
+    await handlers.get("tool.result")({
+      thread: overflowThread,
+      toolUseID: `tool-overflow-${index}`,
+      tool: "Task",
+      status: "done",
+      output: "done"
+    }, overflowCtx);
+  }
+  if (stopCalls().length !== beforeOverflowEnd + 1) {
+    throw new Error("retained tool results cleared an unproven overflow latch");
+  }
+  overflowThread.setState("idle");
+  await waitFor(
+    () => stopCalls().length === beforeOverflowEnd + 2,
+    "terminal Amp native state did not clear active-tool overflow"
+  );
+
+  const failedConclusionThread = makeThread(
+    "T-amp-failed-attention-conclusion",
+    "running"
+  );
+  const failedConclusionCtx = { thread: failedConclusionThread };
+  await handlers.get("agent.start")({
+    thread: failedConclusionThread,
+    message: "release ownership after failed conclusion",
+    id: "msg-failed-attention-conclusion"
+  }, failedConclusionCtx);
+  const failedConclusionBeginCount = attentionCalls("begin").length;
+  failedConclusionThread.setState("awaiting-approval");
+  await waitFor(
+    () => attentionCalls("begin").length === failedConclusionBeginCount + 1
+      && attentionCalls("begin").at(-1).closedWith === 0,
+    "Amp did not publish the approval used by the failed-conclusion regression"
+  );
+  globalThis.__cmuxAmpHangNextEndAttempts = 2;
+  const failedConclusionEndCount = attentionCalls("end").length;
+  failedConclusionThread.setState("running");
+  await waitFor(
+    () => attentionCalls("end").length === failedConclusionEndCount + 1,
+    "Amp did not start the first failed approval conclusion"
+  );
+  await dispatchControlledTimersOrFail(2_000);
+  await waitFor(
+    () => attentionCalls("end").length === failedConclusionEndCount + 2
+      && attentionCalls("end").slice(-2).every(
+        (call) => call.killedWith === "SIGKILL"
+      ),
+    "Amp did not exhaust both failed approval conclusion attempts"
+  );
+  // Exhausting the immediate retry budget must not discard an acknowledged
+  // episode. A later native boundary gets one more bounded, idempotent chance
+  // to clear the app-side observation token.
+  failedConclusionThread.setState("idle");
+  await waitFor(
+    () => attentionCalls("end").length === failedConclusionEndCount + 3
+      && attentionCalls("end").at(-1).closedWith === 0,
+    "Amp did not retry an acknowledged approval conclusion at the next boundary"
+  );
+
+  const statusCountAfterFailedConclusion = statusCalls().length;
+  const statusProbeThread = makeThread(
+    "T-amp-failed-attention-status-probe",
+    "running"
+  );
+  const statusProbeCtx = { thread: statusProbeThread };
+  await handlers.get("agent.start")({
+    thread: statusProbeThread,
+    message: "publish after failed conclusion",
+    id: "msg-failed-attention-status-probe"
+  }, statusProbeCtx);
+  await handlers.get("tool.call")({
+    thread: statusProbeThread,
+    toolUseID: "tool-failed-attention-status-probe",
+    tool: "Task",
+    input: { prompt: "prove failed attention released aggregate status" }
+  }, statusProbeCtx);
+  await waitFor(
+    () => statusCalls().length > statusCountAfterFailedConclusion
+      && statusCalls().at(-1)?.args[2] === "subagent",
+    "failed Amp attention conclusion retained aggregate status ownership"
+  );
+} finally {
+  globalThis.setTimeout = platformSetTimeout;
+  globalThis.clearTimeout = platformClearTimeout;
+}
+"""
+        settlement_script = root / "settlement-check.mjs"
+        settlement_script.write_text(settlement_source, encoding="utf-8")
+        settlement_env = check_env.copy()
+        settlement_env["CMUX_TEST_AMP_INSTRUMENTED_PATH"] = str(instrumented_path)
+        settlement = subprocess.run(
+            [node, "--experimental-strip-types", "--no-warnings", str(settlement_script)],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=settlement_env,
+            timeout=20,
+        )
+        if settlement.returncode != 0:
+            print("FAIL: generated Amp plugin finalized before shared settlement")
+            print(f"exit={settlement.returncode}")
+            print(f"stdout={settlement.stdout.strip()}")
+            print(f"stderr={settlement.stderr.strip()}")
+            return 1
+
+        deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
             args_log = read_text(fake_args_log)
             stdin_log = read_text(fake_stdin_log)
             env_log = read_text(fake_env_log)
-            records = read_json_records(fake_stdin_log)
-            lifecycle_records = [
-                record for record in records
-                if record.get("hook_event_name") == "Lifecycle"
-            ]
-            primary_states = {
-                record.get("agent_state")
-                for record in lifecycle_records
-                if record.get("session_id") == "T-amp-session-test"
-            }
             if (
                 "hooks amp session-start" in args_log
                 and "hooks amp prompt-submit" in args_log
-                and "hooks amp title-update" in args_log
-                and "hooks amp lifecycle" in args_log
-                and {"running", "awaiting-approval", "idle", "error"}.issubset(primary_states)
-                and any(record.get("session_id") == "T-amp-session-second" for record in lifecycle_records)
-                and any(record.get("session_id") == "T-amp-session-third" for record in lifecycle_records)
-                and any(record.get("session_id") == "T-amp-session-legacy" for record in lifecycle_records)
-                and any(record.get("turn_id") == "turn-second-follow-up" for record in lifecycle_records)
-                and any(record.get("turn_id") == "turn-third" for record in lifecycle_records)
-                and any(record.get("turn_id") == "turn-legacy" for record in lifecycle_records)
-                and "argv=" in env_log
+                and "hooks amp stop" in args_log
+                and '"session_id":"T-amp-session-test"' in stdin_log
+                and any(
+                    line.startswith("argv=") and line != "argv="
+                    for line in env_log.splitlines()
+                )
             ):
                 break
             time.sleep(0.05)
@@ -750,8 +1522,7 @@ for (const sessionId of [
         for expected in [
             "hooks amp session-start",
             "hooks amp prompt-submit",
-            "hooks amp title-update",
-            "hooks amp lifecycle",
+            "hooks amp stop",
         ]:
             if expected not in args_log:
                 print(f"FAIL: plugin did not invoke {expected}, got {args_log!r}")
@@ -759,134 +1530,48 @@ for (const sessionId of [
         if '"session_id":"T-amp-session-test"' not in stdin_log:
             print(f"FAIL: plugin did not pass session id, got {stdin_log!r}")
             return 1
-        if '"cwd":"/tmp/amp-project"' not in stdin_log:
-            print(f"FAIL: plugin did not preserve the managed launch cwd, got {stdin_log!r}")
-            return 1
-        payloads = read_json_records(fake_stdin_log)
-        lifecycle = [
-            payload for payload in payloads
-            if payload.get("hook_event_name") == "Lifecycle"
-        ]
-        primary_lifecycle = [
-            payload for payload in lifecycle
-            if payload.get("session_id") == "T-amp-session-test"
-        ]
-        states = [payload.get("agent_state") for payload in primary_lifecycle]
-        for expected_state in ["running", "awaiting-approval", "idle", "error"]:
-            if expected_state not in states:
-                print(f"FAIL: plugin did not publish authoritative state {expected_state!r}, got {lifecycle!r}")
-                return 1
-        idle_outcomes = [
-            payload.get("turn_outcome") for payload in primary_lifecycle
-            if payload.get("agent_state") == "idle" and payload.get("turn_outcome")
-        ]
-        if sorted(idle_outcomes) != ["done", "done", "error"]:
-            print(f"FAIL: idle reconciliation lost the completed turn outcome, got {idle_outcomes!r}")
-            return 1
-        idle_errors = [
-            payload for payload in primary_lifecycle
-            if payload.get("agent_state") == "idle" and payload.get("turn_outcome") == "error"
-        ]
-        if len(idle_errors) != 1 or idle_errors[0].get("notification_type") != "error":
-            print(f"FAIL: idle-after-error was not classified as an error, got {idle_errors!r}")
-            return 1
-        error_outcomes = [
-            payload.get("turn_outcome") for payload in primary_lifecycle
-            if payload.get("agent_state") == "error"
-        ]
-        if len(error_outcomes) != 1 or error_outcomes[0] != "error":
-            print(f"FAIL: error reconciliation lost the failed turn outcome, got {error_outcomes!r}")
-            return 1
-        second_completions = [
-            payload for payload in lifecycle
-            if payload.get("session_id") == "T-amp-session-second"
-            and payload.get("agent_state") == "idle"
-            and payload.get("turn_outcome") == "done"
-        ]
-        if len(second_completions) != 2:
-            print(f"FAIL: second Amp thread did not re-arm terminal delivery, got {second_completions!r}")
-            return 1
-        second_by_turn = {payload.get("turn_id"): payload for payload in second_completions}
-        if set(second_by_turn) != {"turn-second", "turn-second-follow-up"}:
-            print(f"FAIL: second Amp thread lost a turn identity, got {second_completions!r}")
-            return 1
-        if {
-            turn_id: payload.get("last_assistant_message")
-            for turn_id, payload in second_by_turn.items()
-        } != {
-            "turn-second": "Second thread completed",
-            "turn-second-follow-up": "Second thread follow-up completed",
-        }:
-            print(f"FAIL: second Amp thread lost its turn payload, got {second_completions!r}")
-            return 1
-        third_errors = [
-            payload for payload in lifecycle
-            if payload.get("session_id") == "T-amp-session-third"
-            and payload.get("agent_state") == "error"
-            and payload.get("turn_outcome") == "error"
-        ]
-        if len(third_errors) != 1 or third_errors[0].get("turn_id") != "turn-third":
-            print(f"FAIL: third Amp thread did not retain independent error state, got {third_errors!r}")
-            return 1
-        legacy_completions = [
-            payload for payload in lifecycle
-            if payload.get("session_id") == "T-amp-session-legacy"
-            and payload.get("agent_state") == "idle"
-            and payload.get("turn_outcome") == "done"
-        ]
-        if len(legacy_completions) != 1:
-            print(f"FAIL: legacy Amp thread did not emit exactly one completion, got {legacy_completions!r}; lifecycle={lifecycle!r}")
-            return 1
-        if legacy_completions[0].get("last_assistant_message") != "Legacy thread completed":
-            print(f"FAIL: legacy Amp completion lost its assistant message, got {legacy_completions!r}")
-            return 1
-        title_updates = [
-            payload.get("title") for payload in payloads
-            if payload.get("hook_event_name") == "TitleUpdate"
-            and payload.get("session_id") == "T-amp-session-test"
-        ]
-        if "Updated Amp title" not in title_updates:
-            print(f"FAIL: plugin did not persist the latest Amp title, got {title_updates!r}")
-            return 1
-        if "Stale Amp title" in title_updates:
-            print(f"FAIL: a stale async title lookup overwrote the observed Amp title, got {title_updates!r}")
-            return 1
-        if "hooks amp stop" in args_log:
-            print(f"FAIL: extension bypassed lifecycle reconciliation with a direct stop, got {args_log!r}")
-            return 1
-        if "kind=amp" not in env_log or f"cwd={expected_launch_cwd}" not in env_log or "argv=" not in env_log:
+        if (
+            "kind=amp" not in env_log
+            or "cwd=/tmp/amp-project" not in env_log
+            or "argv=" not in env_log
+            or "workspace_id=55555555-5555-5555-5555-555555555555" not in env_log
+        ):
             print(f"FAIL: plugin did not pass launch metadata environment, got {env_log!r}")
             return 1
         if "amp_api_key=secret-should-not-propagate" in env_log:
             print(f"FAIL: plugin propagated AMP_API_KEY into hook subprocess, got {env_log!r}")
             return 1
-        decoded_argv_values = []
-        for line in env_log.splitlines():
-            if not line.startswith("argv=") or not line[len("argv="):]:
-                continue
-            try:
-                decoded_argv_values.append([
-                    value
-                    for value in base64.b64decode(line[len("argv="):]).decode("utf-8").split("\0")
-                    if value
-                ])
-            except Exception as exc:
-                print(f"FAIL: plugin launch argv was not valid base64 NUL data: {exc}; env={env_log!r}")
-                return 1
+        if "socket_password=socket-password-should-not-propagate" in env_log:
+            print(f"FAIL: plugin propagated CMUX_SOCKET_PASSWORD into child, got {env_log!r}")
+            return 1
+        if "socket_capability=socket-capability-should-not-propagate" in env_log:
+            print(f"FAIL: plugin propagated CMUX_SOCKET_CAPABILITY into child, got {env_log!r}")
+            return 1
+        argv_line = next(
+            (
+                line
+                for line in env_log.splitlines()
+                if line.startswith("argv=") and line != "argv="
+            ),
+            "",
+        )
+        try:
+            argv_value = argv_line[len("argv="):] if argv_line.startswith("argv=") else argv_line
+            decoded_argv = [
+                value
+                for value in base64.b64decode(argv_value).decode("utf-8").split("\0")
+                if value
+            ]
+        except Exception as exc:
+            print(f"FAIL: plugin launch argv was not valid base64 NUL data: {exc}; env={env_log!r}")
+            return 1
         expected_argv = [
             str(fake_amp),
             "--mode",
             "geppetto",
         ]
-        if expected_argv not in decoded_argv_values:
-            print(f"FAIL: plugin captured wrong Amp launch argv; expected {expected_argv!r}, got {decoded_argv_values!r}")
-            return 1
-        expected_fallback_argv = ["/Users/example/custom-amp-launcher", "--mode", "fallback"]
-        if expected_fallback_argv not in decoded_argv_values:
-            print(
-                "FAIL: plugin dropped unrecognized launch arguments; "
-                f"expected {expected_fallback_argv!r}, got {decoded_argv_values!r}"
-            )
+        if decoded_argv != expected_argv:
+            print(f"FAIL: plugin captured wrong Amp launch argv; expected {expected_argv!r}, got {decoded_argv!r}")
             return 1
 
     print("PASS: generated Amp plugin installs and emits cmux hooks")

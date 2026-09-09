@@ -80,6 +80,38 @@ extension ControlCommandCoordinator {
             return nil
         }()
 
+        let processGeneration: ControlSidebarAgentProcessGeneration?
+        if parsed.options["pid-start-seconds"] != nil
+            || parsed.options["pid-start-microseconds"] != nil {
+            let strings =
+                context?.controlSidebarAgentStrings() ?? .englishFallback
+            let generationResolution = sidebarParseAgentProcessGeneration(
+                options: parsed.options,
+                usage: strings.setAgentPIDUsage,
+                strings: strings
+            )
+            if let error = generationResolution.error {
+                return error
+            }
+            processGeneration = generationResolution.generation
+        } else {
+            processGeneration = nil
+        }
+        if pidValue != nil,
+           processGeneration == nil,
+           context?.controlSidebarRequiresAgentProcessGeneration(
+               key,
+               target: target,
+               panelID: panelResolution.panelId
+           ) == true {
+            // A PID-bearing built-in status must carry the same complete
+            // generation tuple required by the dedicated agent commands;
+            // otherwise the deferred app mutation will be rejected after we
+            // have already told the caller "OK".
+            let strings =
+                context?.controlSidebarAgentStrings() ?? .englishFallback
+            return strings.processGenerationRequired
+        }
         context?.controlSidebarScheduleStatusUpsert(
             target: target,
             key: key,
@@ -90,7 +122,8 @@ extension ControlCommandCoordinator {
             priority: priority,
             format: format,
             panelID: panelResolution.panelId,
-            pid: pidValue
+            pid: pidValue,
+            processGeneration: processGeneration
         )
         return "OK"
     }
@@ -325,10 +358,12 @@ extension ControlCommandCoordinator {
     /// (parse + bus enqueue; zero main hops).
     nonisolated func sidebarSetAgentPID(_ args: String, context: (any ControlCommandContext)?) -> String {
         let parsed = sidebarParseOptions(args)
-        let usage = "set_agent_pid <key> <pid> [--tab=<id>] [--panel=<id>]"
+        let strings =
+            context?.controlSidebarAgentStrings() ?? .englishFallback
+        let usage = strings.setAgentPIDUsage
         guard parsed.positional.count >= 2,
               let pid = Int32(parsed.positional[1]), pid > 0 else {
-            return "ERROR: Usage: \(usage)"
+            return strings.usageError(usage: usage)
         }
         let key = parsed.positional[0]
         let targetResolution = sidebarParseMutationTabTarget(options: parsed.options)
@@ -339,30 +374,55 @@ extension ControlCommandCoordinator {
         if let error = panelResolution.error {
             return error
         }
+        let generationResolution = sidebarParseAgentProcessGeneration(
+            options: parsed.options,
+            usage: usage,
+            strings: strings
+        )
+        if let error = generationResolution.error {
+            return error
+        }
+        if let generation = generationResolution.generation,
+           generation.pid != pid {
+            return strings.processGenerationPIDMismatch
+        }
+        if generationResolution.generation == nil,
+           context?.controlSidebarRequiresAgentProcessGeneration(
+               key,
+               target: target,
+               panelID: panelResolution.panelId
+           ) == true {
+            return strings.processGenerationRequired
+        }
         context?.controlSidebarScheduleAgentPIDRecord(
             target: target,
             key: key,
             pid: pid,
+            processGeneration: generationResolution.generation,
             panelID: panelResolution.panelId
         )
         return "OK"
     }
 
     /// `set_agent_lifecycle` — record a restorable agent session's lifecycle.
-    /// The vault-registry allowlist check
-    /// (`controlSidebarIsAllowedAgentLifecycleKey`) owns this command's single
-    /// main hop app-side: it snapshots the tab/panel directory candidates on
-    /// main and runs the registry disk IO on the calling thread.
+    /// The allowlist and local-generation requirement checks collectively own
+    /// at most one app-side main hop: custom keys resolve their vault registry,
+    /// while built-ins resolve whether their owner is in a remote PID namespace.
     nonisolated func sidebarSetAgentLifecycle(_ args: String, context: (any ControlCommandContext)?) -> String {
         let parsed = sidebarParseOptions(args)
-        let usage = "set_agent_lifecycle <key> <unknown|running|idle|needsInput> [--tab=<id>] [--panel=<id>]"
+        let strings =
+            context?.controlSidebarAgentStrings() ?? .englishFallback
+        let usage = strings.setAgentLifecycleUsage
         guard parsed.positional.count >= 2 else {
-            return "ERROR: Usage: \(usage)"
+            return strings.usageError(usage: usage)
         }
         let key = parsed.positional[0]
         let rawLifecycle = parsed.positional[1]
         guard let lifecycleRawValue = context?.controlSidebarParseAgentLifecycle(rawLifecycle) else {
-            return "ERROR: Invalid agent lifecycle '\(parsed.positional[1])' — usage: \(usage)"
+            return strings.invalidLifecycle(
+                parsed.positional[1],
+                usage: usage
+            )
         }
         let targetResolution = sidebarParseMutationTabTarget(options: parsed.options)
         guard let target = targetResolution.target else {
@@ -370,6 +430,14 @@ extension ControlCommandCoordinator {
         }
         let panelResolution = sidebarParseOptionalPanelIdOption(options: parsed.options, usage: usage)
         if let error = panelResolution.error {
+            return error
+        }
+        let generationResolution = sidebarParseAgentProcessGeneration(
+            options: parsed.options,
+            usage: usage,
+            strings: strings
+        )
+        if let error = generationResolution.error {
             return error
         }
         guard context?.controlSidebarIsAllowedAgentLifecycleKey(
@@ -377,12 +445,21 @@ extension ControlCommandCoordinator {
             target: target,
             panelID: panelResolution.panelId
         ) ?? false else {
-            return "ERROR: Unsupported agent lifecycle key '\(key)'"
+            return strings.unsupportedLifecycleKey(key)
+        }
+        if generationResolution.generation == nil,
+           context?.controlSidebarRequiresAgentProcessGeneration(
+               key,
+               target: target,
+               panelID: panelResolution.panelId
+           ) == true {
+            return strings.processGenerationRequired
         }
         context?.controlSidebarScheduleAgentLifecycle(
             target: target,
             key: key,
             lifecycleRawValue: lifecycleRawValue,
+            processGeneration: generationResolution.generation,
             panelID: panelResolution.panelId
         )
         return "OK"
@@ -441,121 +518,4 @@ extension ControlCommandCoordinator {
     /// (`Tab not found` / `No tab selected`) requires the synchronous append
     /// result, so the write is the command's single main hop; level
     /// validation and message assembly run on the calling thread.
-    nonisolated func sidebarAppendLog(_ args: String, context: (any ControlCommandContext)?) -> String {
-        let parsed = sidebarParseOptions(args)
-        guard !parsed.positional.isEmpty else {
-            return "ERROR: Missing message — usage: log [--level=X] [--source=X] [--tab=X] -- <message>"
-        }
-        let message = parsed.positional.joined(separator: " ")
-        let levelStr = parsed.options["level"] ?? "info"
-        guard context?.controlSidebarIsValidLogLevel(levelStr) ?? false else {
-            return "ERROR: Unknown log level '\(levelStr)' — use: info, progress, success, warning, error"
-        }
-        let source = parsed.options["source"]
-        let tabArg = parsed.options["tab"]
-
-        let appended = context.map { seam in
-            seam.controlSidebarOnMain {
-                $0.controlSidebarAppendLog(
-                    tabArg: tabArg,
-                    message: message,
-                    levelRawValue: levelStr,
-                    source: source
-                )
-            }
-        } ?? false
-        guard appended else {
-            return parsed.options["tab"] != nil ? "ERROR: Tab not found" : "ERROR: No tab selected"
-        }
-        return "OK"
-    }
-
-    /// `clear_log` — clear the sidebar log (one resolution hop).
-    nonisolated func sidebarClearLog(_ args: String, context: (any ControlCommandContext)?) -> String {
-        let tabArg = sidebarParseOptions(args).options["tab"]
-        let cleared = context.map { seam in
-            seam.controlSidebarOnMain { $0.controlSidebarClearLog(tabArg: tabArg) }
-        } ?? false
-        guard cleared else {
-            return "ERROR: Tab not found"
-        }
-        return "OK"
-    }
-
-    /// `list_log` — list sidebar log entries (limit parse, suffix slice, and
-    /// line formatting off-main around one snapshot hop).
-    nonisolated func sidebarListLog(_ args: String, context: (any ControlCommandContext)?) -> String {
-        let parsed = sidebarParseOptions(args)
-        var limit: Int?
-        if let limitStr = parsed.options["limit"] {
-            if limitStr.isEmpty {
-                return "ERROR: Missing limit value — usage: list_log [--limit=N] [--tab=X]"
-            }
-            guard let parsedLimit = Int(limitStr), parsedLimit >= 0 else {
-                return "ERROR: Invalid limit '\(limitStr)' — must be >= 0"
-            }
-            limit = parsedLimit
-        }
-
-        let tabArg = parsed.options["tab"]
-        let snapshot = context.map { seam in
-            seam.controlSidebarOnMain { $0.controlSidebarLogEntries(tabArg: tabArg) }
-        } ?? nil
-        guard let allEntries = snapshot else {
-            return parsed.options["tab"] != nil ? "ERROR: Tab not found" : "ERROR: No tab selected"
-        }
-        if allEntries.isEmpty {
-            return "No log entries"
-        }
-        let entries: [ControlSidebarLogEntrySnapshot]
-        if let limit {
-            entries = Array(allEntries.suffix(limit))
-        } else {
-            entries = allEntries
-        }
-        return entries.map { entry in
-            var line = "[\(entry.levelRawValue)] \(entry.message)"
-            if let source = entry.source, !source.isEmpty {
-                line = "[\(source)] \(line)"
-            }
-            return line
-        }.joined(separator: "\n")
-    }
-
-    /// `set_progress` — set the sidebar progress bar (value parse/clamp
-    /// off-main, one resolution hop for the write).
-    nonisolated func sidebarSetProgress(_ args: String, context: (any ControlCommandContext)?) -> String {
-        let parsed = sidebarParseOptions(args)
-        guard let first = parsed.positional.first else {
-            return "ERROR: Missing progress value — usage: set_progress <0.0-1.0> [--label=X] [--tab=X]"
-        }
-        guard let value = Double(first), value.isFinite else {
-            return "ERROR: Invalid progress value '\(first)' — must be 0.0 to 1.0"
-        }
-        let clamped = min(1.0, max(0.0, value))
-        let label = parsed.options["label"]
-        let tabArg = parsed.options["tab"]
-
-        let applied = context.map { seam in
-            seam.controlSidebarOnMain {
-                $0.controlSidebarSetProgress(tabArg: tabArg, value: clamped, label: label)
-            }
-        } ?? false
-        guard applied else {
-            return parsed.options["tab"] != nil ? "ERROR: Tab not found" : "ERROR: No tab selected"
-        }
-        return "OK"
-    }
-
-    /// `clear_progress` — clear the sidebar progress bar (one resolution hop).
-    nonisolated func sidebarClearProgress(_ args: String, context: (any ControlCommandContext)?) -> String {
-        let tabArg = sidebarParseOptions(args).options["tab"]
-        let cleared = context.map { seam in
-            seam.controlSidebarOnMain { $0.controlSidebarClearProgress(tabArg: tabArg) }
-        } ?? false
-        guard cleared else {
-            return "ERROR: Tab not found"
-        }
-        return "OK"
-    }
 }

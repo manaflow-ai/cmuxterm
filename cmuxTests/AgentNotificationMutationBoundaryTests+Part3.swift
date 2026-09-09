@@ -1,0 +1,419 @@
+import CmuxControlSocket
+import CmuxCore
+import Darwin
+import Foundation
+import Testing
+#if canImport(cmux_DEV)
+@testable import cmux_DEV
+#elseif canImport(cmux)
+@testable import cmux
+#endif
+
+extension AgentNotificationRegressionTests {
+    @Test("Live PID routing and runtime mutations include a Dock-owned terminal")
+    func liveTTYBindingsAndRuntimeMutationsIncludeDockOwnedTerminal() throws {
+        let fixture = try makeFixture()
+        defer { fixture.restore() }
+        let bus = TerminalMutationBus.shared
+        defer {
+            bus.setDrainsSuspendedForTesting(false)
+            bus.drainForTesting()
+        }
+        let dockOwnerId = UUID()
+        let dock = DockSplitStore(workspaceId: dockOwnerId, baseDirectoryProvider: { nil })
+        fixture.source.registerReportedSurfaceTTYName("/dev/null", panelId: fixture.panelId)
+        fixture.source.setAgentLifecycle(
+            key: "manual:workspace-loader",
+            panelId: fixture.panelId,
+            lifecycle: .running
+        )
+
+        let transfer = try #require(fixture.source.detachSurface(panelId: fixture.panelId))
+        let rootPane = try #require(dock.bonsplitController.allPaneIds.first)
+        #expect(dock.attachDetachedSurface(transfer, inPane: rootPane, focus: false) == fixture.panelId)
+        #expect(fixture.source.localAgentDeliveryTTYDevices.allSatisfy { $0.surfaceId != fixture.panelId })
+
+        let binding = try #require(
+            fixture.appDelegate.liveAgentDeliveryTTYBindings().first {
+                $0.workspaceId == dockOwnerId && $0.surfaceId == fixture.panelId
+            }
+        )
+        #expect(binding.ttyDevice > 0)
+
+        let sessionKey = "omp.dock-session"
+        let processIdentity = try #require(
+            AgentPIDProcessIdentity(pid: getpid())
+        )
+        let processGeneration = ControlSidebarAgentProcessGeneration(
+            pid: processIdentity.pid,
+            startSeconds: processIdentity.startSeconds,
+            startMicroseconds: processIdentity.startMicroseconds
+        )
+        TerminalController.shared.controlSidebarScheduleAgentPIDRecord(
+            target: .workspace(dockOwnerId),
+            key: sessionKey,
+            pid: getpid(),
+            processGeneration: processGeneration,
+            panelID: fixture.panelId
+        )
+        TerminalController.shared.controlSidebarScheduleStatusUpsert(
+            target: .workspace(dockOwnerId),
+            key: "omp",
+            value: "Running",
+            icon: nil,
+            color: nil,
+            url: nil,
+            priority: 0,
+            format: .plain,
+            panelID: fixture.panelId,
+            pid: nil
+        )
+        TerminalController.shared.controlSidebarScheduleAgentLifecycle(
+            target: .workspace(dockOwnerId),
+            key: "omp",
+            lifecycleRawValue: AgentHibernationLifecycleState.running.rawValue,
+            processGeneration: processGeneration,
+            panelID: fixture.panelId
+        )
+        bus.drainForTesting()
+
+        let runtime = try #require(dock.agentRuntimeByPanelId[fixture.panelId])
+        #expect(runtime.statusEntries["omp"]?.value == "Running")
+        #expect(runtime.agentPIDs[sessionKey] == getpid())
+        #expect(runtime.agentLifecycleStates["omp"] == .running)
+        #expect(runtime.agentLifecycleStates["manual:workspace-loader"] == nil)
+
+        #expect(
+            !dock.clearAgentPID(
+                key: "omp.superseded",
+                panelId: fixture.panelId,
+                clearStatus: true,
+                requireOwnedKey: true
+            )
+        )
+        #expect(dock.agentRuntimeByPanelId[fixture.panelId]?.statusEntries["omp"]?.value == "Running")
+        #expect(dock.agentRuntimeByPanelId[fixture.panelId]?.agentLifecycleStates["omp"] == .running)
+
+        TerminalController.shared.controlSidebarScheduleStatusClear(
+            target: .workspace(dockOwnerId),
+            key: "omp",
+            panelID: fixture.panelId
+        )
+        bus.drainForTesting()
+        #expect(dock.agentRuntimeByPanelId[fixture.panelId]?.statusEntries["omp"] == nil)
+        #expect(dock.agentRuntimeByPanelId[fixture.panelId]?.agentLifecycleStates["omp"] == nil)
+
+        TerminalController.shared.controlSidebarScheduleStatusUpsert(
+            target: .workspace(dockOwnerId),
+            key: "omp",
+            value: "Running",
+            icon: nil,
+            color: nil,
+            url: nil,
+            priority: 0,
+            format: .plain,
+            panelID: fixture.panelId,
+            pid: nil
+        )
+        TerminalController.shared.controlSidebarScheduleAgentLifecycle(
+            target: .workspace(dockOwnerId),
+            key: "omp",
+            lifecycleRawValue: AgentHibernationLifecycleState.running.rawValue,
+            processGeneration: processGeneration,
+            panelID: fixture.panelId
+        )
+        bus.drainForTesting()
+        #expect(dock.agentRuntimeByPanelId[fixture.panelId]?.agentLifecycleStates["omp"] == .running)
+
+        let workspaceTransfer = try #require(dock.detachSurface(panelId: fixture.panelId))
+        #expect(dock.agentRuntimeByPanelId[fixture.panelId] == nil)
+        let destinationPane = try #require(fixture.destination.bonsplitController.allPaneIds.first)
+        #expect(
+            fixture.destination.attachDetachedSurface(
+                workspaceTransfer,
+                inPane: destinationPane,
+                focus: false
+            ) == fixture.panelId
+        )
+        #expect(fixture.destination.statusEntries["omp"]?.value == "Running")
+        #expect(fixture.destination.agentPIDs[sessionKey] == getpid())
+        #expect(
+            fixture.destination.agentLifecycleStatesByPanelId[fixture.panelId]?["omp"]
+                == .running
+        )
+
+        // The socket target still names the old Dock owner. Panel ownership is
+        // resolved when the queued mutation drains, so the clear follows the
+        // panel into its destination workspace.
+        TerminalController.shared.controlSidebarScheduleAgentPIDClear(
+            target: .workspace(dockOwnerId),
+            key: sessionKey,
+            panelID: fixture.panelId,
+            clearStatus: true
+        )
+        bus.drainForTesting()
+        #expect(fixture.destination.statusEntries["omp"] == nil)
+        #expect(fixture.destination.agentPIDs[sessionKey] == nil)
+        #expect(
+            fixture.destination.agentLifecycleStatesByPanelId[fixture.panelId]?["omp"]
+                == nil
+        )
+    }
+
+    @Test("A stale source clear preserves a destination-confined stored notification")
+    func staleSourceClearPreservesDestinationConfinedStoredNotification() throws {
+        let fixture = try makeFixture()
+        defer { fixture.restore() }
+        try movePanel(fixture)
+
+        fixture.store.addNotification(
+            tabId: fixture.destination.id,
+            surfaceId: fixture.panelId,
+            title: "Relay",
+            subtitle: "Completed",
+            body: "Authorized only for destination",
+            retargetsToLiveSurfaceOwner: false
+        )
+
+        fixture.store.clearNotifications(
+            forTabId: fixture.source.id,
+            surfaceId: fixture.panelId
+        )
+
+        let recorded = fixture.store.notifications.filter {
+            $0.body == "Authorized only for destination"
+        }
+        #expect(recorded.map(\.tabId) == [fixture.destination.id])
+        #expect(recorded.first?.surfaceId == fixture.panelId)
+        #expect(recorded.first?.retargetsToLiveSurfaceOwner == false)
+    }
+
+    @Test("A queued workspace clear lets a moved surface notification drain first")
+    func queuedWorkspaceClearPreservesNotificationMovedToAnotherWorkspace() throws {
+        let fixture = try makeFixture()
+        defer { fixture.restore() }
+        let bus = TerminalMutationBus.shared
+        bus.discardPendingNotifications()
+        bus.setDrainsSuspendedForTesting(true)
+        defer {
+            bus.setDrainsSuspendedForTesting(false)
+            bus.discardPendingNotifications()
+        }
+
+        bus.enqueueNotification(
+            tabId: fixture.source.id,
+            surfaceId: fixture.panelId,
+            title: "Claude Code",
+            subtitle: "Completed",
+            body: "Queued before move and clear"
+        )
+        try movePanel(fixture)
+        bus.enqueueClearNotifications(forTabId: fixture.source.id)
+
+        bus.setDrainsSuspendedForTesting(false)
+        bus.drainForTesting()
+
+        let recorded = fixture.store.notifications.filter {
+            $0.body == "Queued before move and clear"
+        }
+        #expect(recorded.map(\.tabId) == [fixture.destination.id])
+        #expect(recorded.first?.surfaceId == fixture.panelId)
+    }
+
+    @Test("A queued clear preserves policy work registered after its barrier")
+    func queuedClearPreservesNewerInFlightPolicyDelivery() async throws {
+        let fixture = try makeFixture(policyHookCommand: "cat")
+        defer { fixture.restore() }
+        let bus = TerminalMutationBus.shared
+        bus.discardPendingNotifications()
+        bus.setDrainsSuspendedForTesting(true)
+        defer {
+            bus.setDrainsSuspendedForTesting(false)
+            bus.discardPendingNotifications()
+        }
+
+        bus.enqueueClearNotifications(
+            forTabId: fixture.source.id,
+            surfaceId: fixture.panelId
+        )
+        fixture.store.addNotification(
+            tabId: fixture.source.id,
+            surfaceId: fixture.panelId,
+            title: "Claude Code",
+            subtitle: "Completed",
+            body: "Registered after clear"
+        )
+
+        bus.setDrainsSuspendedForTesting(false)
+        bus.drainForTesting()
+        await waitForNotification(in: fixture.store)
+
+        #expect(fixture.store.notifications.map(\.body) == ["Registered after clear"])
+    }
+
+    @Test("Clearing policy work immediately releases its cooldown reservation")
+    func clearReleasesInFlightPolicyCooldownForReplacement() async throws {
+        let fixture = try makeFixture(policyHookCommand: "sleep 1; cat")
+        defer { fixture.restore() }
+        let cooldownKey = "replace-after-clear-\(UUID().uuidString)"
+
+        fixture.store.addNotification(
+            tabId: fixture.source.id,
+            surfaceId: fixture.panelId,
+            title: "Claude Code",
+            subtitle: "Completed",
+            body: "Discarded in flight",
+            cooldownKey: cooldownKey,
+            cooldownInterval: 60
+        )
+        fixture.store.clearNotifications(
+            forTabId: fixture.source.id,
+            surfaceId: fixture.panelId
+        )
+        fixture.store.addNotification(
+            tabId: fixture.source.id,
+            surfaceId: fixture.panelId,
+            title: "Claude Code",
+            subtitle: "Completed",
+            body: "Replacement after clear",
+            cooldownKey: cooldownKey,
+            cooldownInterval: 60
+        )
+
+        await waitForNotification(in: fixture.store)
+        #expect(fixture.store.notifications.map(\.body) == ["Replacement after clear"])
+    }
+
+    @Test("Correlation clear cancels only matching in-flight policy work")
+    func correlationClearCancelsMatchingInFlightPolicyWork() async throws {
+        let fixture = try makeFixture(policyHookCommand: "sleep 1; cat")
+        defer { fixture.restore() }
+        let correlationKey = "remote-host:\(UUID().uuidString)"
+
+        fixture.store.addNotification(
+            tabId: fixture.source.id,
+            surfaceId: nil,
+            title: "Remote Proxy Unavailable",
+            subtitle: "host",
+            body: "Transient proxy failure",
+            cooldownKey: correlationKey,
+            cooldownInterval: 60
+        )
+        fixture.store.addNotification(
+            tabId: fixture.source.id,
+            surfaceId: nil,
+            title: "Unrelated",
+            subtitle: "",
+            body: "Keep this notification"
+        )
+
+        fixture.store.clearNotifications(forTabId: fixture.source.id, correlationKey: correlationKey)
+        await waitForNotification(in: fixture.store)
+
+        #expect(fixture.store.notifications.map(\.body) == ["Keep this notification"])
+    }
+
+    @Test("Correlation clear preserves another workspace's same-host alert")
+    func correlationClearIsScopedToWorkspace() throws {
+        let fixture = try makeFixture()
+        defer { fixture.restore() }
+        let sourceCorrelationKey = "remote-host:\(UUID().uuidString)"
+        let correlationKey = "remote-host:\(UUID().uuidString)"
+
+        fixture.store.addNotification(
+            tabId: fixture.source.id,
+            surfaceId: nil,
+            title: "Remote Proxy Unavailable",
+            subtitle: "source",
+            body: "Recovered source alert",
+            cooldownKey: sourceCorrelationKey,
+            cooldownInterval: 60
+        )
+        fixture.store.clearNotifications(
+            forTabId: fixture.source.id,
+            correlationKey: sourceCorrelationKey
+        )
+        #expect(fixture.store.notifications.isEmpty)
+
+        fixture.store.addNotification(
+            tabId: fixture.destination.id,
+            surfaceId: nil,
+            title: "Remote Proxy Unavailable",
+            subtitle: "host",
+            body: "Same host in another workspace",
+            cooldownKey: correlationKey,
+            cooldownInterval: 60
+        )
+        fixture.store.clearNotifications(forTabId: fixture.source.id, correlationKey: correlationKey)
+
+        #expect(fixture.store.notifications.map(\.body) == ["Same host in another workspace"])
+    }
+
+    @Test("Clearing policy work discards a hook result that completes afterwards")
+    func clearTerminatesInFlightPolicyHookProcess() async throws {
+        // Subprocess termination on cancellation is best-effort and is NOT
+        // asserted: signal delivery through the xctest harness is not
+        // reliable on CI runners. The guaranteed, user-visible contract is
+        // that a cleared in-flight request's result is discarded — the hook
+        // here is gated on a marker so it completes strictly AFTER the clear,
+        // and its late result must not record a notification or unread ring.
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "cmux-policy-cancel-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let pidURL = root.appendingPathComponent("pid")
+        let proceedURL = root.appendingPathComponent("proceed")
+        let command = "printf '%s' $$ > '\(pidURL.path)'; while [ ! -e '\(proceedURL.path)' ]; do sleep 0.1; done; cat"
+        let fixture = try makeFixture(
+            policyHookCommand: command,
+            policyHookTimeoutSeconds: 60
+        )
+        defer {
+            fixture.restore()
+            if let rawPID = try? String(contentsOf: pidURL, encoding: .utf8),
+               let pid = pid_t(rawPID.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                _ = Darwin.kill(-pid, SIGKILL)
+                _ = Darwin.kill(pid, SIGKILL)
+            }
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        fixture.store.addNotification(
+            tabId: fixture.source.id,
+            surfaceId: fixture.panelId,
+            title: "Claude Code",
+            subtitle: "Completed",
+            body: "Cancel this hook"
+        )
+        #expect(await waitForMarker(at: pidURL))
+
+        fixture.store.clearNotifications(
+            forTabId: fixture.source.id,
+            surfaceId: fixture.panelId
+        )
+        FileManager.default.createFile(atPath: proceedURL.path, contents: nil)
+
+        // Wait for the hook subprocess to finish (it exits promptly once the
+        // proceed marker exists, or immediately if cancellation did
+        // terminate it), then give the completion path time to run.
+        if let rawPID = try? String(contentsOf: pidURL, encoding: .utf8),
+           let pid = pid_t(rawPID.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            let deadline = ContinuousClock.now + .seconds(15)
+            while Darwin.kill(pid, 0) == 0, ContinuousClock.now < deadline {
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+        }
+        try? await Task.sleep(for: .milliseconds(300))
+        for _ in 0..<100 { await Task.yield() }
+
+        #expect(
+            fixture.store.notifications.isEmpty,
+            "A cleared in-flight request's late hook result must be discarded"
+        )
+        #expect(
+            !fixture.store.hasUnreadNotification(forTabId: fixture.source.id, surfaceId: fixture.panelId)
+        )
+    }
+
+}

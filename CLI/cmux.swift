@@ -30801,7 +30801,7 @@ struct CMUXCLI {
                         transcriptPath: currentTranscriptPath,
                         workspaceId: workspaceId,
                         surfaceId: surfaceId,
-                        lastAssistantMessage: lastAssistantMessage
+                        lastAssistantMessage: lastAssistantMessage, boundary: .turnEnd
                     ) {
                         try replayStop(replay)
                     }
@@ -33843,6 +33843,16 @@ export default CMUXSessionRestore;
         }
         telemetry.breadcrumb("\(def.name)-hook.\(subcommand)")
 
+        if def.name == "codex", subcommand == "sync-native-title" {
+            runCodexNativeTitleSyncHook(
+                commandArgs: hookArgs,
+                environment: env,
+                client: client,
+                telemetry: telemetry
+            )
+            print("OK")
+            return
+        }
         if def.name == "codex", subcommand == "monitor" {
             try runCodexTranscriptMonitor(commandArgs: hookArgs, client: client) { replay in
                 try runGenericAgentHook(
@@ -33857,18 +33867,6 @@ export default CMUXSessionRestore;
             }
             return
         }
-
-        if def.name == "codex", subcommand == "sync-native-title" {
-            runCodexNativeTitleSyncHook(
-                commandArgs: hookArgs,
-                environment: env,
-                client: client,
-                telemetry: telemetry
-            )
-            print("OK")
-            return
-        }
-
         if subcommand == "auto-name", autoNamingSource(for: def) != nil {
             // Detached re-invocation spawned from the codex Stop hook (see
             // spawnDetachedAgentAutoName): runs the full naming pass without
@@ -33961,6 +33959,14 @@ export default CMUXSessionRestore;
             return resolved
         }
         func processBinding() -> CallerTerminalBinding? { processBindingResolution().binding }
+        func preferredAgentEventPID(mappedPID: Int?) -> Int? {
+            preferredAgentHookEventPID(
+                agentName: def.name,
+                mappedPID: mappedPID,
+                inferredPID: inferredPID,
+                verifiedPID: processBindingResolution().verifiedPID
+            )
+        }
 #if DEBUG
         func processBindingDebugState() -> String {
             guard let processBindingCache else { return "deferred" }
@@ -34769,6 +34775,7 @@ export default CMUXSessionRestore;
                 telemetry.breadcrumb("\(def.name)-hook.shell-resolution.missing-session")
                 return
             }
+            if let verifiedPID = processBindingResolution().verifiedPID, verifiedPID == inferredPID { concludeCursorNativeApprovalObservation(rawObject: input.rawObject ?? [:], agentPID: verifiedPID, sessionId: sessionId, socketPath: client.socketPath, socketPassword: socketPassword) }
             if failed {
                 guard let toolName = input.rawObject.flatMap({
                     firstString(in: $0, keys: ["tool_name", "toolName"])
@@ -34828,11 +34835,7 @@ export default CMUXSessionRestore;
                 return
             }
 
-            let pid = preferredAgentHookEventPID(
-                agentName: def.name,
-                mappedPID: mapped?.pid,
-                inferredPID: inferredPID
-            )
+            let pid = preferredAgentEventPID(mappedPID: mapped?.pid)
             let launchCommand = (def.name == "cursor" ? mapped?.launchCommand : nil)
                 ?? agentLaunchCommandFromEnvironment(
                     env,
@@ -35034,7 +35037,6 @@ export default CMUXSessionRestore;
             cursorLifecycleLease?.release()
             cursorLifecycleLease = nil
         }
-
         switch action {
         case .titleUpdate:
             didSendFeedTelemetry = true
@@ -35385,7 +35387,7 @@ export default CMUXSessionRestore;
                     client: client
                 )
             }
-            let pid = preferredAgentHookEventPID(agentName: def.name, mappedPID: mapped?.pid, inferredPID: inferredPID)
+            let pid = preferredAgentEventPID(mappedPID: mapped?.pid)
             let launchCommand = agentLaunchCommandFromEnvironment(env, fallbackPID: pid, fallbackKind: def.name, cwd: hookCwd ?? mapped?.cwd)
             let transcriptPathForStore = input.transcriptPath ?? mapped?.transcriptPath
             let resumeLaunchCommand = preferredAgentHookResumeLaunchCommand(
@@ -35829,7 +35831,7 @@ export default CMUXSessionRestore;
             if def.name != "cursor" {
                 sendAgentFeedTelemetry(workspaceId: workspaceId, surfaceId: surfaceId)
             }
-            let pid = preferredAgentHookEventPID(agentName: def.name, mappedPID: mapped?.pid, inferredPID: inferredPID)
+            let pid = preferredAgentEventPID(mappedPID: mapped?.pid)
             let codexFailure: CodexHookFailureSummary?
             if def.name == "codex" {
                 codexFailure = summarizeCodexHookFailure(parsedInput: input, sessionId: sessionId, env: env)
@@ -36346,7 +36348,7 @@ export default CMUXSessionRestore;
             let workspaceId = target.workspaceId
             let surfaceId = target.surfaceId
             sendAgentFeedTelemetryUnlessSuppressed(workspaceId: workspaceId, surfaceId: surfaceId)
-            let pid = preferredAgentHookEventPID(agentName: def.name, mappedPID: mapped?.pid, inferredPID: inferredPID)
+            let pid = preferredAgentEventPID(mappedPID: mapped?.pid)
             let launchCommand = agentLaunchCommandFromEnvironment(
                 env,
                 fallbackPID: pid,
@@ -36519,8 +36521,8 @@ export default CMUXSessionRestore;
                     return
                 }
                 cursorApprovalNotificationCorrelationKey = rememberResult.notificationCorrelationKey
+                if let verifiedPID = processBindingResolution().verifiedPID, verifiedPID == inferredPID { startCursorNativeApprovalObservation(rawObject: input.rawObject ?? [:], agentPID: verifiedPID, sessionId: sessionId, workspaceId: workspaceId, surfaceId: surfaceId, socketPath: client.socketPath) }
             }
-
             var summary = summarizeAgentHookNotification(
                 def: def,
                 parsedInput: input,
@@ -36648,7 +36650,7 @@ export default CMUXSessionRestore;
             }
 
             if !sessionId.isEmpty {
-                let pid = preferredAgentHookEventPID(agentName: def.name, mappedPID: mapped?.pid, inferredPID: inferredPID)
+                let pid = preferredAgentEventPID(mappedPID: mapped?.pid)
                 let launchCommand = agentLaunchCommandFromEnvironment(
                     env,
                     fallbackPID: pid,
@@ -36741,11 +36743,7 @@ export default CMUXSessionRestore;
             if !summary.body.isEmpty {
                 // One ancestry walk per delivered notification, feeding the
                 // notify payload's subagent tag below.
-                let notificationEventPID = preferredAgentHookEventPID(
-                    agentName: def.name,
-                    mappedPID: mapped?.pid,
-                    inferredPID: inferredPID
-                )
+                let notificationEventPID = preferredAgentEventPID(mappedPID: mapped?.pid)
                 let isNestedAgentSession = nestedAgentSessionDetected(
                     currentAgentPID: notificationEventPID,
                     env: env
@@ -39161,9 +39159,9 @@ export default CMUXSessionRestore;
         ) else { return }
         let evidence = Self.semanticAttentionContext(eventDict)
         if classification.clearsNativeApprovalPrompt {
-            guard evidence.requestIdentity != nil,
-                  let workspaceID = liveTarget?.workspaceId ?? ambientWorkspaceId,
+            guard let workspaceID = liveTarget?.workspaceId ?? ambientWorkspaceId,
                   let surfaceID = liveTarget?.surfaceId ?? ambientSurfaceId else { return }
+            guard (try? activeClient.send(command: attentionLine, responseTimeout: remainingBudget(), deadline: deadline)) != nil else { return }
             emitAgentJournalEvent(client: activeClient, kind: .attentionResolved,
                 source: source, agentKey: Self.agentDef(named: source)?.statusKey ?? source,
                 sessionId: FeedWorkstreamIdentifier(rawValue: eventDict["session_id"] as? String ?? "")?.sessionID,
@@ -40482,6 +40480,8 @@ export default CMUXSessionRestore;
             }
             telemetry.breadcrumb("hooks.\(def.name).dispatch")
             do {
+                if def.name == "cursor", rest.first == "__observe-native-approval" { try runCursorNativeApprovalObserver(commandArgs: Array(rest.dropFirst()), socketPath: client.socketPath, socketPassword: socketPassword); return }
+                if rest.first == "__native-attention" { guard let source = BuiltInAgentIntegration(feedSourceName: def.name) else { throw CLIError(message: "Unknown hooks target: \(def.name)") }; try runNativeAgentAttention(source: source, commandArgs: Array(rest.dropFirst()), socketPath: client.socketPath, socketPassword: socketPassword); return }
                 try runGenericAgentHook(
                     def: def,
                     commandArgs: rest,

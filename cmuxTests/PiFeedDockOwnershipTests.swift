@@ -165,6 +165,52 @@ struct PiFeedDockOwnershipTests {
     }
 
     @MainActor
+    @Test("Native attention follows the workspace when a stale Dock copies its panel")
+    func nativeAttentionPrefersLiveWorkspaceOverStaleDockCopy() async throws {
+        try await withAppContext { appDelegate, _, workspace, windowID in
+            let panel = try workspace.seedPiFeedPanel()
+            let staleDock = appDelegate.windowDock(forWindowId: windowID)
+            _ = try staleDock.seedPiFeedPanel(id: panel.id)
+            let generation = try #require(
+                AgentPIDProcessIdentity(pid: getpid())
+            )
+
+            let began = FeedCoordinator.shared.beginObservedAgentAttention(
+                source: "amp",
+                sessionId: "amp-stale-dock-native-attention",
+                observationId: "amp-stale-dock-native-observation",
+                scopeId: "amp-stale-dock-native-scope",
+                workspaceId: workspace.id,
+                surfaceId: panel.id,
+                processGeneration: generation
+            )
+            #expect(
+                began,
+                "A stale Dock copy must not prevent native attention from reaching the panel's live workspace."
+            )
+            #expect(
+                workspace.agentLifecycleStatesByPanelId[panel.id]?["amp"] == .needsInput
+            )
+            #expect(
+                staleDock.agentRuntimeByPanelId[panel.id] == nil,
+                "The stale Dock must not receive the native attention mutation."
+            )
+
+            if began {
+                #expect(
+                    FeedCoordinator.shared.endObservedAgentAttention(
+                        source: "amp",
+                        sessionId: "amp-stale-dock-native-attention",
+                        observationId: "amp-stale-dock-native-observation",
+                        scopeId: "amp-stale-dock-native-scope",
+                        processGeneration: generation
+                    ) == 1
+                )
+            }
+        }
+    }
+
+    @MainActor
     @Test("Muted workspaces do not surface or reorder blocking Feed attention")
     func mutedWorkspaceSuppressesBlockingFeedAttention() async throws {
         try await withAppContext { _, manager, workspace, _ in
@@ -921,52 +967,4 @@ struct PiFeedDockOwnershipTests {
         }
     }
 
-    @MainActor
-    private func withAppContext(
-        _ body: @MainActor (AppDelegate, TabManager, Workspace, UUID) async throws -> Void
-    ) async throws {
-        try await AppContextSerialGate.withExclusiveAppContext {
-            let previousAppDelegate = AppDelegate.shared
-            let appDelegate = AppDelegate()
-            let manager = TabManager(autoWelcomeIfNeeded: false)
-            AppDelegate.shared = appDelegate
-            appDelegate.tabManager = manager
-            appDelegate.didAttemptStartupSessionRestore = true
-            let windowID = appDelegate.registerMainWindowContextForTesting(tabManager: manager)
-            let workspace = manager.addWorkspace(select: true)
-            defer {
-                appDelegate.unregisterMainWindowContextForTesting(windowId: windowID)
-                appDelegate.forgetRecoverableMainWindowRoute(windowId: windowID)
-                manager.tabs.forEach { $0.teardownAllPanels() }
-                appDelegate.tabManager = nil
-                AppDelegate.shared = previousAppDelegate
-            }
-
-            try await body(appDelegate, manager, workspace, windowID)
-        }
-    }
-
-    private static func acknowledgmentPayload(
-        _ result: TerminalController.V2CallResult
-    ) throws -> [String: Any] {
-        guard case .ok(let rawPayload) = result,
-              let payload = rawPayload as? [String: Any] else {
-            Issue.record("expected authoritative Pi Feed insertion, got \(result)")
-            return [:]
-        }
-        return payload
-    }
-
-    private static func ingestAcknowledgedOffMainActor(
-        _ events: [WorkstreamEvent]
-    ) async -> TerminalController.V2CallResult {
-        let resultBox = PiFeedV2CallResultBox()
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                resultBox.value = TerminalController.shared.v2IngestAcknowledgedFeedEvents(events)
-                continuation.resume()
-            }
-        }
-        return resultBox.value!
-    }
 }
