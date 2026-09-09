@@ -12814,11 +12814,17 @@ class TerminalController {
     /// shadowing pane-local Bonsplit drop targets.
     private func dragHitChain(_ args: String) -> String {
         let parts = args.split(separator: " ").map(String.init)
-        guard parts.count == 2,
+        guard parts.count == 2 || parts.count == 3,
               let nx = Double(parts[0]), let ny = Double(parts[1]),
-              (0...1).contains(nx), (0...1).contains(ny) else {
-            return "ERROR: Usage: drag_hit_chain <x 0-1> <y 0-1>"
+              (0...1).contains(nx), (0...1).contains(ny),
+              parts.count == 2 || parts[2] == "content" || parts[2] == "theme" else {
+            return "ERROR: Usage: drag_hit_chain <x 0-1> <y 0-1> [theme|content]"
         }
+        // `content` reproduces the traversal Bonsplit's tab-drag veto and the
+        // sidebar-divider diagnostic use (`contentView.hitTest` with a point
+        // converted into the content view), and reports the geometry that
+        // decides whether that traversal agrees with the theme-frame one.
+        let traversesContentView = parts.count == 3 && parts[2] == "content"
 
         var result = "ERROR: No window"
         v2MainSync {
@@ -12840,8 +12846,19 @@ class TerminalController {
             if let overlay { overlay.isHidden = true }
             defer { overlay?.isHidden = false }
 
-            guard let hit = themeFrame.hitTest(pointInTheme) else {
-                result = "none"
+            let geometry = "geometry contentFrame=\(NSStringFromRect(contentView.frame)) " +
+                "contentBounds=\(NSStringFromRect(contentView.bounds)) " +
+                "contentFlipped=\(contentView.isFlipped) themeFlipped=\(themeFrame.isFlipped) " +
+                "currentEvent=\(NSApp.currentEvent.map { String(describing: $0.type) } ?? "nil")"
+            let resolvedHit: NSView?
+            if traversesContentView {
+                let windowPoint = themeFrame.convert(pointInTheme, to: nil)
+                resolvedHit = contentView.hitTest(contentView.convert(windowPoint, from: nil))
+            } else {
+                resolvedHit = themeFrame.hitTest(pointInTheme)
+            }
+            guard let hit = resolvedHit else {
+                result = "none " + geometry
                 return
             }
 
@@ -12853,7 +12870,7 @@ class TerminalController {
                 current = view.superview
                 depth += 1
             }
-            result = chain.joined(separator: "->")
+            result = chain.joined(separator: "->") + " " + geometry
         }
         return result
     }
