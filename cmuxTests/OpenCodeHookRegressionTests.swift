@@ -17,7 +17,7 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         let pluginURL = repoRoot.appendingPathComponent("Resources/opencode-plugin.js", isDirectory: false)
         XCTAssertTrue(fileManager.fileExists(atPath: pluginURL.path))
 
-        let root = fileManager.temporaryDirectory.appendingPathComponent(
+        let root = URL(fileURLWithPath: "/tmp", isDirectory: true).appendingPathComponent(
             "cmux-opencode-feed-\(UUID().uuidString)", isDirectory: true
         )
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
@@ -27,9 +27,10 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         let harnessURL = root.appendingPathComponent("harness.js")
         try Self.openCodeFeedEventHarness.write(to: harnessURL, atomically: true, encoding: .utf8)
 
+        let nodeExecutable = ProcessInfo.processInfo.environment["CMUX_NODE_BINARY"] ?? "node"
         let result = runProcess(
-            executablePath: "/usr/bin/env",
-            arguments: ["node", harnessURL.path, pluginURL.path, socketPath],
+            executablePath: nodeExecutable,
+            arguments: [harnessURL.path, pluginURL.path, socketPath],
             environment: ProcessInfo.processInfo.environment,
             timeout: 5
         )

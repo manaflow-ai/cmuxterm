@@ -296018,6 +296018,23 @@
     "titlebar.cloudVM.tooltip": {"extractionState":"manual","localizations":{"ar":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"bs":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"da":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"de":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"en":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"es":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"fr":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"it":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"ja":{"stringUnit":{"state":"translated","value":"Cloud VM を開く"}},"km":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"ko":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"nb":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"pl":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"pt-BR":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"ru":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"th":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"tr":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"uk":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"Open Cloud VM"}}}},
     "cloudTree.error.localForwardURLUnavailable": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"cmux could not build a local address for this port forward."}},"ja":{"stringUnit":{"state":"translated","value":"cmux はこのポート転送用のローカルアドレスを作成できませんでした。"}}}},
     "cli.vpn.appManaged.explainReconnect": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"This turns the cmux Cloud Tunnel back on, so every app on this Mac can reach your Cloud VM network. cmux itself does not need it: terminals, Ports, and Desktop use the built-in user-space tunnel."}},"ja":{"stringUnit":{"state":"translated","value":"これにより cmux クラウドトンネルが再びオンになり、この Mac のすべてのアプリがクラウド VM ネットワークに到達できるようになります。cmux 自体には不要です。ターミナル、ポート、デスクトップは内蔵のユーザー空間トンネルを使います。"}}}},
+    "cli.claude.nodeOptionsRestoreError": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude integration could not prepare its runtime environment."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude 連携の実行環境を準備できませんでした。"
+          }
+        }
+      }
+    },
     "agentRestore.admission.invalid": {
       "extractionState": "manual",
       "localizations": {

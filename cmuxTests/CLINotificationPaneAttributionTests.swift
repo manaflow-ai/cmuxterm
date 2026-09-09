@@ -6,6 +6,78 @@ import Foundation
 // harness (`CLINotifyProcessIntegrationRegressionTests`), whose process runner
 // and mock server lifecycle are shared with the surrounding integration suite.
 extension CLINotifyProcessIntegrationRegressionTests {
+    func testCodexPostToolUseWithoutRequestIdentityFallsBackToPaneClear() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = makeSocketPath("codex-post-tool-clear-fallback")
+        let listenerFD = try bindUnixSocket(at: socketPath)
+        let state = MockSocketServerState()
+        let workspaceId = "11111111-1111-1111-1111-111111111111"
+        let surfaceId = "22222222-2222-2222-2222-222222222222"
+
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+        }
+
+        let serverHandled = startMockServer(listenerFD: listenerFD, state: state) { line in
+            guard let payload = self.jsonObject(line) else {
+                return "OK"
+            }
+            guard let id = payload["id"] as? String,
+                  let method = payload["method"] as? String else {
+                return self.malformedRequestResponse(id: payload["id"] as? String, raw: line)
+            }
+            switch method {
+            case "agent.resolve_delivery_target":
+                return self.v2Response(
+                    id: id,
+                    ok: false,
+                    error: ["code": "method_not_found", "message": "Legacy app without live resolver"]
+                )
+            case "system.top":
+                return self.v2Response(id: id, ok: true, result: ["windows": []])
+            case "workspace.current", "feed.push":
+                return self.v2Response(id: id, ok: true, result: ["workspace_id": workspaceId])
+            case "surface.list":
+                return self.v2Response(
+                    id: id,
+                    ok: true,
+                    result: ["surfaces": [["id": surfaceId, "ref": "surface:1", "focused": true]]]
+                )
+            case "agent_journal_append":
+                return "OK 1"
+            default:
+                return self.v2Response(
+                    id: id,
+                    ok: false,
+                    error: ["code": "unrecognized_method", "message": "unexpected method: \(method)"]
+                )
+            }
+        }
+
+        var environment = ProcessInfo.processInfo.environment
+        environment["CMUX_SOCKET_PATH"] = socketPath
+        environment["CMUX_WORKSPACE_ID"] = workspaceId
+        environment["CMUX_SURFACE_ID"] = surfaceId
+
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["hooks", "codex", "post-tool-use"],
+            environment: environment,
+            standardInput: #"{"session_id":"codex-post-tool-clear-fallback","hook_event_name":"PostToolUse","tool_name":"shell"}"#,
+            timeout: 5
+        )
+
+        XCTAssertFalse(result.timedOut, result.stderr)
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertEqual(result.stdout, "{}\n")
+        wait(for: [serverHandled], timeout: 5)
+        XCTAssertTrue(
+            state.commands.contains("clear_notifications --tab=\(workspaceId) --panel=\(surfaceId)"),
+            "missing pane-scoped fallback clear: \(state.commands)"
+        )
+    }
+
     /// Regression for https://github.com/manaflow-ai/cmux/issues/11189: when
     /// the ambient surface is stale and the live resolver cannot prove a pane,
     /// a generic hook must no-op instead of using the workspace's focused tab.

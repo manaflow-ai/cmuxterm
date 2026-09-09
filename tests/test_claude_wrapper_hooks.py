@@ -186,6 +186,8 @@ exit 0
             test_socket.bind(socket_path)
 
         env = os.environ.copy()
+        sandbox_home = tmp / "home"
+        env["HOME"] = str(sandbox_home)
         env["PATH"] = f"{wrapper_dir}:{real_dir}:{env.get('PATH', '/usr/bin:/bin')}"
         env["CMUX_SURFACE_ID"] = "surface:test"
         env["CMUX_SOCKET_PATH"] = socket_path
@@ -2438,7 +2440,7 @@ def test_live_socket_enforces_heap_cap_for_space_separated_flag(failures: list[s
     expect(child_node_options == restored, f"space-separated heap flag: expected child NODE_OPTIONS restored, got {child_node_options!r}", failures)
 
 
-def test_live_socket_tmpdir_failure_skips_node_options_injection(failures: list[str]) -> None:
+def test_live_socket_tmpdir_failure_does_not_block_node_options_injection(failures: list[str]) -> None:
     with tempfile.TemporaryDirectory(prefix="cmux-claude-wrapper-bad-tmp-") as td:
         bad_tmpdir = Path(td) / "not-a-directory"
         bad_tmpdir.write_text("occupied", encoding="utf-8")
@@ -2452,9 +2454,29 @@ def test_live_socket_tmpdir_failure_skips_node_options_injection(failures: list[
     expect("--session-id" in real_argv, f"tmpdir failure: missing --session-id in args: {real_argv}", failures)
     expect(any(" ping" in line for line in cmux_log), f"tmpdir failure: expected cmux ping, got {cmux_log}", failures)
     expect(claudecode == "__UNSET__", f"tmpdir failure: expected CLAUDECODE unset, got {claudecode!r}", failures)
-    expect(node_options == "__UNSET__", f"tmpdir failure: expected NODE_OPTIONS injection to be skipped, got {node_options!r}", failures)
+    expect(
+        node_options.startswith("--require=") and str(bad_tmpdir) not in node_options,
+        f"tmpdir failure: expected durable NODE_OPTIONS injection, got {node_options!r}",
+        failures,
+    )
     expect(runtime_node_options == "__UNSET__", f"tmpdir failure: expected runtime NODE_OPTIONS passthrough, got {runtime_node_options!r}", failures)
     expect(child_node_options == "__UNSET__", f"tmpdir failure: expected child NODE_OPTIONS passthrough, got {child_node_options!r}", failures)
+
+
+def test_live_socket_recreates_legacy_node_options_restore_module(failures: list[str]) -> None:
+    with tempfile.TemporaryDirectory(prefix="cmux-claude-wrapper-legacy-node-options-") as td:
+        legacy_path = Path(td) / "cmux-claude-node-options" / "restore-node-options.cjs"
+        code, _, _, stderr, _, _, runtime_node_options, child_node_options, _, _ = run_wrapper(
+            socket_state="live",
+            argv=["hello"],
+            node_options=f'--require="{legacy_path}"',
+            tmpdir=td,
+        )
+        legacy_recreated = legacy_path.is_file()
+    expect(code == 0, f"legacy NODE_OPTIONS restore: wrapper exited {code}: {stderr}", failures)
+    expect(legacy_recreated, f"legacy NODE_OPTIONS restore: path was not recreated: {legacy_path}", failures)
+    expect(runtime_node_options == "__UNSET__", f"legacy NODE_OPTIONS restore: runtime leaked NODE_OPTIONS: {runtime_node_options!r}", failures)
+    expect(child_node_options == "__UNSET__", f"legacy NODE_OPTIONS restore: child leaked NODE_OPTIONS: {child_node_options!r}", failures)
 
 
 def test_live_socket_preserves_explicit_bypass_availability_flag(failures: list[str]) -> None:
@@ -2673,7 +2695,8 @@ def main() -> int:
     test_live_socket_auto_preserve_accepts_all_documented_truthy_variants(failures)
     test_live_socket_explicit_key_list_is_additive_to_vertex_auto_preserve(failures)
     test_live_socket_enforces_heap_cap_for_space_separated_flag(failures)
-    test_live_socket_tmpdir_failure_skips_node_options_injection(failures)
+    test_live_socket_tmpdir_failure_does_not_block_node_options_injection(failures)
+    test_live_socket_recreates_legacy_node_options_restore_module(failures)
     test_live_socket_preserves_explicit_bypass_availability_flag(failures)
     test_live_socket_stale_mktemp_literal_does_not_warn(failures)
     test_missing_socket_skips_hook_injection(failures)
