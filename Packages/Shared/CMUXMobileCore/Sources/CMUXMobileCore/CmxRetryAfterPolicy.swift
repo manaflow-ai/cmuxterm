@@ -27,7 +27,7 @@ public enum CmxRetryAfterPolicy {
             formatter.timeZone = TimeZone(secondsFromGMT: 0)
             formatter.dateFormat = format
             if let deadline = formatter.date(from: raw) {
-                let remaining = Int(ceil(deadline.timeIntervalSince(now)))
+                let remaining = roundedUpSeconds(deadline.timeIntervalSince(now))
                 return remaining > 0 ? remaining : nil
             }
         }
@@ -51,6 +51,31 @@ public enum CmxRetryAfterPolicy {
     ) -> TimeInterval {
         max(localSeconds, TimeInterval(max(0, retryAfterSeconds ?? 0)))
     }
+
+    /// Floating point rounds Int.max up to 2^63. Saturate that conversion
+    /// without shortening ordinary server directives or trapping on restore.
+    public static func roundedUpSeconds(_ seconds: TimeInterval) -> Int {
+        guard seconds > 0 else { return 0 }
+        let rounded = seconds.rounded(.up)
+        return rounded >= Double(Int.max) ? Int.max : Int(rounded)
+    }
+
+    /// Sleep in representable chunks while preserving the entire requested
+    /// wait. Converting an arbitrary server delay to UInt64 nanoseconds traps.
+    public static func sleep(
+        seconds: TimeInterval,
+        using sleeper: @Sendable (TimeInterval) async throws -> Void = {
+            try await Task<Never, Never>.sleep(for: .seconds($0))
+        }
+    ) async throws {
+        var remaining = seconds
+        while remaining > 0 {
+            try Task.checkCancellation()
+            let chunk = min(remaining, 86_400)
+            try await sleeper(chunk)
+            remaining -= chunk
+        }
+    }
 }
 
 /// Transport-neutral rate-limit error used when Foundation exposes an HTTP
@@ -72,6 +97,8 @@ public actor CmxRetryAfterGate {
     private let now: @Sendable () -> TimeInterval
     private let sleep: Sleep
     private var deadline: TimeInterval?
+    private var sending = false
+    private var sendWaiters: [(UUID, CheckedContinuation<Void, any Error>)] = []
 
     public init() {
         now = { ProcessInfo.processInfo.systemUptime }
@@ -94,7 +121,7 @@ public actor CmxRetryAfterGate {
 
     public func remainingSeconds() -> Int? {
         guard let deadline else { return nil }
-        let remaining = Int(ceil(deadline - now()))
+        let remaining = CmxRetryAfterPolicy.roundedUpSeconds(deadline - now())
         if remaining <= 0 {
             self.deadline = nil
             return nil
@@ -109,7 +136,50 @@ public actor CmxRetryAfterGate {
                 self.deadline = nil
                 return
             }
-            try await sleep(remaining)
+            try Task.checkCancellation()
+            try await sleep(min(remaining, 86_400))
+        }
+    }
+
+    /// Serialize final network admission through response handling. A 429 is
+    /// recorded before the next queued request can pass its cooldown check.
+    public func perform<Value: Sendable>(
+        waitForCooldown: Bool = true,
+        _ operation: @Sendable () async throws -> Value
+    ) async throws -> Value {
+        let id = UUID()
+        try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            if sending {
+                try await withCheckedThrowingContinuation { continuation in
+                    sendWaiters.append((id, continuation))
+                }
+            } else {
+                sending = true
+            }
+        } onCancel: {
+            Task { await self.cancelSendWaiter(id) }
+        }
+        defer { releaseSend() }
+        try Task.checkCancellation()
+        if !waitForCooldown, let seconds = remainingSeconds() {
+            throw CmxRateLimitedError(retryAfterSeconds: seconds)
+        }
+        try await wait()
+        try Task.checkCancellation()
+        return try await operation()
+    }
+
+    private func cancelSendWaiter(_ id: UUID) {
+        guard let index = sendWaiters.firstIndex(where: { $0.0 == id }) else { return }
+        sendWaiters.remove(at: index).1.resume(throwing: CancellationError())
+    }
+
+    private func releaseSend() {
+        if sendWaiters.isEmpty {
+            sending = false
+        } else {
+            sendWaiters.removeFirst().1.resume()
         }
     }
 }

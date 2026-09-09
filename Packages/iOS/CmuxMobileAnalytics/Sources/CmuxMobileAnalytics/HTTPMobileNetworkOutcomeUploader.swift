@@ -97,7 +97,13 @@ public struct HTTPMobileNetworkOutcomeUploader: AnalyticsUploading {
                 request.setValue(refreshToken, forHTTPHeaderField: "X-Stack-Refresh-Token")
             }
             guard !Task.isCancelled else { return .drop }
-            return await perform(request)
+            do {
+                return try await retryAfterGate.perform { [request] in
+                    await perform(request)
+                }
+            } catch {
+                return .drop
+            }
         }
         guard taskRegistry.register(task, id: id) else {
             task.cancel()

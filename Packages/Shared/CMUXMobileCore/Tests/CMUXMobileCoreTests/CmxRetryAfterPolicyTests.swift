@@ -66,12 +66,19 @@ import Testing
     }
 
     @Test func oversizedSleepUsesSafeChunksWithoutShorteningTheWait() async throws {
+        do {
+            try await CmxRetryAfterPolicy.sleep(seconds: 18_446_744_074) { chunk in
+                #expect(chunk == 86_400)
+                throw CancellationError()
+            }
+            Issue.record("Expected cancellation to stop the long sleep")
+        } catch is CancellationError {}
         let time = RetryAfterTestTime()
-        try await CmxRetryAfterPolicy.sleep(seconds: 18_446_744_074) { chunk in
+        try await CmxRetryAfterPolicy.sleep(seconds: 172_801) { chunk in
             #expect(chunk > 0 && chunk <= 86_400)
             time.advance(by: chunk)
         }
-        #expect(time.now == 18_446_744_074)
+        #expect(time.now == 172_801)
     }
 }
 

@@ -61,6 +61,8 @@ public actor IrxPeerEngine {
     public typealias DialOnce = @Sendable () async throws -> IrxClientSession
 
     private let dialOnce: DialOnce
+    private let clockNow: @Sendable () -> ContinuousClock.Instant
+    private let retrySleep: @Sendable (Duration) async throws -> Void
     private let config: Config
     private let journal: IrxJournal
     /// Short peer identifier stamped on every journal event so multi-Mac
@@ -91,12 +93,16 @@ public actor IrxPeerEngine {
         config: Config = Config(),
         journal: IrxJournal,
         label: String = "",
+        clockNow: @escaping @Sendable () -> ContinuousClock.Instant = { .now },
+        retrySleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         dialOnce: @escaping DialOnce
     ) {
         self.config = config
         self.journal = journal
         self.label = label
         self.dialOnce = dialOnce
+        self.clockNow = clockNow
+        self.retrySleep = retrySleep
         backoff = config.initialBackoff
     }
 
@@ -144,7 +150,7 @@ public actor IrxPeerEngine {
         }
         if explicit,
            let cooldownUntil,
-           ContinuousClock.now < cooldownUntil,
+           clockNow() < cooldownUntil,
            (lastDialError as? any CmxRetryAfterProviding)?.retryAfterSeconds != nil {
             // Foreground, route-change, and user retry triggers may bypass a
             // local transport backoff, but never a server-owned deadline.
@@ -181,7 +187,7 @@ public actor IrxPeerEngine {
             }
             return joined
         }
-        if !explicit, let cooldownUntil, ContinuousClock.now < cooldownUntil {
+        if !explicit, let cooldownUntil, clockNow() < cooldownUntil {
             // The scheduled redial owns the next attempt; fail fast instead
             // of stacking another dial on top of it.
             throw lastDialError ?? IrxConnectionError.closed(nil)
@@ -258,7 +264,7 @@ public actor IrxPeerEngine {
                await !session.connection.isConnectionClosed()
             {
                 let recentlyAlive: Bool
-                if ContinuousClock.now - session.establishedAtMonotonic <= staleAfter {
+                if clockNow() - session.establishedAtMonotonic <= staleAfter {
                     // A newly admitted session has not necessarily completed
                     // its first keepalive round yet, but is still within the
                     // bounded fresh-session grace period.
@@ -299,7 +305,7 @@ public actor IrxPeerEngine {
             return
         }
         if let cooldownUntil,
-           ContinuousClock.now < cooldownUntil,
+           clockNow() < cooldownUntil,
            (lastDialError as? any CmxRetryAfterProviding)?.retryAfterSeconds != nil {
             record("hint-race-redial-suppressed", ["reason": "retry-after"])
             return
@@ -416,10 +422,10 @@ public actor IrxPeerEngine {
         let serverFloor = Duration.seconds(Int64(max(0, retryAfterSeconds ?? 0)))
         let delay = max(backoff, serverFloor)
         backoff = min(backoff * 2, config.maxBackoff)
-        cooldownUntil = ContinuousClock.now.advanced(by: delay)
+        cooldownUntil = clockNow().advanced(by: delay)
         redialTimer?.cancel()
-        redialTimer = Task { [weak self] in
-            try? await Task.sleep(for: delay)
+        redialTimer = Task { [weak self, retrySleep] in
+            do { try await retrySleep(delay) } catch { return }
             guard !Task.isCancelled else { return }
             await self?.clearCooldownAndRedial()
         }

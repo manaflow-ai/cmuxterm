@@ -590,7 +590,9 @@ public actor DeviceRegistryService: DeviceRegistryRefreshing {
         }
         let id = UUID()
         let task = Task { [self] in
-            await performListResponseRequest(input.request)
+            try? await retryAfterGate.perform(waitForCooldown: false) { [self] in
+                await performListResponseRequest(input.request)
+            }
         }
         listResponseTasks[input.scope] = InFlightRegistryRequest(id: id, task: task)
         let response = await task.value

@@ -1240,9 +1240,12 @@ export class ControlPlaneCore {
       ));
       return;
     }
-    const activeCooldown = await this.upstreamCooldownRemainingSeconds(
-      MINT_RETRY_AT_KEY,
-    );
+    // Account and deployment are isolated by the DO. Preserve the upstream
+    // namespace/endpoint boundary across reconnects and hibernation as well.
+    const mintRetryKey = `${MINT_RETRY_AT_KEY}:${JSON.stringify([
+      attachment.namespace ?? "legacy", endpointId.trim().toLowerCase(),
+    ])}`;
+    const activeCooldown = await this.upstreamCooldownRemainingSeconds(mintRetryKey);
     if (activeCooldown !== null) {
       this.sendFrame(socket, attachment, errorFrame(
         "mint_upstream_unavailable",
@@ -1265,7 +1268,7 @@ export class ControlPlaneCore {
       return;
     }
     if (result.status < 200 || result.status >= 300) {
-      await this.recordUpstreamCooldown(MINT_RETRY_AT_KEY, result);
+      await this.recordUpstreamCooldown(mintRetryKey, result);
       const retryable = result.status >= 500 || result.status === 429;
       this.sendFrame(socket, attachment, errorFrame(
         retryable ? "mint_upstream_unavailable" : "mint_rejected",
@@ -1274,7 +1277,7 @@ export class ControlPlaneCore {
       ));
       return;
     }
-    await this.deps.storage.delete(MINT_RETRY_AT_KEY);
+    // An older in-flight success must not erase a newer request's cooldown.
     const generation = ((await this.deps.storage.get<number>(GEN_PREFIX + endpointId)) ?? 0) + 1;
     const passes = passesFromMintResponse(result.json, generation);
     if (passes === null) {

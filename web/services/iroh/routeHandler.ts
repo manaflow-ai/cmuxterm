@@ -30,7 +30,7 @@ export type IrohRouteOperation =
 type RouteDependencies = {
   readonly verify?: (
     request: Request,
-    options: { readonly allowCookie: false; readonly requireStackSession: boolean },
+    options: { readonly allowCookie: false; readonly requireStackSession: boolean; readonly allowStackFallback: false },
   ) => Promise<{ readonly id: string } | null>;
   readonly broker?: IrohTrustBrokerShape;
   readonly runtime?: Layer.Layer<IrohTrustBroker, never, never>;
@@ -59,6 +59,7 @@ export async function handleIrohRoute(
     user = await verify(request, {
       allowCookie: false,
       requireStackSession: requiresStackSession(operation),
+      allowStackFallback: false,
     });
   } catch (error) {
     // A Stack Auth throttle or outage is not the caller's fault. Answering 401

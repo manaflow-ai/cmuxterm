@@ -86,7 +86,7 @@ export interface RelayTokenDeps {
 }
 
 const productionDeps: RelayTokenDeps = {
-  verifyRequest: (request) => verifyRequestIdentity(request, { allowCookie: false }),
+  verifyRequest: (request) => verifyRequestIdentity(request, { allowCookie: false, allowStackFallback: false }),
   signingKey: relaySigningKey,
   nowSeconds: () => Math.floor(Date.now() / 1_000),
   signedPolicy: async (accountId, nowSeconds) => {
@@ -158,6 +158,11 @@ export async function handleRelayTokenRequest(
     const { bindingProof, clientNamespace, endpointId } = parsed;
     const key = deps.signingKey();
     const nowSeconds = deps.nowSeconds();
+    // Namespaced requests always require a proof. Charge their credential
+    // partition before database/crypto work, including rejected signatures.
+    if (clientNamespace !== "legacy") {
+      await checkTokenQuota(request, deps, user.id, clientNamespace, endpointId, "credential", nowSeconds);
+    }
     const isEndpointAuthorized = await deps.isEndpointAuthorized({
       accountId: user.id,
       endpointId,
@@ -169,34 +174,21 @@ export async function handleRelayTokenRequest(
       return jsonResponse({ error: "invalid_binding_request_proof" }, 403);
     }
 
-    const policy = await deps.signedPolicy(user.id, nowSeconds);
     if (!key && deps.credentialSigningRequired()) {
       return jsonResponse({ error: "relay_token_not_configured" }, 503);
     }
-    const relayUrls = policy.payload.relays.map((relay) => relay.url);
     // A fresh endpoint must fetch policy before registration, then fetch its
     // bound credential immediately after registration. Renewals happen every
     // four minutes because both artifacts expire after five. Give bootstrap
     // and credential issuance separate one-minute partitions so the external
     // rule cannot make the valid two-leg bootstrap or renewal cadence
     // impossible. Duplicate work inside one phase and minute is still bounded.
-    const rateLimitBucket = Math.floor(
-      nowSeconds / RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS,
-    );
-    const rateLimitPhase = isEndpointAuthorized ? "credential" : "bootstrap";
-    const retryAfterSeconds = RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS -
-      (nowSeconds % RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS);
-    await runRelayEffect(enforceRelayRateLimit({
-      request,
-      accountId: user.id,
-      deploymentPartition: rateLimitDeploymentPartition(),
-      devicePartition:
-        `${clientNamespace}:${endpointId}:${rateLimitPhase}:${rateLimitBucket}`,
-      ruleId: deps.rateLimitRuleId(),
-      check: deps.checkRateLimit,
-      isVercel: deps.isVercel(),
-      retryAfterSeconds,
-    }));
+    if (clientNamespace === "legacy") {
+      await checkTokenQuota(request, deps, user.id, clientNamespace, endpointId,
+        isEndpointAuthorized ? "credential" : "bootstrap", nowSeconds);
+    }
+    const policy = await deps.signedPolicy(user.id, nowSeconds);
+    const relayUrls = policy.payload.relays.map((relay) => relay.url);
 
     // Local and preview runtimes intentionally operate without the private
     // relay JWT signer. They still return the signed fleet policy so clients
@@ -239,6 +231,29 @@ export async function handleRelayTokenRequest(
   } catch (error) {
     return relayErrorResponse(error);
   }
+}
+
+async function checkTokenQuota(
+  request: Request,
+  deps: RelayTokenDeps,
+  accountId: string,
+  namespace: string,
+  endpointId: string,
+  phase: "credential" | "bootstrap",
+  nowSeconds: number,
+): Promise<void> {
+  const bucket = Math.floor(nowSeconds / RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS);
+  await runRelayEffect(enforceRelayRateLimit({
+    request,
+    accountId,
+    deploymentPartition: rateLimitDeploymentPartition(),
+    devicePartition: `${namespace}:${endpointId}:${phase}:${bucket}`,
+    ruleId: deps.rateLimitRuleId(),
+    check: deps.checkRateLimit,
+    isVercel: deps.isVercel(),
+    retryAfterSeconds: RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS -
+      (nowSeconds % RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS),
+  }));
 }
 
 function hasExactCredentialSet(
