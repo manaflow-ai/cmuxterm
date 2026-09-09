@@ -127,6 +127,7 @@ struct MobileTerminalLaneCoordinatorTests {
 
     @Test
     func outputLaneDoesNotFallBackToInputOnlyProvider() async throws {
+        let outputProvider = TerminalLaneTestProvider(lanes: [])
         let inputProvider = TerminalLaneTestProvider(lanes: [
             TerminalLaneTestConnection(
                 frames: [Self.frame(kind: .replay, sequence: 0, bytes: "")],
@@ -134,7 +135,9 @@ struct MobileTerminalLaneCoordinatorTests {
             ),
         ])
         let coordinator = MobileTerminalLaneCoordinator(
-            provider: nil,
+            provider: { request, surfaceID, cursor in
+                try await outputProvider.callAsFunction(request, surfaceID, cursor: cursor)
+            },
             inputOnlyProvider: { request, surfaceID, cursor in
                 try await inputProvider.callAsFunction(request, surfaceID, cursor: cursor)
             }
@@ -146,10 +149,15 @@ struct MobileTerminalLaneCoordinatorTests {
             consume: { _ in .accepted(outputReady: true) },
             readinessChanged: { _ in }
         ))
-        await coordinator.deactivateAll()
+
+        // Wait until the output lane has actually attempted to open and
+        // failed. Asserting only after teardown would make both checks
+        // vacuous because deactivateAll clears the focused lane state.
+        await outputProvider.waitUntilExhausted()
 
         #expect(await inputProvider.requestCount() == 0)
         #expect(await coordinator.isOutputReady(surfaceID: Self.surfaceID) == false)
+        await coordinator.deactivateAll()
     }
 
     @Test
