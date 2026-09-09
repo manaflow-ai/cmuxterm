@@ -476,12 +476,15 @@ jobs:
             )
           fi
 
+          python3 scripts/ci/vault-history-diagnostics.py monitor /tmp/xcodebuild-e2e.log &
+          DIAGNOSTIC_MONITOR_PID=$!
           set +e
           # Stream xcodebuild output into the live job log (and a file for the
           # summary parsing below). The previous buffered capture lost all
           # build/test output whenever the job hit its timeout mid-run.
           "${RUN_XCODEBUILD[@]}" "${XCODEBUILD_CMD[@]}" 2>&1 | tee /tmp/xcodebuild-e2e.log
           EXIT_CODE=${PIPESTATUS[0]}
+          kill "$DIAGNOSTIC_MONITOR_PID" 2>/dev/null || true
           set -e
           OUTPUT=$(cat /tmp/xcodebuild-e2e.log)
 
@@ -519,6 +522,16 @@ jobs:
               echo "EOFOUT"
             } >> "$GITHUB_OUTPUT"
             exit 1
+          fi
+
+      - name: Resolve exact crash symbols and print hang sample
+        if: always()
+        run: |
+          if [ -f /tmp/xcodebuild-e2e.log ]; then
+            python3 scripts/ci/vault-history-diagnostics.py symbols /tmp/xcodebuild-e2e.log
+          fi
+          if [ -f /tmp/vault-history-hang.sample.txt ]; then
+            cat /tmp/vault-history-hang.sample.txt
           fi
 
       - name: Stop recording and trim
