@@ -8,6 +8,7 @@ import {
   expiredBefore,
   isPayloadWithinQuota,
   runAccountSqliteMigrations,
+  type AccountSqliteDatabase,
   type SqliteExecutor,
 } from "../src/accountSqliteStorage";
 
@@ -54,7 +55,10 @@ describe("account SQLite retention policy", () => {
 
   it("records each schema version and is idempotent", () => {
     const sql = new RecordingSql();
-    const database = { sql, transactionSync: (callback: () => void) => callback() };
+    const database: AccountSqliteDatabase = {
+      sql,
+      transactionSync: <T>(callback: () => T): T => callback(),
+    };
     runAccountSqliteMigrations(database, 1_700_000_000_000);
     const firstRun = sql.statements.length;
     runAccountSqliteMigrations(database, 1_700_000_000_001);
