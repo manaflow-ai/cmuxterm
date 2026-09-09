@@ -62,6 +62,12 @@ struct OwlNavigationStateTests {
         #expect(body.contains("return await (answer);"))
     }
 
+    @Test("OWL statement evaluation keeps compact control programs as statements")
+    func statementBodyKeepsCompactControlPrograms() {
+        #expect(OwlFreshRuntime.owlStatementBody(for: "if(x) y;") == "if(x) y")
+        #expect(OwlFreshRuntime.owlStatementBody(for: ";") == "return undefined;")
+    }
+
     @Test("OWL history reports no-op traversal at either edge")
     func historyNoOps() {
         let first = URL(string: "https://one.example")!

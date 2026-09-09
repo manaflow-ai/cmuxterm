@@ -221,6 +221,7 @@ extension ChromiumBrowserSession {
             }
         }
         let candidate = String(trimmed[..<candidateEnd])
+        guard !candidate.isEmpty else { return "return undefined;" }
         guard let semicolon = owlTopLevelSemicolon(in: candidate) else {
             return hadTrailingSemicolon && !owlStartsWithStatementKeyword(candidate)
                 ? "return await (\(candidate));"
@@ -237,11 +238,17 @@ extension ChromiumBrowserSession {
     }
 
     private static func owlStartsWithStatementKeyword(_ source: String) -> Bool {
-        let first = source.split(whereSeparator: { $0.isWhitespace || $0 == ";" }).first.map(String.init) ?? ""
-        return [
+        let keywords = [
             "break", "case", "class", "const", "continue", "debugger", "default", "do", "else",
             "finally", "for", "function", "if", "let", "return", "switch", "throw", "try", "var", "while",
-        ].contains(first)
+        ]
+        for keyword in keywords where source.hasPrefix(keyword) {
+            let boundary = source.index(source.startIndex, offsetBy: keyword.count)
+            if boundary == source.endIndex || source[boundary].isWhitespace || source[boundary] == "(" || source[boundary] == "{" || source[boundary] == ";" {
+                return true
+            }
+        }
+        return false
     }
 
     private static func owlTopLevelSemicolon(in source: String) -> String.Index? {
