@@ -91,6 +91,7 @@ function cliAuthConfirmationURL(request: Request): string {
     PRODUCTION_CODEROUTER_HOSTS.has(url.hostname)
   ) {
     url.hostname = "cmux.com";
+    url.port = "";
   }
   return url.toString();
 }

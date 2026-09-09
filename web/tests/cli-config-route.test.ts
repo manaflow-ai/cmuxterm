@@ -64,6 +64,17 @@ describe("CLI config route", () => {
       );
       expect(body.coderouter.openaiBaseUrl).toBe("https://coderouter.dev/v1");
 
+      const nonDefaultPortResponse = GET(
+        new Request("https://coderouter.dev:4443/api/cli/config"),
+      );
+      const nonDefaultPortBody = await nonDefaultPortResponse.json();
+      expect(nonDefaultPortBody.auth.confirmUrl).toBe(
+        "https://cmux.com/handler/cli-auth-confirm",
+      );
+      expect(nonDefaultPortBody.coderouter.sessionUrl).toBe(
+        "https://coderouter.dev:4443/api/coderouter/session",
+      );
+
       const confirmation = new URL(body.auth.confirmUrl);
       confirmation.searchParams.set("login_code", "fresh-test-login-code");
       const signIn = new URL("https://cmux.com/handler/sign-in");
