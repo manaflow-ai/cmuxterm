@@ -306,14 +306,7 @@ final class WorkspaceSSHFishShellTests: XCTestCase {
         }
 
         // Reusable startup commands carry the script as one base64 literal.
-        let encodedPrefix = "(printf %s "
-        let encodedSuffix = " | base64"
-        if let prefixRange = startupCommand.range(of: encodedPrefix),
-           let suffixRange = startupCommand.range(
-               of: encodedSuffix,
-               range: prefixRange.upperBound..<startupCommand.endIndex
-           ) {
-            let encodedRange = prefixRange.upperBound..<suffixRange.lowerBound
+        if let encodedRange = SSHStartupCommandTestSupport.payloadRange(in: startupCommand) {
             let encodedScript = String(startupCommand[encodedRange])
             if let scriptData = Data(base64Encoded: encodedScript),
                let script = String(data: scriptData, encoding: .utf8),

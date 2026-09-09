@@ -1489,17 +1489,9 @@ extension CLINotifyProcessIntegrationRegressionTests {
             return startupCommand.replacingOccurrences(of: systemSSHPath, with: fakeSSH.path)
         }
 
-        let encodedPrefix = "(printf %s "
-        let encodedSuffix = " | base64"
-        guard let prefixRange = startupCommand.range(of: encodedPrefix),
-              let suffixRange = startupCommand.range(
-                  of: encodedSuffix,
-                  range: prefixRange.upperBound..<startupCommand.endIndex
-              ) else {
-            XCTFail("Generated startup command did not pin \(systemSSHPath): \(startupCommand)")
-            return startupCommand
-        }
-        let encodedRange = prefixRange.upperBound..<suffixRange.lowerBound
+        let encodedRange = try XCTUnwrap(
+            SSHStartupCommandTestSupport.payloadRange(in: startupCommand)
+        )
         let encodedScript = String(startupCommand[encodedRange])
         let scriptData = try XCTUnwrap(Data(base64Encoded: encodedScript))
         let script = try XCTUnwrap(String(data: scriptData, encoding: .utf8))

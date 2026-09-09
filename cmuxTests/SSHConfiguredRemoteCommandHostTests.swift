@@ -566,25 +566,7 @@ struct SSHConfiguredRemoteCommandHostTests {
             }
 
             guard startupCommand.contains(systemSSHPath) else {
-                let payloadPrefix = "cmux_payload="
-                if let prefixRange = startupCommand.range(of: payloadPrefix),
-                   let lineEnd = startupCommand[prefixRange.upperBound...].firstIndex(of: "\n") {
-                    let encodedRange = prefixRange.upperBound..<lineEnd
-                    if let rewrittenCommand = replacingSystemSSH(
-                        in: startupCommand,
-                        encodedRange: encodedRange
-                    ) {
-                        return rewrittenCommand
-                    }
-                }
-                let encodedPrefix = "(printf %s "
-                let encodedSuffix = " | base64"
-                if let prefixRange = startupCommand.range(of: encodedPrefix),
-                   let suffixRange = startupCommand.range(
-                       of: encodedSuffix,
-                       range: prefixRange.upperBound..<startupCommand.endIndex
-                   ) {
-                    let encodedRange = prefixRange.upperBound..<suffixRange.lowerBound
+                if let encodedRange = SSHStartupCommandTestSupport.payloadRange(in: startupCommand) {
                     if let rewrittenCommand = replacingSystemSSH(
                         in: startupCommand,
                         encodedRange: encodedRange

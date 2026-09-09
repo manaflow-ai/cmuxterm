@@ -152,17 +152,21 @@ struct SSHStartupManualReconnectTests {
         environment["CMUX_WORKSPACE_ID"] = "11111111-1111-1111-1111-111111111111"
         environment["CMUX_SURFACE_ID"] = "22222222-2222-2222-2222-222222222222"
         environment["CMUX_SSH_RECONNECT_LIMIT"] = "0"
-        let result = Self.runProcess(
-            executablePath: "/usr/bin/script",
-            arguments: ["-q", "-F", "/dev/null", "/bin/sh", startupURL.path],
+        let prompt = try Self.makeTerminalExitPromptProcess(TerminalExitPromptFixture(
+            startupCommand: startupURL.path,
             environment: environment,
-            standardInput: "\n",
-            timeout: 5
-        )
-
-        let transcript = result.stdout + result.stderr
-        #expect(!result.timedOut, Comment(rawValue: transcript))
-        #expect(result.status == 7, Comment(rawValue: transcript))
+            temporaryDirectory: root
+        ))
+        defer { Self.stopAndCleanUp(prompt) }
+        try #require(Self.waitForFile(
+            at: prompt.transcriptURL,
+            containing: "press Enter to close this pane",
+            timeout: 3
+        ))
+        try prompt.standardInput.fileHandleForWriting.write(contentsOf: Data([0x0A]))
+        try #require(Self.waitForExit(prompt.process, timeout: 3))
+        #expect(prompt.process.terminationStatus == 7)
+        let transcript = try String(contentsOf: prompt.transcriptURL, encoding: .utf8)
         let requiredResets = [
             "\u{1B}[?1004l", // focus reporting
             "\u{1B}[?1000l", // mouse reporting
@@ -643,8 +647,9 @@ struct SSHStartupManualReconnectTests {
     }
 
     @MainActor
-    @Test func reconnectKeepsConnectedWorkspaceForEndedPaneRetry() {
+    @Test func reconnectKeepsConnectedWorkspaceForEndedPaneRetry() throws {
         let workspace = Workspace()
+        defer { workspace.disconnectRemoteConnection(clearConfiguration: true) }
         let configuration = Self.makeRemoteConfiguration()
         workspace.configureRemoteConnection(configuration, autoConnect: false)
         workspace.applyRemoteConnectionStateUpdate(
@@ -653,8 +658,8 @@ struct SSHStartupManualReconnectTests {
             target: "cmux-macmini"
         )
 
-        let panel = TerminalPanel(workspaceId: workspace.id)
-        workspace.panels[panel.id] = panel
+        let panel = try #require(workspace.newTerminalSurfaceInFocusedPane(focus: false))
+        workspace.untrackRemoteTerminalSurface(panel.id)
         workspace.pendingRemoteTerminalChildExitSurfaceIds.insert(panel.id)
 
         #expect(!workspace.isRemoteTerminalSurface(panel.id))
@@ -672,6 +677,11 @@ struct SSHStartupManualReconnectTests {
         let workspace = Workspace()
         let configuration = Self.makeRemoteConfiguration()
         workspace.configureRemoteConnection(configuration, autoConnect: false)
+        workspace.applyRemoteConnectionStateUpdate(
+            .connected,
+            detail: "Connected controller",
+            target: configuration.displayTarget
+        )
         let panelId = try #require(workspace.focusedTerminalPanel?.id)
         #expect(
             workspace.markRemoteTerminalSessionConnected(
@@ -694,28 +704,33 @@ struct SSHStartupManualReconnectTests {
     }
 
     @MainActor
-    @Test func reconnectDefersToInFlightReconnectForEndedPaneRetry() {
+    @Test func reconnectingPresentationWithoutOwnerStartsAControllerTransition() async throws {
         let workspace = Workspace()
+        defer { workspace.disconnectRemoteConnection(clearConfiguration: true) }
         let configuration = Self.makeRemoteConfiguration()
         workspace.configureRemoteConnection(configuration, autoConnect: false)
+        await workspace.remoteSessionTransitionTask?.value
         workspace.applyRemoteConnectionStateUpdate(
             .reconnecting,
             detail: "Reconnecting to cmux-macmini via shared local proxy 127.0.0.1:64007",
             target: "cmux-macmini"
         )
 
-        let panel = TerminalPanel(workspaceId: workspace.id)
-        workspace.panels[panel.id] = panel
+        let panel = try #require(workspace.newTerminalSurfaceInFocusedPane(focus: false))
+        workspace.untrackRemoteTerminalSurface(panel.id)
         workspace.pendingRemoteTerminalChildExitSurfaceIds.insert(panel.id)
 
         #expect(!workspace.isRemoteTerminalSurface(panel.id))
         #expect(workspace.remoteConnectionState == .reconnecting)
 
-        workspace.reconnectRemoteConnection(surfaceId: panel.id)
+        #expect(workspace.remoteSessionController == nil)
+        #expect(workspace.remoteSessionTransitionTask == nil)
+        #expect(workspace.reconnectRemoteConnection(surfaceId: panel.id))
 
         #expect(workspace.isRemoteTerminalSurface(panel.id))
         #expect(!workspace.pendingRemoteTerminalChildExitSurfaceIds.contains(panel.id))
-        #expect(workspace.remoteConnectionState == .reconnecting)
+        #expect(workspace.remoteConnectionState == .connecting)
+        #expect(workspace.remoteSessionTransitionTask != nil)
     }
 
     @MainActor
@@ -973,16 +988,7 @@ struct SSHStartupManualReconnectTests {
             return startupCommand.replacingOccurrences(of: systemSSHPath, with: fakeSSH.path)
         }
 
-        let encodedPrefix = "(printf %s "
-        let encodedSuffix = " | base64"
-        let prefixRange = try #require(startupCommand.range(of: encodedPrefix))
-        let suffixRange = try #require(
-            startupCommand.range(
-                of: encodedSuffix,
-                range: prefixRange.upperBound..<startupCommand.endIndex
-            )
-        )
-        let encodedRange = prefixRange.upperBound..<suffixRange.lowerBound
+        let encodedRange = try #require(SSHStartupCommandTestSupport.payloadRange(in: startupCommand))
         let encodedScript = String(startupCommand[encodedRange])
         let scriptData = try #require(Data(base64Encoded: encodedScript))
         let script = try #require(String(data: scriptData, encoding: .utf8))
