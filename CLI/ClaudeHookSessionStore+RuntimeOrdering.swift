@@ -159,19 +159,20 @@ extension ClaudeHookSessionStore {
                 if let normalizedSurface, normalizeOptional(record.surfaceId) != normalizedSurface {
                     continue
                 }
+                // Without an excluded timestamp there is no ordering boundary;
+                // any live, active sibling must keep an untimed Idle from
+                // demoting the surface. Timestamped boundaries remain strict.
                 if onlyNewerThanExcludedSession, let excludedRuntimeEventTime {
                     guard let candidateEventTime = record.runtimeStatusEventTime,
                           candidateEventTime > excludedRuntimeEventTime else {
                         continue
                     }
-                } else if onlyNewerThanExcludedSession {
-                    // An untimestamped excluded record has no ordering boundary. Treat
-                    // any live running sibling as newer enough to keep an untimestamped
-                    // idle observation from demoting the active surface.
                 }
 
-                if requireLiveProcess, !Self.processExists(record.pid) {
+                if requireLiveProcess,
+                   !Self.processExists(record.pid) || Self.processGenerationIsConfirmedDead(record) {
                     record.runtimeStatus = nil
+                    record.agentLifecycle = nil
                     // Keep the accepted event-time watermark when demoting a
                     // dead record.  The process probe only invalidates
                     // liveness; it must not reopen the record to a delayed

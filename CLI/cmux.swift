@@ -33622,6 +33622,46 @@ export default CMUXSessionRestore;
         hookDeadline: Date? = nil,
         eventTimeOverride: TimeInterval? = nil
     ) throws {
+        // Monitor completion replays a Stop. Dispatch it before entering the
+        // event handler so replay never nests that large stack frame.
+        if def.name == "codex", commandArgs.first?.lowercased() == "monitor" {
+            telemetry.breadcrumb("codex-hook.monitor")
+            try runCodexTranscriptMonitor(commandArgs: Array(commandArgs.dropFirst()), client: client) { replay in
+                try runGenericAgentHookEvent(
+                    def: def,
+                    commandArgs: replay.commandArguments,
+                    client: client,
+                    telemetry: telemetry,
+                    socketPassword: socketPassword,
+                    rawInputOverride: replay.payload,
+                    hookDeadline: hookDeadline,
+                    eventTimeOverride: replay.agentEventTime
+                )
+            }
+            return
+        }
+        try runGenericAgentHookEvent(
+            def: def,
+            commandArgs: commandArgs,
+            client: client,
+            telemetry: telemetry,
+            socketPassword: socketPassword,
+            rawInputOverride: rawInputOverride,
+            hookDeadline: hookDeadline,
+            eventTimeOverride: eventTimeOverride
+        )
+    }
+
+    private func runGenericAgentHookEvent(
+        def: AgentHookDef,
+        commandArgs: [String],
+        client: SocketClient,
+        telemetry: CLISocketSentryTelemetry,
+        socketPassword: String? = nil,
+        rawInputOverride: String? = nil,
+        hookDeadline: Date? = nil,
+        eventTimeOverride: TimeInterval? = nil
+    ) throws {
         let env = ProcessInfo.processInfo.environment
         let skipCodexLegacyPromptStop = env["CMUX_CODEX_SETTLED_CHILD_STOP"] == "1"
         let isCodexSettledStopRetry = skipCodexLegacyPromptStop
@@ -33639,22 +33679,6 @@ export default CMUXSessionRestore;
             return max(0.01, min(cap, cursorShellDeadline.timeIntervalSinceNow))
         }
         telemetry.breadcrumb("\(def.name)-hook.\(subcommand)")
-
-        if def.name == "codex", subcommand == "monitor" {
-            try runCodexTranscriptMonitor(commandArgs: hookArgs, client: client) { replay in
-                try runGenericAgentHook(
-                    def: def,
-                    commandArgs: replay.commandArguments,
-                    client: client,
-                    telemetry: telemetry,
-                    socketPassword: socketPassword,
-                    rawInputOverride: replay.payload,
-                    hookDeadline: hookDeadline,
-                    eventTimeOverride: replay.agentEventTime
-                )
-            }
-            return
-        }
 
         if def.name == "codex", subcommand == "sync-native-title" {
             runCodexNativeTitleSyncHook(
