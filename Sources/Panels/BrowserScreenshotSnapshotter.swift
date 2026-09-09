@@ -752,18 +752,12 @@ enum BrowserScreenshotWebViewSnapshotter {
     private static func scroll(_ webView: WKWebView, to point: NSPoint) async throws -> CGPoint {
         let value = try await webView.callAsyncJavaScript(
             """
-            const doc = document.documentElement;
-            const body = document.body;
-            const maximumX = Math.max(
-              0,
-              doc ? doc.scrollWidth - window.innerWidth : 0,
-              body ? body.scrollWidth - window.innerWidth : 0
-            );
-            const maximumY = Math.max(
-              0,
-              doc ? doc.scrollHeight - window.innerHeight : 0,
-              body ? body.scrollHeight - window.innerHeight : 0
-            );
+            const scrollingElement = document.scrollingElement || document.documentElement;
+            // Use the scroll container's client size for its scroll limits.
+            // At fractional page zoom, WebKit can round innerWidth/innerHeight
+            // differently; they also include scrollbars that cannot be scrolled.
+            const maximumX = Math.max(0, scrollingElement.scrollWidth - scrollingElement.clientWidth);
+            const maximumY = Math.max(0, scrollingElement.scrollHeight - scrollingElement.clientHeight);
             const expectedX = Math.min(Math.max(0, x), maximumX);
             const expectedY = Math.min(Math.max(0, y), maximumY);
             window.scrollTo({ left: x, top: y, behavior: "instant" });
