@@ -6,14 +6,13 @@ enum CmuxTuiRemoteRouting {
     ///   <machine>                      the machine's shell (the shared vmOpenShell path)
     ///   <machine>/<workspace>          a cmux-tui workspace on the machine (`ws_…` id or unique name)
     ///   <machine>/<workspace>/<term>   one terminal in it (`term_…`)
-    ///   <machine>/<workspace>/<term>/<tab>  one tab of that terminal (`tab_…`)
     ///   <machine>:desktop              the machine's noVNC screen
     ///   <machine>:port/<n>             a forwarded HTTP port
     /// The same addresses appear in `cmux vm tree`, so an agent can copy them verbatim.
     enum VMOpenTarget: Equatable {
         case machine(String)
         case workspace(machine: String, workspace: String)
-        case terminal(machine: String, workspace: String, terminal: String, tab: String?)
+        case terminal(machine: String, workspace: String, terminal: String)
         case desktop(String)
         case port(machine: String, port: Int)
 
@@ -21,42 +20,9 @@ enum CmuxTuiRemoteRouting {
             switch self {
             case .machine(let id), .desktop(let id):
                 return id
-            case .workspace(let id, _), .terminal(let id, _, _, _), .port(let id, _):
+            case .workspace(let id, _), .terminal(let id, _, _), .port(let id, _):
                 return id
             }
-        }
-    }
-
-    static func parseVMOpenTarget(_ raw: String) -> VMOpenTarget? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !trimmed.hasPrefix("-") else { return nil }
-        if let colon = trimmed.firstIndex(of: ":") {
-            let machine = String(trimmed[..<colon])
-            let selector = String(trimmed[trimmed.index(after: colon)...])
-            guard !machine.isEmpty, !machine.contains("/") else { return nil }
-            if selector == "desktop" || selector == "vnc" || selector == "screen" || selector == "display" {
-                return .desktop(machine)
-            }
-            if selector.hasPrefix("port/"),
-               let port = Int(selector.dropFirst("port/".count)),
-               (1...65535).contains(port) {
-                return .port(machine: machine, port: port)
-            }
-            return nil
-        }
-        let parts = trimmed.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
-        guard parts.allSatisfy({ !$0.isEmpty }) else { return nil }
-        switch parts.count {
-        case 1:
-            return .machine(parts[0])
-        case 2:
-            return .workspace(machine: parts[0], workspace: parts[1])
-        case 3:
-            return .terminal(machine: parts[0], workspace: parts[1], terminal: parts[2], tab: nil)
-        case 4:
-            return .terminal(machine: parts[0], workspace: parts[1], terminal: parts[2], tab: parts[3])
-        default:
-            return nil
         }
     }
 
@@ -272,8 +238,7 @@ enum CmuxTuiRemoteRouting {
         _ rawSelector: String,
         machine: String,
         workspaceID: String,
-        in catalog: [String: Any],
-        tabID requestedTabID: String? = nil
+        in catalog: [String: Any]
     ) -> VMRemoteTerminalPlacementResolution {
         let selector = rawSelector.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !selector.isEmpty, !machine.isEmpty, !workspaceID.isEmpty else { return .notFound }
@@ -304,34 +269,21 @@ enum CmuxTuiRemoteRouting {
         }
 
         let tabID: String
-        if let requested = requestedTabID?.trimmingCharacters(in: .whitespacesAndNewlines), !requested.isEmpty {
-            guard let views = resource["remote_views"] as? [[String: Any]] else { return .unavailable }
-            let matches = views.filter { view in
-                let workspace = view["workspace"] as? [String: Any]
-                let tab = (view["tab_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                return (workspace?["id"] as? String) == workspaceID && tab == requested
-            }
-            guard matches.count == 1 else {
-                return matches.isEmpty ? .notFound : .ambiguous
-            }
-            tabID = requested
-        } else {
-            switch resolveVMRemoteView(in: resource, workspaceID: workspaceID) {
-            case .resolved(let view):
-                guard let value = (view["tab_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-                    return .unavailable
-                }
-                tabID = value
-            case .legacy:
-                // An exact terminal selector cannot safely invent a tab id.
-                return .unavailable
-            case .notFound:
-                return .notFound
-            case .ambiguous:
-                return .ambiguous
-            case .unavailable:
+        switch resolveVMRemoteView(in: resource, workspaceID: workspaceID) {
+        case .resolved(let view):
+            guard let value = (view["tab_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
                 return .unavailable
             }
+            tabID = value
+        case .legacy:
+            // An exact terminal selector cannot safely invent a tab id.
+            return .unavailable
+        case .notFound:
+            return .notFound
+        case .ambiguous:
+            return .ambiguous
+        case .unavailable:
+            return .unavailable
         }
 
         let terminalID = vmTerminalID(in: resource, machine: machine)

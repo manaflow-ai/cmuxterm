@@ -494,6 +494,9 @@ class TabManager: ObservableObject {
     private var closeConfirmationInFlight = false
     let closeTabWarningDefaults: UserDefaults
     let tabDragTransferRegistry: TabDragTransferRegistry
+    /// File-backed panels in every workspace and Dock owned by this window
+    /// share this injected invalidation pipeline.
+    let fileContentChangeCoordinator: FileContentChangeCoordinator
     var confirmCloseHandler: ((String, String, Bool) -> Bool)?
     private var agentPIDSweepTimer: DispatchSourceTimer?
 #if DEBUG
@@ -558,7 +561,8 @@ class TabManager: ObservableObject {
         workspaceCustomizationStore: WorkspaceCustomizationStore? = nil,
         nativeSSHConnectionBroker: NativeSSHConnectionBroker = NativeSSHConnectionBroker(),
         agentChatResumeIntentRecorder: any AgentChatResumeIntentRecording = AgentChatTranscriptResumeIntentRecorder(),
-        closeTabWarningDefaults: UserDefaults = .standard
+        closeTabWarningDefaults: UserDefaults = .standard,
+        fileContentChangeCoordinator: FileContentChangeCoordinator? = nil
     ) {
         let tabDragTransferRegistry = tabDragTransferRegistry ?? TabDragTransferRegistry()
         self.settings = settings
@@ -578,6 +582,8 @@ class TabManager: ObservableObject {
         self.windowTitleWriter = windowTitleWriter ?? WindowTitleWriter()
         self.closeTabWarningDefaults = closeTabWarningDefaults
         self.tabDragTransferRegistry = tabDragTransferRegistry
+        self.fileContentChangeCoordinator =
+            fileContentChangeCoordinator ?? FileContentChangeCoordinator()
         workspaceReordering = WorkspaceReorderCoordinator(model: workspaces)
         workspaceGrouping = WorkspaceGroupCoordinator(model: workspaces)
 #if DEBUG
@@ -1132,6 +1138,7 @@ class TabManager: ObservableObject {
             settings: settings,
             closeTabWarningDefaults: closeTabWarningDefaults,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
+            fileContentChangeCoordinator: fileContentChangeCoordinator,
             nativeSSHConnectionBroker: nativeSSHConnectionBroker
         )
     }
@@ -1153,6 +1160,7 @@ class TabManager: ObservableObject {
             closeTabWarningDefaults: closeTabWarningDefaults,
             initialDetachedSurface: detachedSurface,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
+            fileContentChangeCoordinator: fileContentChangeCoordinator,
             nativeSSHConnectionBroker: nativeSSHConnectionBroker
         )
     }
@@ -1165,7 +1173,8 @@ class TabManager: ObservableObject {
             remoteBrowserSettingsProvider: { .local },
             tabDragTransferRegistry: tabDragTransferRegistry,
             settings: settings,
-            agentChatResumeIntentRecorder: agentChatResumeIntentRecorder
+            agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
+            fileContentChangeCoordinator: fileContentChangeCoordinator
         )
         windowDockTitleRoutingStores.setObject(
             store,
@@ -3840,17 +3849,15 @@ class TabManager: ObservableObject {
     func flushPendingPanelTitleUpdatesForWorkspaceSnapshot() {
         panelTitleUpdateCoalescer.flushNow()
     }
-    private func updatePanelTitle(tabId: UUID, panelId: UUID, title: String, sourceSurface: TerminalSurface) {
-        guard let tab = workspacesById[tabId],
-              let terminalPanel = tab.terminalPanel(for: panelId),
-              terminalPanel.surface === sourceSurface else { return }
+
+    @discardableResult
+    func updatePanelTitle(tabId: UUID, panelId: UUID, title: String) -> Bool {
+        guard let tab = workspacesById[tabId] else { return false }
         let previousDisplayTitle = resolvedWorkspaceDisplayTitle(for: tab).trimmingCharacters(in: .whitespacesAndNewlines)
-        _ = tab.updatePanelTitle(panelId: panelId, title: title)
-        guard !tab.isRemoteTmuxMirror else { return }
-        if tab.focusedPanelId == panelId {
-            if selectedTabId == tabId {
-                updateWindowTitle(for: tab)
-            }
+        let applied = tab.updatePanelTitle(panelId: panelId, title: title)
+        guard !tab.isRemoteTmuxMirror else { return applied }
+        if tab.focusedPanelId == panelId, selectedTabId == tabId {
+            updateWindowTitle(for: tab)
         }
         let currentDisplayTitle = resolvedWorkspaceDisplayTitle(for: tab).trimmingCharacters(in: .whitespacesAndNewlines)
         if currentDisplayTitle != previousDisplayTitle {
@@ -3863,6 +3870,14 @@ class TabManager: ObservableObject {
                 ]
             )
         }
+        return applied
+    }
+
+    private func updatePanelTitle(tabId: UUID, panelId: UUID, title: String, sourceSurface: TerminalSurface) {
+        guard let tab = workspacesById[tabId],
+              let terminalPanel = tab.terminalPanel(for: panelId),
+              terminalPanel.surface === sourceSurface else { return }
+        _ = updatePanelTitle(tabId: tabId, panelId: panelId, title: title)
     }
 
     func shouldScheduleRawTitleRefresh(forWorkspaceId workspaceId: UUID?) -> Bool { workspaceId == selectedTabId && !PanelTitleUpdateCoalescingSettings.isEnabled(settings: settings) }
@@ -6636,6 +6651,7 @@ extension TabManager {
                 settings: settings,
                 closeTabWarningDefaults: closeTabWarningDefaults,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
+                fileContentChangeCoordinator: fileContentChangeCoordinator,
                 nativeSSHConnectionBroker: nativeSSHConnectionBroker
             )
             workspace.owningTabManager = self
@@ -6671,6 +6687,7 @@ extension TabManager {
                 settings: settings,
                 closeTabWarningDefaults: closeTabWarningDefaults,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
+                fileContentChangeCoordinator: fileContentChangeCoordinator,
                 nativeSSHConnectionBroker: nativeSSHConnectionBroker
             )
             fallback.owningTabManager = self

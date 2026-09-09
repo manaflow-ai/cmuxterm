@@ -119,6 +119,11 @@ nonisolated private func v2RemotePTYUserFacingErrorMessage(_ message: String) ->
 @MainActor
 class TerminalController {
     static let shared = TerminalController()
+    private enum ReloadConfigurationWaitResult: Sendable {
+        case committed
+        case failed
+        case busy
+    }
     /// The app-managed Cloud tunnel, set by the AppDelegate composition root
     /// next to `VMClient.bootstrap`. Nil only before startup finishes; the
     /// `vm.tunnel_*` socket verbs report browser access as unavailable until then.
@@ -1229,6 +1234,16 @@ class TerminalController {
             if let workspaceParamError = v2UnsupportedWorkspaceAliasError(method: request.method, params: request.params) {
                 return v2Result(id: request.id, workspaceParamError)
             }
+            if request.method == "surface.sync_codex_native_title" {
+                return v2Error(
+                    id: request.id,
+                    code: "invalid_dispatch",
+                    message: String(
+                        localized: "socket.surfaceSyncCodexNativeTitle.asyncDispatchRequired",
+                        defaultValue: "surface.sync_codex_native_title requires asynchronous socket dispatch"
+                    )
+                )
+            }
             if Self.socketWorkerCoordinatorHopMethods.contains(request.method) {
                 // Mirror processParsedV2Command's tail: one main hop for the
                 // command body, encode after the hop on this worker thread.
@@ -1461,28 +1476,39 @@ class TerminalController {
                 reloadConfigurationWaiterAdmission.claim() else {
             return "ERROR: reload_config busy"
         }
-        let reloadDidComplete: Bool? = socketAwaitCallback(
+        let reloadResult: ReloadConfigurationWaitResult? = socketAwaitCallback(
             timeout: 30
         ) { completion in
             Task { @MainActor in
                 let completionWasAdmitted =
-                    self.controlSidebarReloadConfigWithAdmission {
-                        completion(true)
-                        waiterLease.retire()
-                    }
+                    self.controlSidebarReloadConfigWithAdmission(
+                        commitCompletion: { committed in
+                            completion(
+                                committed ? .committed : .failed
+                            )
+                            waiterLease.retire()
+                        }
+                    )
                 if !completionWasAdmitted {
-                    completion(false)
+                    // The reload request is still queued even when this
+                    // caller's optional commit callback could not be retained.
+                    // Report backpressure, not a false configuration failure.
+                    completion(.busy)
                     waiterLease.retire()
                 }
             }
         }
-        guard let reloadDidComplete else {
+        guard let reloadResult else {
             return "ERROR: reload_config timed out"
         }
-        guard reloadDidComplete else {
+        switch reloadResult {
+        case .committed:
+            return "OK Reloaded config"
+        case .failed:
+            return "ERROR: reload_config failed"
+        case .busy:
             return "ERROR: reload_config busy"
         }
-        return "OK Reloaded config"
     }
 
     private nonisolated static func feedPushWaitTimeoutSeconds(params: [String: Any]) -> TimeInterval? {
@@ -2772,6 +2798,8 @@ class TerminalController {
             return v2Result(id: id, self.v2WorkspaceCloudVMBind(params: params))
         case "workspace.set_auto_title":
             return v2Result(id: id, self.v2WorkspaceSetAutoTitle(params: params))
+        case "surface.sync_codex_native_title":
+            return v2Result(id: id, self.v2SurfaceSyncCodexNativeTitle(params: params))
 
         // Settings/session/feedback: session.restore_previous, settings.open, and
         // feedback.open handled by ControlCommandCoordinator.
@@ -3105,6 +3133,7 @@ class TerminalController {
             "workspace.prompt_submit",
             "workspace.rename",
             "workspace.set_auto_title",
+            "surface.sync_codex_native_title",
             "workspace.group.list",
             "workspace.group.create",
             "workspace.group.ungroup",
@@ -3166,6 +3195,8 @@ class TerminalController {
             "surface.resume.set",
             "surface.resume.get",
             "surface.resume.clear",
+            "agent.restore.admit",
+            "agent.restore.release",
             "debug.terminals",
             "surface.send_text",
             "surface.send_key",
@@ -4424,6 +4455,87 @@ class TerminalController {
 
     private func v2ResolveWorkspaceOwner(_ workspaceId: UUID) -> TabManager? {
         v2MainSync { AppDelegate.shared?.tabManagerFor(tabId: workspaceId) }
+    }
+
+    /// `surface.sync_codex_native_title`: applies Codex's already-resolved
+    /// native thread title to the panel's raw title tier, the same tier used
+    /// by OSC terminal-title updates. The detached CLI hook owns the database
+    /// read; this app-side handler only resolves the panel and mutates
+    /// in-memory workspace state.
+    /// Applies the title on the main actor for the asynchronous socket bridge.
+    func v2SurfaceSyncCodexNativeTitle(params: [String: Any]) -> V2CallResult {
+        guard let title = v2String(params, "title")?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !title.isEmpty else {
+            return .err(
+                code: "invalid_params",
+                message: String(
+                    localized: "socket.surfaceSyncCodexNativeTitle.invalidTitle",
+                    defaultValue: "Missing or invalid title"
+                ),
+                data: nil
+            )
+        }
+        guard let tabManager = v2ResolveTabManager(params: params) else {
+            return .err(
+                code: "unavailable",
+                message: String(
+                    localized: "socket.surfaceSyncCodexNativeTitle.tabManagerUnavailable",
+                    defaultValue: "TabManager not available"
+                ),
+                data: nil
+            )
+        }
+        guard let workspaceId = v2UUID(params, "workspace_id") else {
+            return .err(
+                code: "invalid_params",
+                message: String(
+                    localized: "socket.surfaceSyncCodexNativeTitle.workspaceIdInvalid",
+                    defaultValue: "Missing or invalid workspace_id"
+                ),
+                data: nil
+            )
+        }
+        guard let panelId = v2UUID(params, "panel_id") else {
+            return .err(
+                code: "invalid_params",
+                message: String(
+                    localized: "socket.surfaceSyncCodexNativeTitle.panelIdInvalid",
+                    defaultValue: "Missing or invalid panel_id"
+                ),
+                data: nil
+            )
+        }
+
+        var found = false
+        var applied = false
+        v2MainSync {
+            guard let workspace = tabManager.tabs.first(where: { $0.id == workspaceId }) else { return }
+            let resolvedPanelId = workspace.panels[panelId] != nil
+                ? panelId
+                : workspace.panelIdFromSurfaceId(TabID(uuid: panelId))
+            guard let resolvedPanelId else { return }
+            found = true
+            applied = tabManager.updatePanelTitle(
+                tabId: workspaceId,
+                panelId: resolvedPanelId,
+                title: title
+            )
+        }
+
+        guard found else {
+            return .err(
+                code: "not_found",
+                message: String(
+                    localized: "socket.surfaceSyncCodexNativeTitle.panelNotFound",
+                    defaultValue: "Panel not found"
+                ),
+                data: [
+                    "workspace_id": workspaceId.uuidString,
+                    "workspace_ref": v2Ref(kind: .workspace, uuid: workspaceId)
+                ]
+            )
+        }
+        return .ok(["applied": applied])
     }
 
     // MARK: - V2 Workspace Methods
@@ -8760,7 +8872,7 @@ class TerminalController {
 
                     switch ctx.webView.replayBrowserKeyboardEvent(event, action: action) {
                     case .delivered:
-                        var payload: [String: Any] = [
+                        let payload: [String: Any] = [
                             "workspace_id": ctx.workspaceId.uuidString,
                             "workspace_ref": v2Ref(kind: .workspace, uuid: ctx.workspaceId),
                             "surface_id": ctx.surfaceId.uuidString,
@@ -12779,11 +12891,17 @@ class TerminalController {
     /// shadowing pane-local Bonsplit drop targets.
     private func dragHitChain(_ args: String) -> String {
         let parts = args.split(separator: " ").map(String.init)
-        guard parts.count == 2,
+        guard parts.count == 2 || parts.count == 3,
               let nx = Double(parts[0]), let ny = Double(parts[1]),
-              (0...1).contains(nx), (0...1).contains(ny) else {
-            return "ERROR: Usage: drag_hit_chain <x 0-1> <y 0-1>"
+              (0...1).contains(nx), (0...1).contains(ny),
+              parts.count == 2 || parts[2] == "content" || parts[2] == "theme" else {
+            return "ERROR: Usage: drag_hit_chain <x 0-1> <y 0-1> [theme|content]"
         }
+        // `content` reproduces the traversal Bonsplit's tab-drag veto and the
+        // sidebar-divider diagnostic use (`contentView.hitTest` with a point
+        // converted into the content view), and reports the geometry that
+        // decides whether that traversal agrees with the theme-frame one.
+        let traversesContentView = parts.count == 3 && parts[2] == "content"
 
         var result = "ERROR: No window"
         v2MainSync {
@@ -12805,8 +12923,19 @@ class TerminalController {
             if let overlay { overlay.isHidden = true }
             defer { overlay?.isHidden = false }
 
-            guard let hit = themeFrame.hitTest(pointInTheme) else {
-                result = "none"
+            let geometry = "geometry contentFrame=\(NSStringFromRect(contentView.frame)) " +
+                "contentBounds=\(NSStringFromRect(contentView.bounds)) " +
+                "contentFlipped=\(contentView.isFlipped) themeFlipped=\(themeFrame.isFlipped) " +
+                "currentEvent=\(NSApp.currentEvent.map { String(describing: $0.type) } ?? "nil")"
+            let resolvedHit: NSView?
+            if traversesContentView {
+                let windowPoint = themeFrame.convert(pointInTheme, to: nil)
+                resolvedHit = contentView.hitTest(contentView.convert(windowPoint, from: nil))
+            } else {
+                resolvedHit = themeFrame.hitTest(pointInTheme)
+            }
+            guard let hit = resolvedHit else {
+                result = "none " + geometry
                 return
             }
 
@@ -12818,7 +12947,7 @@ class TerminalController {
                 current = view.superview
                 depth += 1
             }
-            result = chain.joined(separator: "->")
+            result = chain.joined(separator: "->") + " " + geometry
         }
         return result
     }
@@ -15987,7 +16116,12 @@ class TerminalController {
         let sendResult = terminalTarget.sendInputResult(text)
         switch sendResult {
         case .sent:
-            terminalTarget.forceRefresh(reason: "mobileHost.terminalInput")
+            // PTY output is already observed by MobileTerminalByteTee, which
+            // schedules the post-parser render-grid tick. Forcing a refresh
+            // here emits a full frame before the echoed bytes arrive, sending
+            // screen-anchored iOS clients through the verified replay path on
+            // every keystroke.
+            break
         case .queued:
             break
         case .inputQueueFull:
