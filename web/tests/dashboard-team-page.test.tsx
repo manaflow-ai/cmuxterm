@@ -1,21 +1,6 @@
-import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createNextNavigationMock } from "./helpers/next-navigation-mock";
-import {
-  TEST_STACK_PROJECT_ID,
-  nextHeadersMock,
-} from "./helpers/dashboard-session-mock";
-import { renderSettled } from "./helpers/render-stream";
-
-const previousStackProjectId = process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
-process.env.NEXT_PUBLIC_STACK_PROJECT_ID = TEST_STACK_PROJECT_ID;
-afterAll(() => {
-  if (previousStackProjectId === undefined) {
-    delete process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
-  } else {
-    process.env.NEXT_PUBLIC_STACK_PROJECT_ID = previousStackProjectId;
-  }
-});
 
 let signedIn = true;
 let stackConfigured = true;
@@ -40,18 +25,6 @@ mock.module("next/navigation", () => {
   return navigation;
 });
 
-mock.module("next/headers", () =>
-  nextHeadersMock({
-    refreshToken: () => "refresh-1",
-    // Middleware forwards the destination for the sign-in redirect.
-    headers: () => new Headers({ "x-cmux-dashboard-return-path": "/dashboard/team" }),
-  }),
-);
-
-mock.module("next/cache", () => ({
-  cacheLife: () => undefined,
-}));
-
 mock.module("@tanstack/react-query", () => ({
   useQuery: () => ({ data: undefined, isPending: true, isError: false }),
   useQueryClient: () => ({
@@ -63,7 +36,7 @@ mock.module("@tanstack/react-query", () => ({
 mock.module("../app/lib/stack", () => ({
   isStackConfigured: () => stackConfigured,
   getStackServerApp: () => ({
-    getUser: async () => signedIn ? { id: "user-1", isAnonymous: false } : null,
+    getUser: async () => signedIn ? { id: "user-1" } : null,
   }),
 }));
 
@@ -87,10 +60,7 @@ describe("dashboard team settings", () => {
     const page = await DashboardTeamPage({
       params: Promise.resolve({ locale: "en" }),
     });
-    expect(renderToStaticMarkup(page)).toContain(
-      'data-testid="dashboard-section-skeleton"',
-    );
-    const html = await renderSettled(page);
+    const html = renderToStaticMarkup(page);
 
     expect(html).toContain('data-testid="stack-account-settings"');
     expect(html).toContain("teams, and invitations");
@@ -100,12 +70,9 @@ describe("dashboard team settings", () => {
   test("preserves the team settings return path when signed out", async () => {
     signedIn = false;
 
-    const html = await renderSettled(await DashboardTeamPage({
+    await expect(DashboardTeamPage({
       params: Promise.resolve({ locale: "en" }),
-    }));
-
-    expect(html).not.toContain('data-testid="stack-account-settings"');
-    expect(redirectedTo).toContain("/handler/sign-in");
+    })).rejects.toThrow("redirect:/handler/sign-in");
     expect(redirectedTo).toContain("/dashboard/team");
   });
 
