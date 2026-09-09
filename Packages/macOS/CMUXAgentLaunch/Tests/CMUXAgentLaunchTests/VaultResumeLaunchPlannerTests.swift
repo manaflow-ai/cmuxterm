@@ -156,6 +156,34 @@ struct VaultResumeLaunchPlannerTests {
         #expect(snapshot.environment["SECRET_TOKEN"] == nil)
     }
 
+    @Test("Empty captured environment values preserve registration defaults")
+    func emptyCapturedEnvironmentDoesNotEraseRegistrationValue() throws {
+        let registration = VaultResumeLaunchRequest.Registration(
+            id: "grok",
+            defaultExecutable: "grok",
+            resumeCommand: "env GROK_HOME='/tmp/registration-home' grok -r {{sessionId}}",
+            workingDirectoryPolicy: .preserve,
+            sessionDirectory: nil,
+            registeredResumeKind: nil
+        )
+        let capturedLaunch = AgentLaunchCommand(
+            arguments: ["grok", "-r", "captured-session"],
+            workingDirectory: "/tmp/project",
+            environment: ["GROK_HOME": ""],
+            source: "vault"
+        )
+        let plan = try #require(planner.plan(for: VaultResumeLaunchRequest(
+            kind: "grok",
+            sessionID: "captured-session",
+            workingDirectory: "/tmp/project",
+            profile: .registered(registration, launchCommand: capturedLaunch),
+            legacyCommand: nil
+        )))
+        let snapshot = try #require(plan.structuredSnapshot)
+
+        #expect(snapshot.environment["GROK_HOME"] == "/tmp/registration-home")
+    }
+
     @Test("A cwd-prefixed env registration promotes environment into the record")
     func cwdPrefixedEnvironmentIsStructured() throws {
         let registration = VaultResumeLaunchRequest.Registration(
