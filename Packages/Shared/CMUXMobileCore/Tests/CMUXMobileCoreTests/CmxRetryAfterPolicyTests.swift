@@ -66,9 +66,10 @@ import Testing
     }
 
     @Test func oversizedSleepUsesSafeChunksWithoutShorteningTheWait() async throws {
+        let runChunkedSleep = CmxRetryAfterPolicy.sleep
         var cancelledChunks: [TimeInterval] = []
         do {
-            try await CmxRetryAfterPolicy.sleep(seconds: 18_446_744_074) { chunk in
+            try await runChunkedSleep(seconds: 18_446_744_074) { chunk in
                 cancelledChunks.append(chunk)
                 throw CancellationError()
             }
@@ -78,7 +79,7 @@ import Testing
 
         let time = RetryAfterTestTime()
         var completedChunks: [TimeInterval] = []
-        try await CmxRetryAfterPolicy.sleep(seconds: 172_801) { chunk in
+        try await runChunkedSleep(seconds: 172_801) { chunk in
             completedChunks.append(chunk)
             time.advance(by: chunk)
         }
