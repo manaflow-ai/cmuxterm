@@ -967,5 +967,4 @@ struct PiFeedDockOwnershipTests {
         }
     }
 
-    @MainActor
 }
