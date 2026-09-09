@@ -22,13 +22,13 @@ final class OwlFreshRuntime: @unchecked Sendable {
         init(_ handler: @escaping EventHandler) { self.handler = handler }
     }
 
-    /// Returns a sibling launcher that adds the validated unpacked-extension
-    /// allowlist before the OWL runtime's positional initial URL argument.
-    /// The launcher stays beside Content Shell so the runtime dylib lookup
-    /// remains relative to the extracted, signed runtime tree.
+    /// Returns a launcher outside the signed Content Shell bundle that adds
+    /// the validated unpacked-extension allowlist before the OWL runtime's
+    /// positional initial URL argument.
     static func shellExecutable(
         for shell: URL,
-        extensionDirectories: [URL]
+        extensionDirectories: [URL],
+        wrapperDirectory: URL? = nil
     ) throws -> URL {
         let paths = extensionDirectories
             .map { $0.standardizedFileURL.path }
@@ -40,8 +40,17 @@ final class OwlFreshRuntime: @unchecked Sendable {
             .prefix(8)
             .map { String(format: "%02x", $0) }
             .joined()
-        let wrapper = shell
+        let defaultWrapperDirectory = shell
             .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let resolvedWrapperDirectory = wrapperDirectory ?? defaultWrapperDirectory
+        try FileManager.default.createDirectory(
+            at: resolvedWrapperDirectory,
+            withIntermediateDirectories: true
+        )
+        let wrapper = resolvedWrapperDirectory
             .appendingPathComponent(".cmux-owl-shell-\(digest)", isDirectory: false)
         let quote: (String) -> String = { value in
             "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
@@ -60,10 +69,17 @@ final class OwlFreshRuntime: @unchecked Sendable {
         return wrapper
     }
 
-    init(shell: URL, initialURL: URL, profile: URL, handler: @escaping EventHandler) throws {
+    init(
+        shell: URL,
+        runtimeShell: URL? = nil,
+        initialURL: URL,
+        profile: URL,
+        handler: @escaping EventHandler
+    ) throws {
         self.handler = handler
         self.callbackBox = UnmanagedCallbackBox(handler)
-        let dylib = shell
+        let dylibAnchor = runtimeShell ?? shell
+        let dylib = dylibAnchor
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("libowl_fresh_mojo_runtime.dylib")

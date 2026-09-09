@@ -183,7 +183,7 @@ extension ChromiumBrowserSession {
         let targetMatchesCurrent = targetURL.map { matchesCurrentURL($0) } ?? true
         if navigationRevision > revision,
            !isLoading,
-           (targetMatchesCurrent || (usesNativeOWL() && owlLastNavigationAllowsRedirect)) {
+           (targetMatchesCurrent || owlRedirectCompletionMatches(targetURL: targetURL)) {
             return
         }
         let stream = snapshots()
@@ -200,7 +200,7 @@ extension ChromiumBrowserSession {
             let targetMatchesValue = targetURL.map { Self.matches(url: value.currentURL, target: $0) } ?? true
             if value.navigationRevision > revision,
                !value.isLoading,
-               (targetMatchesValue || (usesNativeOWL() && owlLastNavigationAllowsRedirect)) {
+               (targetMatchesValue || owlRedirectCompletionMatches(targetURL: targetURL)) {
                 return
             }
         }
@@ -243,7 +243,8 @@ extension ChromiumBrowserSession {
         baselineDocumentEpoch: Double? = nil
     ) {
         owlNavigationIntent = intent
-        owlLastNavigationAllowsRedirect = false
+        owlLastRedirectNavigationRevision = nil
+        owlLastRedirectNavigationTarget = nil
         owlNavigationSawLoadingEvent = false
         owlNavigationBaselineDocumentEpoch = baselineDocumentEpoch
         isLoading = true
@@ -254,7 +255,8 @@ extension ChromiumBrowserSession {
         owlNavigationReadinessTask?.cancel()
         owlNavigationReadinessTask = nil
         owlNavigationIntent = nil
-        owlLastNavigationAllowsRedirect = false
+        owlLastRedirectNavigationRevision = nil
+        owlLastRedirectNavigationTarget = nil
         owlNavigationSawLoadingEvent = false
         owlNavigationBaselineDocumentEpoch = nil
         failNavigation()
@@ -262,7 +264,8 @@ extension ChromiumBrowserSession {
 
     func completeOwlNoOpNavigation() {
         owlNavigationIntent = nil
-        owlLastNavigationAllowsRedirect = false
+        owlLastRedirectNavigationRevision = nil
+        owlLastRedirectNavigationTarget = nil
         owlNavigationSawLoadingEvent = false
         owlNavigationBaselineDocumentEpoch = nil
         isLoading = false
@@ -292,9 +295,14 @@ extension ChromiumBrowserSession {
 
     func commitOwlNavigation(_ intent: OwlNavigationIntent, eventURL: URL?) {
         let committedURL = eventURL ?? intent.expectedURL
-        owlLastNavigationAllowsRedirect = switch intent {
-        case .destination, .reload: true
-        case .rendererDestination, .back, .forward: false
+        let completedRevision = navigationRevision &+ 1
+        switch intent {
+        case .destination, .reload:
+            owlLastRedirectNavigationRevision = completedRevision
+            owlLastRedirectNavigationTarget = intent.expectedURL
+        case .rendererDestination, .back, .forward:
+            owlLastRedirectNavigationRevision = nil
+            owlLastRedirectNavigationTarget = nil
         }
         if let committedURL {
             switch intent {
@@ -314,9 +322,19 @@ extension ChromiumBrowserSession {
         owlNavigationSawLoadingEvent = false
         owlNavigationBaselineDocumentEpoch = nil
         isLoading = false
-        navigationRevision &+= 1
+        navigationRevision = completedRevision
         owlNavigationReadinessTask?.cancel()
         owlNavigationReadinessTask = nil
+    }
+
+    private func owlRedirectCompletionMatches(targetURL: URL?) -> Bool {
+        guard usesNativeOWL(),
+              owlLastRedirectNavigationRevision == navigationRevision else {
+            return false
+        }
+        guard let targetURL else { return true }
+        guard let requestedURL = owlLastRedirectNavigationTarget else { return false }
+        return Self.matches(url: targetURL, target: requestedURL)
     }
 
     func syncOwlHistorySnapshot() {
@@ -627,7 +645,8 @@ extension ChromiumBrowserSession {
     }
 
     func beginNavigation() {
-        owlLastNavigationAllowsRedirect = false
+        owlLastRedirectNavigationRevision = nil
+        owlLastRedirectNavigationTarget = nil
         navigationRevision &+= 1
         isLoading = true
         publish()

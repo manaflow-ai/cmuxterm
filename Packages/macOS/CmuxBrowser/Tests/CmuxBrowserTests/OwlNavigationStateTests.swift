@@ -31,6 +31,7 @@ struct OwlNavigationStateTests {
             .appendingPathComponent("Content Shell.app/Contents/MacOS/Content Shell", isDirectory: false)
         let extensionOne = root.appendingPathComponent("extension-one", isDirectory: true)
         let extensionTwo = root.appendingPathComponent("extension-two", isDirectory: true)
+        let launcherDirectory = root.appendingPathComponent("profile", isDirectory: true)
         try FileManager.default.createDirectory(
             at: shell.deletingLastPathComponent(),
             withIntermediateDirectories: true
@@ -42,10 +43,12 @@ struct OwlNavigationStateTests {
 
         let wrapper = try OwlFreshRuntime.shellExecutable(
             for: shell,
-            extensionDirectories: [extensionOne, extensionTwo]
+            extensionDirectories: [extensionOne, extensionTwo],
+            wrapperDirectory: launcherDirectory
         )
-        #expect(wrapper.deletingLastPathComponent() == shell.deletingLastPathComponent())
+        #expect(wrapper.deletingLastPathComponent() == launcherDirectory)
         #expect(wrapper != shell)
+        #expect(!wrapper.path.contains("Content Shell.app/Contents/MacOS"))
         #expect(FileManager.default.isExecutableFile(atPath: wrapper.path))
         let script = try String(contentsOf: wrapper, encoding: .utf8)
         #expect(script.contains("--disable-extensions-except=\(extensionOne.path),\(extensionTwo.path)"))

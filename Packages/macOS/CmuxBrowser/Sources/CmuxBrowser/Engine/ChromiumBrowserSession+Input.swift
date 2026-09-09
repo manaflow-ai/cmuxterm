@@ -134,12 +134,20 @@ extension ChromiumBrowserSession {
 
         let token = "__cmux_owl_eval_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
         let quotedToken = "\"\(token)\""
+        guard let scriptData = try? JSONSerialization.data(
+            withJSONObject: script,
+            options: [.fragmentsAllowed]
+        ),
+        let scriptLiteral = String(data: scriptData, encoding: .utf8) else {
+            throw CDPError.commandFailed(ChromiumBrowserDiagnostic.javaScriptEvaluationFailed.message)
+        }
         let startScript = """
         (() => {
           const key = \(quotedToken);
+          const source = \(scriptLiteral);
           try {
             const value = (async () => {
-              return await (\(script));
+              return await (0, eval)(source);
             })();
             globalThis[key] = { state: "pending" };
             Promise.resolve(value).then(
@@ -161,7 +169,8 @@ extension ChromiumBrowserSession {
             try Task.checkCancellation()
             let raw = try runtime.evaluate("globalThis[\(quotedToken)] || { state: 'pending' }")
             guard let data = raw.data(using: .utf8),
-                  let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let parsed = try? JSONSerialization.jsonObject(with: data),
+                  let object = parsed as? [String: Any],
                   let state = object["state"] as? String else {
                 try await Task.sleep(for: .milliseconds(20))
                 continue
