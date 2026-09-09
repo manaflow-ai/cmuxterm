@@ -39,9 +39,9 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         addKeptScreenshot(app.windows.firstMatch.screenshot(), name: "vault-sessions-before")
 
         history.click()
-        // Query the stable identifier, not a localized label or the Menu's
-        // platform-dependent title/description mapping.
-        let picker = app.menuButtons["VaultHistoryGroupPicker"].firstMatch
+        // SwiftUI exposes this Menu as a PopUpButton on macOS 15 and a
+        // MenuButton on newer systems. Its stable identifier is the contract.
+        let picker = app.descendants(matching: .any)["VaultHistoryGroupPicker"].firstMatch
         XCTAssertTrue(picker.waitForExistence(timeout: 10), app.debugDescription)
         for grouping in ["Workspace", "Window", "Agent", "Type", "Date"] {
             picker.click()
