@@ -43,13 +43,21 @@ extension IrohPeerConnection {
     }
 
     /// Takes ownership after the native opening handshake has suspended.
+    /// Keeps an inbound winner and closes only the unadopted duplicate.
     /// The caller closes the unadopted stream if registration throws.
     func completeNamedLaneOpen(
         _ name: String, stream: BiStream, channel: IrohLaneChannel
     ) async throws -> IrohLane {
-        guard !closedFlag, !Task.isCancelled, lanes.count < Self.maxLaneCount else {
+        guard !closedFlag, !Task.isCancelled else {
             throw TransportError.pipeClosed
         }
+        if let existing = lanes[name] {
+            // Inbound processing can adopt this name while sendFrame yields.
+            // Never replace its consumer or lose ownership of its QUIC stream.
+            await closeUnadoptedStream(stream)
+            return existing
+        }
+        guard lanes.count < Self.maxLaneCount else { throw TransportError.pipeClosed }
         let lane = makeLane(name: name, channel: channel)
         lanes[name] = lane
         if TransportDebugLog.enabled {
