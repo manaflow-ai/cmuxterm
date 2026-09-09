@@ -633,7 +633,7 @@
     "metaDescriptionNoVault": "cmux는 AI 코딩 에이전트를 위한 무료 오픈 소스 macOS 터미널입니다. 격리된 클라우드 VM을 위해 Pro로 업그레이드하세요. Enterprise에는 SSO 및 자체 호스팅이 추가되었습니다.",
     "metaDescriptionNoVaultShort": "cmux는 무료 오픈 소스 macOS 터미널입니다. Pro는 격리된 클라우드 VM을 추가합니다. Enterprise에는 SSO 및 자체 호스팅이 추가되었습니다.",
     "title": "가격",
-    "alreadyPaid": "이미 지불하셨나요? 파운더스 에디션 연결",
+    "alreadyPaid": "이미 결제하셨나요? Founder's Edition 연결",
     "perMonth": "/월",
     "perMonthBilledYearly": "/월, 매년 청구됨",
     "perUserMonth": "/사용자/월",
@@ -641,7 +641,7 @@
     "billingPeriod": "청구기간",
     "monthly": "월간",
     "annual": "연간",
-    "saveAnnual": "{discount}% 저장",
+    "saveAnnual": "{discount}% 할인",
     "annualComparePrice": "${monthly}/월",
     "teamMonthlyComparePrice": "${monthly}/사용자/월",
     "teamAnnualComparePrice": "${monthly}/사용자/월",
@@ -663,11 +663,11 @@
     },
     "pro": {
       "name": "Pro",
-      "cta": "프로 가입",
-      "featuresLead": "무료로 제공되는 모든 기능과 다음 기능:",
+      "cta": "Pro 구독",
+      "featuresLead": "무료 요금제의 모든 기능에 다음 기능 추가:",
       "features": [
-        "격리된 원격 샌드박스에 있는 Cloud VM의 클라우드 에이전트",
-        "각각 자체 리소스가 있는 최대 50개의 Cloud VM 기본 크기 8GB RAM 및 32GB 디스크(4~64GB RAM 사용 가능)",
+        "격리된 원격 샌드박스의 클라우드 VM에서 실행되는 클라우드 에이전트",
+        "각각 독립된 리소스를 갖춘 클라우드 VM 최대 50대. 기본 구성은 RAM 8GB, 디스크 32GB이며 RAM 4~64GB 구성 선택 가능",
         "무제한 작업 공간",
         "cmux iOS 앱 및 이메일 지원"
       ],
@@ -681,7 +681,7 @@
     },
     "team": {
       "name": "팀",
-      "cta": "팀 가져오기",
+      "cta": "팀 요금제 구독",
       "featuresLead": "Pro의 모든 기능과 다음 기능 추가:",
       "features": [
         "팀 전체에 대한 중앙 집중식 청구",
@@ -692,13 +692,13 @@
       "name": "기업",
       "price": "맞춤",
       "cta": "영업팀에 문의",
-      "featuresLead": "Team의 모든 기능과 더불어 다음 사항도 포함됩니다.",
+      "featuresLead": "팀 요금제의 모든 기능에 다음 기능 추가:",
       "features": [
-        "자체 호스팅 클라우드 실행 및 네트워킹으로 네트워크 외부에는 아무것도 남지 않습니다.",
+        "클라우드 실행 환경과 네트워크를 자체 호스팅하여 데이터가 네트워크 밖으로 나가지 않도록 구성",
         "SSO 및 SAML 로그인",
         "중앙 집중식 관리 및 공유 팀 규칙",
         "터미널 세션, 네트워크 요청 및 브라우저 활동에 대한 감사 로그",
-        "커스텀 VM 한도 및 볼륨 가격",
+        "맞춤형 VM 한도 및 대량 이용 요금",
         "SOC 2 및 SLA(전담 지원 포함)"
       ]
     },
@@ -706,7 +706,7 @@
       "title": "요금제 비교",
       "rows": [
         {
-          "label": "기본 macOS 터미널, 오픈 소스",
+          "label": "오픈 소스 macOS 네이티브 터미널",
           "free": "true",
           "pro": "true",
           "team": "true",
@@ -728,7 +728,7 @@
         },
         {
           "label": "세션 기록",
-          "free": "지역",
+          "free": "로컬 저장",
           "pro": "무제한",
           "team": "무제한",
           "enterprise": "무제한",
@@ -772,7 +772,7 @@
           "enterprise": "맞춤"
         },
         {
-          "label": "작업공간",
+          "label": "작업 공간",
           "free": "무제한",
           "pro": "무제한",
           "team": "무제한",
@@ -787,7 +787,7 @@
         },
         {
           "label": "Mac에 연결하기 위한 네트워킹",
-          "free": "나만의 것을 가져오세요",
+          "free": "자체 네트워크 사용",
           "pro": "호스팅됨",
           "team": "호스팅됨",
           "enterprise": "자체 호스팅",
@@ -815,7 +815,7 @@
           "enterprise": "true"
         },
         {
-          "label": "볼륨 가격",
+          "label": "대량 이용 요금",
           "free": "false",
           "pro": "false",
           "team": "false",
@@ -832,8 +832,8 @@
           "label": "지원",
           "free": "커뮤니티",
           "pro": "이메일",
-          "team": "우선순위",
-          "enterprise": "전용"
+          "team": "우선 지원",
+          "enterprise": "전담 지원"
         }
       ]
     },
@@ -842,33 +842,33 @@
       "title": "FAQ",
       "items": [
         {
-          "q": "단말기가 정말 무료인가요?",
-          "a": "그렇습니다. macOS 앱은 오픈 소스이며 영원히 무료입니다. 로컬 에이전트는 무료로 자체 API 키를 사용하여 실행됩니다. 클라우드 VM은 유료 요금제의 일부입니다."
+          "q": "터미널이 정말 무료인가요?",
+          "a": "네. macOS 앱은 오픈 소스이며 계속 무료로 제공됩니다. 자신의 API 키로 로컬 에이전트를 무료로 실행할 수 있습니다. 클라우드 VM은 유료 요금제에 포함됩니다."
         },
         {
-          "q": "클라우드 VM이란 무엇입니까?",
-          "a": "클라우드의 영구 Linux 머신: 가축이 아닌 애완동물. Zen of cmux에 따르면 머신은 관리형 솔루션이 아닌 원시적입니다. 머신은 파일, 설치된 도구 및 상태를 유지하며 그 위에 구축하는 것은 모두 귀하의 것입니다. 에이전트는 Mac을 건드리지 않고도 리포지토리를 복제하고, 명령을 실행하고, 끌어오기 요청을 엽니다. Pro에는 최대 50대의 머신이 포함됩니다. 팀에는 사용자당 최대 50개의 Cloud VM이 포함됩니다. 각 머신에는 자체 CPU, 메모리 및 디스크가 있습니다. 기본 크기는 8GB RAM 및 32GB 디스크입니다. 4~64GB RAM 크기를 사용할 수 있습니다. 디스크는 최대 256GB까지 증가할 수 있습니다. 계량 또는 초과분 청구가 없습니다."
+          "q": "클라우드 VM은 무엇인가요?",
+          "a": "클라우드에 지속적으로 유지되는 Linux 머신입니다. 쉽게 교체하는 가축이 아니라 오래 돌보는 반려동물처럼 다룹니다. cmux의 설계 철학에 따라 머신은 관리형 완제품이 아닌 기본 구성 요소입니다. 파일, 설치한 도구, 상태를 유지하며 그 위에 구축한 것은 사용자의 것입니다. 에이전트는 Mac을 건드리지 않고 머신에서 저장소를 복제하고 명령을 실행하며 풀 리퀘스트를 엽니다. Pro에는 최대 50대, 팀 요금제에는 사용자당 최대 50대의 클라우드 VM이 포함됩니다. 각 머신은 독립된 CPU, 메모리, 디스크를 갖습니다. 기본 구성은 RAM 8GB와 디스크 32GB이며 RAM 4~64GB 구성을 선택할 수 있습니다. 디스크는 최대 256GB까지 확장할 수 있습니다. 사용량에 따른 과금이나 초과 요금은 없습니다."
         },
         {
-          "q": "cmux Vault란 무엇입니까?",
-          "a": "Vault는 모든 터미널 세션을 클라우드에 백업하고 컴퓨터 전체에 걸쳐 무제한 기록으로 모든 세션을 검색할 수 있도록 해줍니다. 무료는 각 컴퓨터에 로컬로 기록을 유지합니다. Pro에는 클라우드 백업 및 검색이 추가됩니다.",
+          "q": "cmux Vault는 무엇인가요?",
+          "a": "Vault는 모든 터미널 세션을 클라우드에 백업하고 세션 전체를 검색할 수 있게 해 줍니다. 여러 머신에서 제한 없이 기록을 이용할 수 있습니다. 무료 요금제는 각 머신에 기록을 로컬로 보관하며, Pro는 클라우드 백업과 검색 기능을 추가로 제공합니다.",
           "vault": true
         },
         {
-          "q": "iOS 앱에도 Tailscale이 필요합니까?",
-          "a": "아니요. iOS 앱은 내장된 cmux iroh 네트워크를 통해 Mac과 페어링됩니다. Tailscale과 같은 자체 네트워킹을 가져올 수도 있습니다. 기업은 자체 호스팅이 가능합니다."
+          "q": "iOS 앱을 사용하려면 여전히 Tailscale이 필요한가요?",
+          "a": "아니요. iOS 앱은 내장된 cmux iroh 네트워크를 통해 Mac과 페어링됩니다. Tailscale 같은 자체 네트워크를 사용할 수도 있습니다. 기업 요금제는 자체 호스팅을 지원합니다."
         },
         {
           "q": "청구는 어떻게 이루어지나요?",
-          "a": "Pro 요금은 월 $50, 연간 청구 시 월 $40입니다(20% 절약). 팀 요금은 사용자당 월 $60 또는 연간 청구 시 사용자당 월 $48입니다. 유료 요금제에는 사용자당 최대 50개의 Cloud VM이 포함됩니다. 각 머신에는 측정이나 초과 요금 청구 없이 자체 CPU, 메모리, 디스크가 있습니다. 터미널과 현지 대리인은 무료로 숙박할 수 있습니다."
+          "a": "Pro는 월 $50이며 연간 결제 시 월 $40에 해당하는 금액으로 20% 할인됩니다. 팀 요금제는 사용자당 월 $60이며 연간 결제 시 사용자당 월 $48에 해당합니다. 유료 요금제에는 사용자당 최대 50대의 클라우드 VM이 포함됩니다. 각 머신은 독립된 CPU, 메모리, 디스크를 갖추며 사용량 과금이나 초과 요금은 없습니다. 터미널과 로컬 에이전트는 계속 무료로 사용할 수 있습니다."
         },
         {
           "q": "클라우드를 자체 호스팅할 수 있나요?",
-          "a": "예, Enterprise에서 가능합니다. 자체 인프라에서 또는 완전히 에어갭으로 에이전트 실행을 실행하면 소스 코드가 네트워크를 떠나지 않습니다."
+          "a": "네. 기업 요금제에서는 자체 인프라나 외부 네트워크와 완전히 분리된 환경에서 에이전트를 실행할 수 있으므로 소스 코드가 네트워크 밖으로 나가지 않습니다."
         },
         {
-          "q": "팀 계획이 있나요?",
-          "a": "그렇습니다. 팀 비용은 연간 청구 시 사용자당 월 $60 또는 사용자당 월 $48이며 전체 팀에 대한 중앙 집중식 청구 및 우선 지원이 제공됩니다."
+          "q": "팀 요금제가 있나요?",
+          "a": "네. 팀 요금제는 사용자당 월 $60이며 연간 결제 시 사용자당 월 $48에 해당합니다. 팀 전체의 통합 청구와 우선 지원이 포함됩니다."
         }
       ]
     },
@@ -1456,7 +1456,7 @@
         "p1": "작업에 따라 필요한 병렬 처리 방식도 다릅니다. 일반적인 Git 변경에는 워크트리가 적합합니다. 하위 모듈이나 빌드 도구가 워크트리와 잘 맞지 않는다면 저장소를 여러 번 체크아웃하는 편이 낫습니다. Freestyle과 Modal은 원격 샌드박스를 제공하며, GitHub Actions도 같은 용도로 활용할 수 있습니다. Docker, UTM, Lima, OrbStack은 로컬 격리를 담당합니다. Mac mini나 Linux 장비를 사용하는 팀도 있습니다. 머신 러닝 실험에는 Ray, Modal, Slurm이 더 적합한 경우가 많습니다. 때로는 위험을 감수하고 모든 작업을 main에서 바로 실행하는 것이 가장 빠릅니다.",
         "p2": "<zen>cmux의 Zen</zen>은 개발자가 직접 도구를 만들고 코드와 함께 일하는 방식의 탐색 공간을 넓혀야 한다는 뜻입니다. 워크트리는 유용한 프리미티브지만, 여러 체크아웃, 서로 다른 폴더에 있는 백엔드/프런트엔드 저장소, 원격 머신, git이 없는 프로젝트, 로컬 스크립트, 때로는 그 작업에 가장 빠르기 때문에 main에서 바로 코딩하는 방식도 프리미티브입니다.",
         "superRepoTitle": "슈퍼 레포 패턴",
-        "superRepoP1": "슈퍼 저장소는 모든 실제 저장소가 어디에 있는지, 작업 트리가 어떻게 생성되는지, 관련 저장소가 어떻게 쌍을 이루는지, 어떤 스크립트가 각 작업공간을 준비하는지, PR이 어떻게 검토되고 병합되는지를 아는 하나의 제어 체크아웃입니다. cmuxterm-hq는 슈퍼 저장소입니다. 여기에는 기본 cmux 체크아웃, 작업별 cmux 작업 트리, Zed 체크아웃, hq 스크립트, 재사용 가능한 기술 및 에이전트가 서로 밟지 않기 위해 따르는 규칙이 포함되어 있습니다.",
+        "superRepoP1": "슈퍼 저장소는 모든 실제 저장소가 어디에 있는지, 작업 트리가 어떻게 생성되는지, 관련 저장소가 어떻게 쌍을 이루는지, 어떤 스크립트가 각 작업 공간을 준비하는지, PR이 어떻게 검토되고 병합되는지를 아는 하나의 제어 체크아웃입니다. cmuxterm-hq는 슈퍼 저장소입니다. 여기에는 기본 cmux 체크아웃, 작업별 cmux 작업 트리, Zed 체크아웃, hq 스크립트, 재사용 가능한 기술 및 에이전트가 서로 밟지 않기 위해 따르는 규칙이 포함되어 있습니다.",
         "superRepoP2": "<code>AGENTS.md</code> 파일은 제어 플레인입니다. 에이전트에 필요할 수 있는 저장소의 이름을 지정하고, 각 작업 작업 트리가 속하는 위치를 정의하고, 저장소별 설정 지침을 가리킵니다. 모든 작업에 대해 세 가지를 모두 복제하지 않고도 하나의 작업으로 터미널, 브라우저 통합 및 라우터에 대해 일치하는 작업 트리를 생성할 수 있습니다.",
         "agentsExample": "귀하는 cmux-hq에서 작업하고 있습니다. 작업에는 다음이 포함될 수 있습니다.\n- manaflow-ai/cmux\n- manaflow-ai/cmux-browser\n- manaflow-ai/coderouter\n\n사용자가 새 작업을 요청하는 경우:\n1. 작업에 필요한 리포지토리를 결정합니다.\n2. worktrees/[task]/[repo]에 일치하는 작업 트리를 만듭니다.\n3. 각 작업 트리의 AGENTS.md를 읽습니다.\n4. 즉시 설정 스크립트를 시작한 다음 작업을 계속합니다.",
         "agentTitle": "에이전트가 작업 트리를 관리하도록 허용",
@@ -1529,7 +1529,7 @@
         "p3": "Vault에서 세션을 워크스페이스로 끌어오면 현재 작업 중인 곳에서 다시 열 수 있습니다.",
         "p4": "cmux v0.64+가 필요합니다.",
         "workflowTitle": "이전 상담사 작업을 찾는 워크플로",
-        "workflowOpen": "작업은 기억나지만 작업공간이나 날짜는 기억나지 않으면 오른쪽 사이드바에서 Vault를 엽니다.",
+        "workflowOpen": "작업은 기억나지만 작업 공간이나 날짜는 기억나지 않으면 오른쪽 사이드바에서 Vault를 엽니다.",
         "workflowSearch": "에이전트 기록에서 파일 이름, 문제 제목, 오류 메시지, 분기 이름 또는 문구를 검색하세요.",
         "workflowDrag": "현재 터치하고 있는 코드 옆에 다시 열리도록 일치하는 세션을 활성 작업 공간으로 드래그합니다.",
         "workflowContinue": "새로운 에이전트에게 동일한 상태를 재발견하도록 요청하는 대신 복구된 컨텍스트에서 계속 진행하세요.",
@@ -1745,7 +1745,7 @@
       "mapTmux": "tmux",
       "mapCmux": "cmux",
       "rowSession": "사이드바의 전용 작업 공간.",
-      "rowWindow": "해당 작업공간의 탭입니다.",
+      "rowWindow": "해당 작업 공간의 탭입니다.",
       "rowPane": "해당 탭 내부의 기본 분할에 있는 창입니다.",
       "mappingPanes": "새로운 기능은 탭 안의 창입니다. cmux 탭은 단일 터미널을 보유하는 데 사용되지만 여러 창이 있는 tmux 창은 이제 하나의 탭 내에서 실제 cmux 분할 레이아웃으로 렌더링됩니다. 각 원격 창은 일반적인 크롬이 포함된 기본 cmux 터미널 창입니다. 브리지는 양방향입니다. 해당 탭에서 창을 분할하거나 닫으면 tmux 분할 창이 실행되고 탭 순서를 변경하면 스왑 창을 사용하여 tmux 창 순서가 변경됩니다.",
       "requirementsTitle": "요구사항",
@@ -2062,8 +2062,8 @@
           "scrollSpeed": "터미널 스크롤 휠과 트랙패드 이동량에 적용되는 배율입니다. 값이 클수록 빠르게 스크롤되고, 작을수록 느리게 스크롤됩니다.",
           "sessionContentMaxWidth": "터미널 및 내장 에이전트 채팅 콘텐츠의 선택적 최대 너비(포인트)입니다. 전체 패널 너비를 사용하려면 false로 설정하세요.",
           "sessionContentAlignment": "sessionContentMaxWidth가 활성화된 경우 터미널 및 내장 에이전트 채팅 콘텐츠의 가로 배치입니다.",
-          "showTextBoxOnNewTerminals": "새로 생성된 작업공간, 터미널 탭, 터미널 분할에서 베타 TextBox 입력을 기본으로 표시합니다.",
-          "focusTextBoxOnNewTerminals": "새로 생성된 작업공간, 터미널 탭, 터미널 분할에서 베타 TextBox 입력에 기본으로 포커스합니다. 포커스하면 TextBox도 표시됩니다.",
+          "showTextBoxOnNewTerminals": "새로 생성된 작업 공간, 터미널 탭, 터미널 분할에서 베타 TextBox 입력을 기본으로 표시합니다.",
+          "focusTextBoxOnNewTerminals": "새로 생성된 작업 공간, 터미널 탭, 터미널 분할에서 베타 TextBox 입력에 기본으로 포커스합니다. 포커스하면 TextBox도 표시됩니다.",
           "textBoxDefaultSubmitAction": "새 터미널 세션에 대한 기본 TextBox 제출 작업 ID입니다. 일반 입력 또는 구성된 작업 ID 중 하나에 텍스트 입력을 사용합니다.",
           "textBoxSubmitActions": "제출 버튼, Shift-Tab 사이클 및 마우스 오른쪽 버튼 클릭 메뉴에 표시되는 구성 가능한 TextBox 제출 작업.",
           "textBoxSubmitActionId": "Terminal.textBoxDefaultSubmitAction에서 참조하는 안정적인 작업 ID입니다.",
@@ -2199,10 +2199,10 @@
       "newWorkspaceButton": "플러스 버튼 사용자 지정 액션",
       "newWorkspaceButtonDesc": "<action>ui.newWorkspace.action</action>으로 플러스 버튼의 동작을 재정의합니다. <contextMenu>ui.newWorkspace.contextMenu</contextMenu>(또는 <rightClick>rightClick</rightClick> alias)로 정렬된 right-click 메뉴를 정의합니다. 메뉴 항목은 액션 ID, 액션 객체 또는 <separator>{ \"type\": \"separator\" }</separator>일 수 있습니다.",
       "newWorkspaceWorktreeNote": "이 예시는 일반 플러스 클릭이 <action>worktree-agents</action> 액션을 실행하게 합니다. <commands>commands</commands>의 워크스페이스 명령은 보이는 설정 터미널을 사용해 먼저 Git <worktree>worktree</worktree>를 만듭니다. Codex와 Claude는 동시에 시작해 워크스페이스별 상태 파일을 기다린 다음, exec 전에 생성된 디렉터리로 이동합니다.",
-      "workspaceActions": "작업공간 레이아웃",
+      "workspaceActions": "작업 공간 레이아웃",
       "workspaceActionsDesc": "작업 공간 레이아웃은 <workspace>workspace</workspace> 작업으로 저장되며 전체 작업 공간 정의를 작업에 직접 포함하므로 별도의 <commands>commands</commands> 항목이 필요하지 않습니다. 동일한 작업 공간 필드와 함께 해당 터미널의 자체 명령 이전에 첫 번째 터미널로 전송되는 부트스트랩 명령인 <setup>setup</setup>를 지원합니다.",
-      "workspaceActionsMenuDesc": "작업공간 레이아웃은 더하기 버튼 마우스 오른쪽 버튼 클릭 메뉴에 자동으로 나타납니다. <newWorkspaceMenu>newWorkspaceMenu</newWorkspaceMenu>을 <falseValue>false</falseValue>으로 설정하여 숨기거나 다른 작업에서 <trueValue>true</trueValue>로 설정하여 메뉴에 추가합니다.",
-      "workspaceActionsSaveDesc": "JSON을 작성하지 않고도 이를 생성할 수 있습니다. 더하기 버튼을 마우스 오른쪽 버튼으로 클릭하고 <saveLayout>작업 공간을 레이아웃</saveLayout>로 저장을 선택하여 현재 작업 공간의 분할, 디렉터리, 실행 중인 에이전트 및 브라우저 탭을 <configPath>~/.config/cmux/cmux.json</configPath>에 캡처합니다. 이는 <actions>actions</actions> 블록에 항목으로 저장됩니다. <customize>작업공간 레이아웃 사용자 정의</customize>은 편집기에서 해당 파일을 엽니다.",
+      "workspaceActionsMenuDesc": "작업 공간 레이아웃은 더하기 버튼 마우스 오른쪽 버튼 클릭 메뉴에 자동으로 나타납니다. <newWorkspaceMenu>newWorkspaceMenu</newWorkspaceMenu>을 <falseValue>false</falseValue>으로 설정하여 숨기거나 다른 작업에서 <trueValue>true</trueValue>로 설정하여 메뉴에 추가합니다.",
+      "workspaceActionsSaveDesc": "JSON을 작성하지 않고도 이를 생성할 수 있습니다. 더하기 버튼을 마우스 오른쪽 버튼으로 클릭하고 <saveLayout>작업 공간을 레이아웃</saveLayout>로 저장을 선택하여 현재 작업 공간의 분할, 디렉터리, 실행 중인 에이전트 및 브라우저 탭을 <configPath>~/.config/cmux/cmux.json</configPath>에 캡처합니다. 이는 <actions>actions</actions> 블록에 항목으로 저장됩니다. <customize>작업 공간 레이아웃 사용자 정의</customize>은 편집기에서 해당 파일을 엽니다.",
       "simpleCommands": "단순 명령어",
       "simpleCommandsDesc": "단순 명령어는 현재 포커스된 터미널에서 셸 명령어를 실행합니다:",
       "simpleCommandFields": "필드",
@@ -2254,7 +2254,7 @@
       "cwdAbsolute": "있는 그대로 사용",
       "fullExample": "전체 예시",
       "restartNew": "새 워크스페이스 만들기 (기본값)",
-      "workspaceActionsDefaultTitle": "새 작업공간의 기본값",
+      "workspaceActionsDefaultTitle": "새 작업 공간의 기본값",
       "workspaceActionsDefaultDesc": "<defaultMenu>새 작업 공간의 기본값</defaultMenu> 하위 메뉴에서 일반적인 새 작업 공간이 실행할 저장된 작업 공간 레이아웃을 선택하거나 없음을 선택해 빈 터미널로 돌아갑니다. 저장 대화상자에는 <checkbox>새 작업 공간의 기본값으로 사용</checkbox> 확인란도 있습니다. 설정은 <action>ui.newWorkspace.action</action>이며, 프로젝트 로컬 <localConfig>.cmux/cmux.json</localConfig> 값이 <globalConfig>~/.config/cmux/cmux.json</globalConfig>보다 우선합니다."
     },
     "keyboardShortcuts": {
@@ -2371,7 +2371,7 @@
       "closeWorkspaceDesc": "워크스페이스를 닫습니다.",
       "splitCommands": "분할 명령",
       "newSplitDesc": "새 분할 패널을 생성합니다. 방향: left, right, up, down.",
-      "listSurfacesDesc": "현재 작업공간의 모든 표면을 나열합니다.",
+      "listSurfacesDesc": "현재 작업 공간의 모든 표면을 나열합니다.",
       "focusSurfaceDesc": "특정 서피스에 포커스합니다.",
       "inputCommands": "입력 명령",
       "sendDesc": "포커스된 터미널에 텍스트 입력을 전송합니다.",
@@ -2542,7 +2542,7 @@
       "cmuxName": "cmux 코어",
       "cmuxDescription": "cmux CLI로 창, 워크스페이스, 패널, 표면, 포커스, 이동, 재정렬, 라우팅을 제어합니다.",
       "cmuxUse": "에이전트가 다중 패널 cmux 레이아웃에서 결정적인 배치나 탐색이 필요할 때 사용합니다.",
-      "workspaceName": "cmux 작업공간",
+      "workspaceName": "cmux 작업 공간",
       "workspaceDescription": "현재 호출자 작업 영역, 호출자 표면, 창, 사이드바 메타데이터 및 소켓 컨텍스트로 자동화 범위를 유지합니다.",
       "workspaceUse": "에이전트가 다른 작업 공간을 방해하지 않고 창을 추가하고, 입력을 보내고, 상태를 검사하거나 도우미 화면을 열어야 하는 경우 이를 사용하세요.",
       "settingsName": "cmux 설정",
@@ -2589,7 +2589,7 @@
       "exampleReviewName": "PR 검토",
       "exampleReviewSurface": "작업 공간 명령, 브라우저 표면, 마크다운 또는 터미널 메모",
       "exampleReviewUse": "단일 작업 공간에서 GitHub 상태, 풀 요청 및 검토 메모를 엽니다.",
-      "exampleDocsName": "문서 작업공간",
+      "exampleDocsName": "문서 작업 공간",
       "exampleDocsSurface": "작업 공간 명령, 마크다운 패널, 브라우저 미리보기",
       "exampleDocsUse": "렌더링된 페이지, 로컬 개발 서버 및 소스 노트를 표시하여 문서를 편집합니다.",
       "exampleCiName": "CI 시계",
@@ -2644,13 +2644,13 @@
       "flagsTitle": "플래그",
       "flagName": "깃발",
       "flagDesc": "설명",
-      "flagNameVal": "작업공간 제목 설정",
+      "flagNameVal": "작업 공간 제목 설정",
       "flagCommand": "셸 시작 후 첫 원격 터미널에서 명령 텍스트를 한 번만 실행",
       "flagPort": "SSH 포트(기본값 22)",
       "flagIdentity": "ID 파일 경로",
       "flagSshOption": "임의 SSH 옵션 전달(예: -o StrictHostKeyChecking=no)",
       "flagTransport": "대화형 터미널 전송 방식: ssh(기본값) 또는 mosh",
-      "flagNoFocus": "작업공간으로 전환하지 않고 작업공간 만들기",
+      "flagNoFocus": "작업 공간으로 전환하지 않고 작업 공간 만들기",
       "moshTitle": "Mosh 터미널 전송 방식",
       "moshDesc": "Wi-Fi, VPN, 핫스팟 전환이나 잠자기 및 깨우기 후에도 대화형 터미널을 유지하려면 cmux ssh user@remote --transport mosh를 사용하세요. Mosh는 터미널 PTY만 전달하며, 원격 메타데이터, cmux 서비스 설정 및 제어, 브라우저 프록시, 업로드, 재연결은 계속 SSH가 관리합니다.",
       "moshFallback": "cmux는 로컬에 Mosh 1.4 이상이 필요하며 시작 전에 원격 mosh-server를 확인합니다. 클라이언트가 없거나 호환되지 않거나, 서버가 없거나, 원격 확인에 실패하면 cmux가 이유를 설명하고 SSH로 계속합니다.",
@@ -2666,7 +2666,7 @@
       "deepLinkHost": "필수 SSH 호스트 또는 ~/.ssh/config 별칭.",
       "deepLinkUser": "선택적 SSH 사용자. cmux는 이를 user@host로 호스트와 결합합니다.",
       "deepLinkPort": "선택적 SSH 포트(1~65535).",
-      "deepLinkTitle": "선택적 작업공간 제목입니다. 직함이나 이름 중 하나만 사용하세요.",
+      "deepLinkTitle": "선택적 작업 공간 제목입니다. 직함이나 이름 중 하나만 사용하세요.",
       "deepLinkConnectTimeout": "선택적 ConnectTimeout 값(초)(1~600).",
       "deepLinkServerAliveInterval": "선택적 ServerAliveInterval 값(1~3600초)입니다.",
       "deepLinkServerAliveCountMax": "선택적 ServerAliveCountMax 값(1~100)입니다.",
@@ -2964,12 +2964,12 @@
     "textBox": {
       "title": "TextBox(베타)",
       "metaTitle": "TextBox(베타)",
-      "metaDescription": "새 터미널 탭, 분할, 작업공간에 사용할 cmux 베타 TextBox 입력을 설정합니다.",
+      "metaDescription": "새 터미널 탭, 분할, 작업 공간에 사용할 cmux 베타 TextBox 입력을 설정합니다.",
       "intro": "TextBox는 터미널로 보내기 전에 프롬프트를 작성하는 cmux의 리치 터미널 입력 화면입니다.",
       "betaCallout": "TextBox는 베타 기능입니다. 테스트 중에는 기본값과 동작이 변경될 수 있습니다.",
       "defaultsTitle": "기본값",
       "defaultsDesc": "TextBox 설정은 Settings > TextBox에 있습니다.",
-      "showSetting": "Show TextBox on New Terminals는 새 작업공간, 터미널 탭, 터미널 분할을 TextBox가 보이는 상태로 열고 포커스는 터미널에 유지합니다.",
+      "showSetting": "Show TextBox on New Terminals는 새 작업 공간, 터미널 탭, 터미널 분할을 TextBox가 보이는 상태로 열고 포커스는 터미널에 유지합니다.",
       "focusSetting": "Focus TextBox on New Terminals는 키보드 포커스를 TextBox에 둡니다. 포커스하면 TextBox도 표시됩니다.",
       "maxLinesSetting": "TextBox Max Lines는 내용이 스크롤되기 전 TextBox의 최대 높이를 제한합니다.",
       "configTitle": "cmux.json",
@@ -3029,7 +3029,7 @@
       "workflowDrag": "일치하는 세션을 현재 작업 공간으로 드래그합니다.",
       "workflowContinue": "현재 사용 중인 코드 또는 브라우저 창 옆에 있는 복구된 컨텍스트에서 재개하세요.",
       "useTitle": "Vault를 사용해야 하는 경우",
-      "useDesc": "에이전트가 작업한 작업은 기억하지만 작업을 시작한 작업공간, 날짜 또는 셸 명령은 기억나지 않는 경우 Vault를 사용하세요. 재실행 후 현재 앱 레이아웃을 복원하기 위한 것이 아니라 이전 에이전트 컨텍스트를 재발견하기 위해 구축되었습니다.",
+      "useDesc": "에이전트가 작업한 작업은 기억하지만 작업을 시작한 작업 공간, 날짜 또는 셸 명령은 기억나지 않는 경우 Vault를 사용하세요. 재실행 후 현재 앱 레이아웃을 복원하기 위한 것이 아니라 이전 에이전트 컨텍스트를 재발견하기 위해 구축되었습니다.",
       "limitsTitle": "한도",
       "limitsDesc": "Vault는 cmux가 로컬 시스템에서 읽는 방법을 알고 있는 세션 형식만 색인화할 수 있습니다. 로컬 cmux 설치에서 해당 세션을 사용할 수 없는 경우에는 개인 원격 호스트를 검색하지 않습니다.",
       "blogCta": "워크플로우 중심 개요를 보려면 <link>Vault 특집 스토리</link>을 읽어보세요."
@@ -3044,7 +3044,7 @@
       "paletteDesc": "Cmd+Shift+P를 누르고 명령 팔레트에서 작업 관리자를 선택할 수도 있습니다.",
       "showsTitle": "그것이 보여주는 것",
       "showsWindows": "창, 작업 공간, 창 및 표면",
-      "showsWorkspaces": "터미널 및 브라우저 활동에 대한 작업공간 소유권",
+      "showsWorkspaces": "터미널 및 브라우저 활동에 대한 작업 공간 소유권",
       "showsAgents": "Claude Code, Codex 및 OpenCode와 같은 알려진 코딩 에이전트 프로세스",
       "showsBrowsers": "브라우저 웹뷰 및 관련 도우미 프로세스",
       "workflowTitle": "문제 해결 워크플로",
@@ -5199,7 +5199,7 @@
       "workflowBody": "작업 공간에는 화면이 있고, 화면에는 분할 창이 있으며, 창에는 터미널 또는 브라우저 탭이 있습니다. 동일한 라이브 트리를 로컬로 연결하거나, SSH를 통해 연결하거나, 웹에서 렌더링하거나, 소켓 API를 통해 제어할 수 있습니다.",
       "features": {
         "tree": {
-          "number": "01 / 작업공간",
+          "number": "01 / 작업 공간",
           "title": "작업별로 정리",
           "body": "각 기능, 조사 또는 에이전트 팀에 고유한 작업 공간을 제공하세요. 터미널 상태나 레이아웃을 잃지 않고 전환합니다."
         },
@@ -5225,7 +5225,7 @@
       "keys": {
         "split": "활성 창을 오른쪽으로 분할",
         "tab": "창에서 탭 열기",
-        "workspace": "작업공간 만들기",
+        "workspace": "작업 공간 만들기",
         "viewport": "오른쪽에 스크롤 가능한 창 추가"
       },
       "installEyebrow": "지금 시작하세요",
@@ -5275,7 +5275,7 @@
         "splitRight": "활성 창을 오른쪽으로 분할",
         "splitDown": "활성 창을 아래로 분할",
         "newTab": "터미널 탭 생성",
-        "newWorkspace": "작업공간 만들기",
+        "newWorkspace": "작업 공간 만들기",
         "sidebar": "작업 공간 레일 표시 또는 숨기기",
         "detach": "로컬로 종료하거나 서버에서 분리"
       },
