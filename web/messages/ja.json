@@ -1294,7 +1294,7 @@
     },
     "introducingCmux": {
       "metaTitle": "cmuxのご紹介",
-      "metaDescription": "macOS向け新ターミナル、cmuxを作った理由。"
+      "metaDescription": "Ghosttyを基盤に、複数のAIコーディングエージェントを並行して動かすために設計されたmacOSネイティブのターミナル。"
     },
     "posts": {
       "tokenMultitasking": {
@@ -1807,7 +1807,7 @@
       "install": "インストール",
       "dmgRecommended": "DMG（推奨）",
       "dmgDesc": ".dmgを開き、cmuxをアプリケーションフォルダにドラッグしてください。cmuxはSparkle経由で自動更新されるため、ダウンロードは一度だけで済みます。",
-      "homebrew": "自作",
+      "homebrew": "Homebrew",
       "updateLater": "後で更新する場合：",
       "firstLaunchCallout": "初回起動時、macOSが確認済みの開発者からのアプリを開くことの確認を求める場合があります。<strong>開く</strong>をクリックして続行してください。",
       "verifyTitle": "インストールの確認",
@@ -2461,7 +2461,7 @@
       "createHookScript": "1. フックスクリプトの作成",
       "configureClaude": "2. Claude Codeの設定",
       "restartNote": "フックを適用するにはClaude Codeを再起動してください。",
-      "copilotCliHooks": "GitHub コパイロット CLI",
+      "copilotCliHooks": "GitHub Copilot CLI",
       "copilotCliHooksDesc": "Copilot CLIは、プロンプト送信、エージェント停止、エラーなどのライフサイクルイベントでシェルコマンドを実行する<link>フック</link>をサポートしています。",
       "copilotCliRepoHooks": "リポジトリレベルのフックには、同じ構造で.github/hooks/notify.jsonファイルを作成してください：",
       "integrationExamples": "連携の例",
@@ -2780,20 +2780,20 @@
       "howItWorksDesc": "cmux claude-teamsと同じパターンです。tmux shimがoh-my-openagentのTmuxSessionManagerからのtmuxコマンドを傍受し、cmux APIコールに変換します。",
       "shimStep1": "~/.cmuxterm/omo-bin/tmuxにtmux shimを作成",
       "shimStep2": "TMUXとTMUX_PANE環境変数を設定",
-      "shimStep3": "OPENCODE_CONFIG_DIRをoh-my-opencodeが有効なシャドウ設定に指定",
+      "shimStep3": "oh-my-opencodeの設定でtmux.enabledを有効にします（画面上にペインを生成するために必要）",
       "shimStep4": "shimディレクトリをPATHの先頭に追加してopencodeにexec",
       "shimStep5": "shim ディレクトリを PATH の先頭に追加し、opencode を実行します。",
       "directories": "ディレクトリ",
       "dirPath": "パス",
       "dirPurpose": "目的",
       "dirShim": "tmux shimスクリプトを含む",
-      "dirShadow": "oh-my-opencodeプラグインが登録されたOpenCodeのシャドウ設定（元の設定へのシンボリックリンク）",
+      "dirShadow": "oh-my-opencodeプラグインを登録し、tmuxを有効にしたOpenCodeのシャドウ設定（元の設定へのシンボリックリンク）",
       "dirStore": "tmux-compatバッファとフックの永続ストレージ",
       "shadowConfig": "シャドウ設定",
       "shadowConfigDesc": "cmux omoはシャドウ設定ディレクトリを使用するため、元のOpenCode設定には影響しません：",
       "shadowStep1": "~/.config/opencode/opencode.jsonをコピーし、プラグイン配列にoh-my-opencodeを追加",
       "shadowStep2": "元のディレクトリからnode_modules、package.json、bun.lockをシンボリックリンク",
-      "shadowStep3": "opencode起動前にOPENCODE_CONFIG_DIRをシャドウディレクトリに設定",
+      "shadowStep3": "tmux.enabledをtrueに設定したoh-my-opencode.jsonを書き込みます",
       "shadowStep4": "オープンコードを起動する前に、OPENCODE_CONFIG_DIR をシャドウ ディレクトリに設定します。",
       "envVars": "環境変数",
       "envVarName": "変数",
@@ -2837,8 +2837,8 @@
       "envSocket": "shimが接続するcmuxコントロールソケットのパス"
     },
     "ohMyPi": {
-      "title": "オーマイピー",
-      "metaTitle": "オーマイピー - cmux",
+      "title": "oh-my-pi",
+      "metaTitle": "oh-my-pi - cmux",
       "metaDescription": "oh-my-pi（omp）をcmuxに接続し、フックによるステータス、通知、セッション復元、自動命名、タスクマネージャのプロセス識別を有効にします。",
       "intro": "oh-my-piは、Piをコーディング用途中心に作り直したフォークです。バイナリ名はompで、cmuxはompフック拡張を通じて連携します。",
       "setupUsage": "セットアップと使い方",
@@ -2917,7 +2917,7 @@
       "claudeCodeTeams": "クロードコードチーム",
       "ohMyOpenCode": "oh-my-opencode",
       "ohMyCodex": "oh-my-codex",
-      "ohMyPi": "オーマイピー",
+      "ohMyPi": "oh-my-pi",
       "ohMyClaudeCode": "ああ、私のクロードコード",
       "changelog": "変更履歴",
       "dock": "ドック",
@@ -3468,7 +3468,7 @@
                 "オープンソースのクライアントはマネージドなWarp/Ozサービスと結び付いている"
               ],
               [
-                "ゴーストティ",
+                "Ghostty",
                 "高速汎用端末",
                 "任意の CLI エージェント",
                 "エージェント組織が組み込まれていない"
@@ -4816,7 +4816,7 @@
             "headers": [
               "項目",
               "cmux",
-              "ゴーストティ"
+              "Ghostty"
             ],
             "rows": [
               [
