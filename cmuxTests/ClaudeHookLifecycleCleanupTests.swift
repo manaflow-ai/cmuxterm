@@ -236,6 +236,14 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(turnStarted?.workspaceId == newWorkspaceId, "turn start must follow the moved pane; saw \(commands)")
         #expect(turnStarted?.surfaceId == Self.liveSurfaceId)
         #expect(
+            commands.contains {
+                $0.hasPrefix("set_status claude_code Running ")
+                    && $0.contains("--tab=\(newWorkspaceId)")
+                    && $0.contains("--panel=\(Self.liveSurfaceId)")
+            },
+            "status must follow the moved pane; saw \(commands)"
+        )
+        #expect(
             !commands.contains { $0.contains("--panel=\(Self.otherSurfaceId)") },
             "a new turn must not touch sibling panes; saw \(commands)"
         )

@@ -1168,9 +1168,9 @@ jobs:
           LOGICAL_SHARDS=("$PHYSICAL_SHARD")
 
           # These suites share process-global UI/runtime state for an app host's
-          # lifetime. Keep cross-machine parallelism, but give each worker two
-          # balanced, sequential app-host processes so each stays inside the
-          # existing per-invocation timeout without changing the shared scheme.
+          # lifetime. Keep cross-machine parallelism, but give each worker one
+          # bounded, sequential app-host process without changing the shared
+          # scheme.
 
           run_unit_test_batch() {
             local logical_shard="$1"
