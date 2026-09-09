@@ -465,7 +465,7 @@
       "title": "同步會話",
       "description": "從您的本機電腦同步的近期編碼代理轉錄內容。",
       "backToOverview": "返回概覽",
-      "agent": "代理商",
+      "agent": "代理程式",
       "session": "會議",
       "cwd": "工作目錄",
       "rawSize": "原始尺寸",
@@ -1528,7 +1528,7 @@
         "p2": "它會索引 Codex、Claude Code、OpenCode 與 Pi 工作階段，並支援在逐字稿中全文搜尋。",
         "p3": "把 Vault 中的工作階段拖到工作區，就能在目前工作位置重新開啟。",
         "p4": "需要 cmux v0.64+。",
-        "workflowTitle": "尋找舊代理商工作的工作流程",
+        "workflowTitle": "尋找舊代理程式工作的工作流程",
         "workflowOpen": "當您記住任務但不記得工作區或日期時，從右側邊欄開啟 Vault。",
         "workflowSearch": "從代理記錄中搜尋檔案名稱、問題標題、錯誤訊息、分支名稱或短語。",
         "workflowDrag": "將匹配的會話拖曳到活動工作區中，以便它在您現在正在觸摸的程式碼旁邊重新開啟。",
@@ -1847,7 +1847,7 @@
       "surfaceBindingsDesc": "進階使用者和整合可以把任何終端機 surface 綁定到重新啟動命令。cmux 會儲存透過公開 CLI 或 socket 建立的綁定，供檢查與手動還原。",
       "surfaceBindingsNote": "已核准的前綴可在 Settings > Terminal > Resume Commands 中檢視或編輯。cmux 只會自動執行標記為可信任的 resume 綁定，例如從執行中程序偵測到的 tmux 綁定或使用者核准的前綴。cmux 仍然不會 checkpoint 任意程序記憶體。 權杖、密碼、祕密和 API key 等敏感環境變數鍵，會在儲存還原綁定前被丟棄。 核准項目也會綁定工作目錄，以及存在時的精確環境變數值。",
       "supportedTitle": "支援的 agents",
-      "agentHeader": "代理商",
+      "agentHeader": "代理程式",
       "binaryHeader": "二進位",
       "resumeHeader": "Resume 命令",
       "feedHeader": "饋電橋",
@@ -2715,7 +2715,7 @@
       "metaTitle": "克勞德代碼團隊 - cmux",
       "metaDescription": "與 cmux 內的代理團隊一起運行 Claude Code。隊友代理程式作為本機 cmux 分割而不是 tmux 窗格產生。",
       "nightlyWarning": "僅適用於 <nightly>nightly 版本 </nightly>。",
-      "intro": "cmux claude-teams 啟動啟用了代理商團隊的 Claude Code。當 Claude 產生隊友代理程式時，它們顯示為本機 cmux 分區而不是 tmux 窗格，並具有完整的側邊欄元資料和通知。",
+      "intro": "cmux claude-teams 啟動啟用了代理程式團隊的 Claude Code。當 Claude 產生隊友代理程式時，它們顯示為本機 cmux 分區而不是 tmux 窗格，並具有完整的側邊欄元資料和通知。",
       "usage": "用途",
       "usageDesc": "claude-teams 之後的所有參數都會轉送到 Claude Code。該命令將隊友模式預設為 auto 並設定環境，以便 Claude 使用 cmux splits。",
       "howItWorks": "它是如何運作的",
@@ -3530,7 +3530,7 @@
           "faqTitle": "FAQ",
           "faqQ1": "cmux 是 AI 編碼代理嗎？",
           "faqA1": "不。 cmux 是圍繞您已使用的代理程式的本機終端機和瀏覽器工作區。",
-          "faqQ2": "哪些代理商在 cmux 中工作？",
+          "faqQ2": "哪些代理程式在 cmux 中工作？",
           "faqA2": "任何 CLI 代理程式都可以工作，包括 Claude Code、Codex、OpenCode、Gemini CLI、Aider、Amp 和 Cursor CLI。",
           "faqQ3": "為什麼不直接使用終端選項卡呢？",
           "faqA3": "選項卡適用於一些 shell。 cmux 新增了工作區元資料、通知環、未讀導覽、分割窗格、瀏覽器自動化以及適用於代理密集型工作流程的可編寫腳本的套接字。"
@@ -3881,7 +3881,7 @@
                 "基於 VS Code 的桌面編輯器；VS Code 使用 Electron"
               ],
               [
-                "代理商選擇",
+                "代理程式選擇",
                 "任何 CLI 代理",
                 "涵蓋編輯器、CLI、雲端和整合的 Cursor Agent"
               ],
@@ -3968,7 +3968,7 @@
                 "專有 Cognition 服務和桌面軟體"
               ],
               [
-                "代理商選擇",
+                "代理程式選擇",
                 "任何 CLI 代理或 shell 工具",
                 "Devin Cloud、Devin Local、Devin CLI 和 ACP 相容代理"
               ],
@@ -4283,7 +4283,7 @@
                 "終端 TUI 加 Electron 桌面 beta"
               ],
               [
-                "代理商選擇",
+                "代理程式選擇",
                 "任何 CLI 代理或 shell 命令",
                 "具有配置的模型提供者的 OpenCode"
               ],
@@ -4441,7 +4441,7 @@
                 "Code - OSS 是 MIT；Microsoft VS Code 是加入 Microsoft 專有自訂並受 Microsoft 產品授權約束的發行版"
               ],
               [
-                "代理商工作流程",
+                "代理程式工作流程",
                 "可見工作區中的任何 CLI 代理程式或 shell 工具",
                 "內建 VS Code 代理、Copilot CLI/雲端/第三方代理類型、瀏覽器工具和擴充功能"
               ],
@@ -4523,7 +4523,7 @@
                 "帶有 VS Code OSS 風格編輯器介面的專有 Devin Desktop 服務"
               ],
               [
-                "代理商選擇",
+                "代理程式選擇",
                 "任何 CLI 代理或 shell 命令",
                 "Devin Desktop 內的 Devin、Cascade 和 ACP 相容代理"
               ],
@@ -4595,7 +4595,7 @@
                 "開源；主要為 GPL-3.0-or-later，標示的元件使用 Apache-2.0"
               ],
               [
-                "代理商工作流程",
+                "代理程式工作流程",
                 "可見終端機工作區中的任何 CLI 代理程式或 shell 工具",
                 "編輯器內的 Zed Agent、ACP External Agents 和終端機支撐的 agent threads"
               ],
@@ -4672,7 +4672,7 @@
                 "Rust + GPU 算繪終端機用戶端"
               ],
               [
-                "代理商選擇",
+                "代理程式選擇",
                 "任何基於 shell 的代理",
                 "Warp Agent，以及 Claude Code、Codex、Gemini CLI、OpenCode 等受支援的第三方 CLI 代理"
               ],
@@ -5051,7 +5051,7 @@
     "done": "完成"
   },
   "enterprise": {
-    "metaTitle": "Enterprise | cmux",
+    "metaTitle": "企業版 | cmux",
     "metaDescription": "與 cmux 討論企業部署、SSO、自架雲端虛擬機器、審核日誌和承諾使用情況。",
     "section": "企業",
     "title": "為您的團隊帶來 cmux Cloud VM、SSO 和審核控制。",
@@ -5204,7 +5204,7 @@
           "body": "為每個功能、調查或代理團隊提供自己的工作空間。切換時不會遺失終端狀態或佈局。"
         },
         "agents": {
-          "number": "02 / 代理商",
+          "number": "02 / 代理程式",
           "title": "查看並行工作",
           "body": "將編碼代理放在測試、日誌和審查命令旁邊。通知和代理狀態保持附著在其表面上。"
         },
