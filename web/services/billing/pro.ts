@@ -580,7 +580,7 @@ export async function hasActiveTeamSubscriptionForTeam(
 }
 
 export async function isTestflightEligible(
-  user: Pick<ProReconcileUser, "id">,
+  user: ProReconcileUser,
   options: {
     hasActiveStripeSubscription?: ActiveStripeSubscriptionQuery;
   } = {},
