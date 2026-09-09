@@ -60,6 +60,23 @@ final class FakeTerminalSurfaceNativeView: NSView {
         return true
     }
 
+    func deferRuntimeInputDuringClipboardRead(
+        estimatedBytes: Int,
+        isHumanInput: Bool,
+        replay: @escaping () -> Void,
+        onDiscard: @escaping () -> Void
+    ) -> Bool {
+        let deferred = deferRuntimeInputDuringClipboardRead(
+            estimatedBytes: estimatedBytes,
+            isHumanInput: isHumanInput,
+            replay: replay
+        )
+        if !deferred {
+            onDiscard()
+        }
+        return deferred
+    }
+
     func hasDeferredHumanInputDuringClipboardRead() -> Bool {
         deferredRuntimeInputHumanFlags.contains(true)
     }

@@ -558,6 +558,7 @@ struct TerminalSurfaceExplicitInputTests {
             ) == .queued
         )
         fixture.nativeView.deferredRuntimeInputHumanFlags.removeAll()
+        #expect(!fixture.surface.hasPendingProgrammaticPromptSubmission)
 
         #expect(
             fixture.surface.sendPromptSubmission(
@@ -567,6 +568,32 @@ struct TerminalSurfaceExplicitInputTests {
                 hookRecordingSource: "workspace.agent_submit"
             ) == .composerBusy
         )
+    }
+
+    @Test func expiredHumanPromptRemainsScheduledForReplay() {
+        let runtimeSurface = allocatedRuntimeSurface()
+        let fixture = makeFixture(runtimeSurface: runtimeSurface)
+        defer {
+            fixture.surface.releaseSurfaceForTesting()
+            runtimeSurface.deallocate()
+        }
+        guard let submitKey = fixture.surface.pendingKeyEvent(for: "return") else {
+            Issue.record("Expected a return submit key")
+            return
+        }
+        let pending = PendingSocketInput.humanPromptSubmission(
+            preparationKeys: [],
+            text: Data("expired human prompt".utf8),
+            submitKey: submitKey
+        )
+        fixture.surface.deferredPromptSubmissionRetries = [pending]
+        fixture.surface.deferredPromptSubmissionRetryBytes = pending.estimatedBytes
+        fixture.surface.deferredPromptSubmissionRetryRounds = 3
+        fixture.nativeView.shouldDeferRuntimeInput = true
+
+        fixture.surface.flushPendingSocketInputIfNeeded()
+
+        #expect(fixture.nativeView.deferredRuntimeInputs.count == 1)
     }
 
     @Test func nativePromptDoesNotRetainAReplacedAgentScope() {

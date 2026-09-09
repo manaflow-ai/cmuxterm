@@ -131,21 +131,6 @@ public extension TerminalSurfaceNativeViewing {
         )
     }
 
-    /// Hosts without clipboard sequencing cannot discard a deferred replay.
-    @discardableResult
-    func deferRuntimeInputDuringClipboardRead(
-        estimatedBytes: Int,
-        isHumanInput: Bool,
-        replay: @escaping () -> Void,
-        onDiscard _: @escaping () -> Void
-    ) -> Bool {
-        deferRuntimeInputDuringClipboardRead(
-            estimatedBytes: estimatedBytes,
-            isHumanInput: isHumanInput,
-            replay: replay
-        )
-    }
-
     /// Hosts without clipboard sequencing have no buffered human events.
     func hasDeferredHumanInputDuringClipboardRead() -> Bool { false }
 

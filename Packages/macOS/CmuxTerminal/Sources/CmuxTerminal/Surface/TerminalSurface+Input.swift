@@ -25,7 +25,7 @@ extension TerminalSurface {
     @MainActor
     public var hasPendingProgrammaticPromptSubmission: Bool {
         promptInputLedger.hasPendingProgrammaticSubmission
-            || deferredPromptSubmissionAwaitingClipboardReplay != nil
+            || deferredPromptSubmissionAwaitingClipboardReplay?.isHumanInput == false
             || (pendingSocketInputQueue + deferredPromptSubmissionRetries)
                 .contains { input in
                     guard case .promptSubmission(
@@ -1581,16 +1581,24 @@ extension TerminalSurface {
             if deferredPromptSubmissionRetryRounds >= 3 {
                 let expired = deferredPromptSubmissionRetries
                 clearDeferredPromptSubmissionRetry()
+                var retainedHumanPrompts: [PendingSocketInput] = []
                 for input in expired {
-                    finishPendingPromptDelivery(
-                        input,
-                        with: .agentScopeUnavailable
-                    )
+                    if case .humanPromptSubmission = input {
+                        retainedHumanPrompts.append(input)
+                    } else {
+                        finishPendingPromptDelivery(
+                            input,
+                            with: .agentScopeUnavailable
+                        )
+                    }
+                }
+                for input in retainedHumanPrompts {
+                    _ = retainDeferredPromptSubmission(input)
                 }
 #if DEBUG
                 logDebugEvent(
                     "surface.socket_input.expire_deferred_prompt surface=\(id.uuidString.prefix(8)) " +
-                    "items=\(expired.count)"
+                    "items=\(expired.count) retained_human=\(retainedHumanPrompts.count)"
                 )
 #endif
             } else {

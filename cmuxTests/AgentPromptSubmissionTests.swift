@@ -138,7 +138,7 @@ struct AgentPromptSubmissionTests {
                 .submitted(
                     workspaceID: firstWorkspaceID,
                     surfaceID: firstSurfaceID,
-                    queued: true
+                    queued: false
                 )
             )
         )
@@ -150,7 +150,7 @@ struct AgentPromptSubmissionTests {
                 .submitted(
                     workspaceID: secondWorkspaceID,
                     surfaceID: secondSurfaceID,
-                    queued: true
+                    queued: false
                 )
             )
         )

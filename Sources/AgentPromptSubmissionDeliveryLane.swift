@@ -260,7 +260,7 @@ actor AgentPromptSubmissionDeliveryLane {
         guard case .submitted(
             let workspaceID,
             let surfaceID,
-            let wasQueued
+            _
         ) = admitted else {
             return admitted
         }
@@ -269,7 +269,7 @@ actor AgentPromptSubmissionDeliveryLane {
             return .submitted(
                 workspaceID: workspaceID,
                 surfaceID: surfaceID,
-                queued: wasQueued
+                queued: false
             )
         case .queued:
             return .submitted(
