@@ -137,6 +137,16 @@ actor MobileTerminalLaneCoordinator {
         launch(key: key, id: id)
     }
 
+    /// Wait for the lane tasks that are currently opening to finish.
+    /// This preserves the task's normal execution, unlike deactivation, and
+    /// gives lifecycle tests a causal point before inspecting coordinator state.
+    func waitForPendingTasks() async {
+        let tasks = entriesByKey.values.compactMap(\.task)
+        for task in tasks {
+            await task.value
+        }
+    }
+
     func resume(surfaceID: String) {
         guard let key = focusedKeyBySurfaceID[surfaceID],
               var entry = entriesByKey[key],
