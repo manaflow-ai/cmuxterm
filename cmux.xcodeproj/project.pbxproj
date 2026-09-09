@@ -248,7 +248,6 @@
 		D37777050000000000000001 /* AppDelegatePresentPreferencesWindowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D37777050000000000000002 /* AppDelegatePresentPreferencesWindowTests.swift */; };
 		C34670010000000000000001 /* AppDelegateRenameShortcutContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C34670010000000000000002 /* AppDelegateRenameShortcutContextTests.swift */; };
 		D37777040000000000000001 /* AppDelegateSettingsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D37777040000000000000002 /* AppDelegateSettingsPresentation.swift */; };
-		C701CE0500000000000000B1 /* AppDelegateShortcutActionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C701CE0500000000000000F1 /* AppDelegateShortcutActionPolicy.swift */; };
 		6419B0016419B0016419B001 /* AppDelegateShortcutRoutingRepairProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6419B0026419B0026419B002 /* AppDelegateShortcutRoutingRepairProbe.swift */; };
 		F6000000A1B2C3D4E5F60718 /* AppDelegateShortcutRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6000001A1B2C3D4E5F60718 /* AppDelegateShortcutRoutingTests.swift */; };
 		C6711A030000000000000001 /* AppDelegateSurfaceResumeTerminalIdTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6711B030000000000000001 /* AppDelegateSurfaceResumeTerminalIdTests.swift */; };
@@ -3624,7 +3623,6 @@
 		D37777050000000000000002 /* AppDelegatePresentPreferencesWindowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegatePresentPreferencesWindowTests.swift; sourceTree = "<group>"; };
 		C34670010000000000000002 /* AppDelegateRenameShortcutContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegateRenameShortcutContextTests.swift; sourceTree = "<group>"; };
 		D37777040000000000000002 /* AppDelegateSettingsPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/AppDelegateSettingsPresentation.swift; sourceTree = "<group>"; };
-		C701CE0500000000000000F1 /* AppDelegateShortcutActionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegateShortcutActionPolicy.swift; sourceTree = "<group>"; };
 		6419B0026419B0026419B002 /* AppDelegateShortcutRoutingRepairProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegateShortcutRoutingRepairProbe.swift; sourceTree = "<group>"; };
 		F6000001A1B2C3D4E5F60718 /* AppDelegateShortcutRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegateShortcutRoutingTests.swift; sourceTree = "<group>"; };
 		C6711B030000000000000001 /* AppDelegateSurfaceResumeTerminalIdTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegateSurfaceResumeTerminalIdTests.swift; sourceTree = "<group>"; };
@@ -7426,7 +7424,6 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C701CE0700000000000000F1 /* VoiceDictationRuntime.swift */,
 				C701CE0800000000000000F1 /* VoiceDictationHUDSnapshot.swift */,
 				C701CE0400000000000000F1 /* KeyboardShortcutSettingsVisibleActions.swift */,
-				C701CE0500000000000000F1 /* AppDelegateShortcutActionPolicy.swift */,
 				C701CE0600000000000000F1 /* AppDelegateVoiceDictation.swift */,
 				C701CE0900000000000000F1 /* KeyboardShortcutLegacyResolutionCache.swift */,
 				C0DEF4110000000000000002 /* CommandPaletteSettingsToggle.swift */,
@@ -10194,9 +10191,9 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				F0C0A1000000000000000002 /* CmuxPhonePush */,
 				5E55200000000000000000B2 /* CmuxWindowing */,
 				CC0DE00000000000000000A2 /* CmuxCore */,
+				C7010CE000000000000000A2 /* CmuxVoice */,
 				C01E00AA00000000000000A2 /* CmuxSyntaxHighlighting */,
 				D0F1A0000000000000000002 /* CmuxFilePreviewCore */,
-				C7010CE000000000000000A2 /* CmuxVoice */,
 				A5001262 /* Bonsplit */,
 				A500D013A1B2C3D4E5F60718 /* CMUXDebugLog */,
 				CC0033E15A1B2C3D4E5F0011 /* CmuxDiffComments */,
@@ -10731,7 +10728,6 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				A5001093 /* AppDelegate.swift in Sources */,
 				B1F0C0080000000000000001 /* AppDelegateDetachedInspectorClose.swift in Sources */,
 				D37777040000000000000001 /* AppDelegateSettingsPresentation.swift in Sources */,
-				C701CE0500000000000000B1 /* AppDelegateShortcutActionPolicy.swift in Sources */,
 				C701CE0600000000000000B1 /* AppDelegateVoiceDictation.swift in Sources */,
 				A11EAB000000000000000000 /* AppearanceSettings.swift in Sources */,
 				C97160000000000000000001 /* AppHostProcessReceipt.swift in Sources */,

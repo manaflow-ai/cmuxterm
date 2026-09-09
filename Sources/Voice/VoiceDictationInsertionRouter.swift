@@ -26,6 +26,7 @@ final class VoiceDictationInsertionRouter: DictationTextInserting {
     private weak var pinnedWebView: WKWebView?
     private weak var pinnedTerminalPanel: TerminalPanel?
     private var activeRoute: DictationInsertionRoute?
+
     private static let pinWebEditableTargetScript = """
     (() => {
       let active = document.activeElement;

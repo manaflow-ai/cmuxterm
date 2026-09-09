@@ -6,6 +6,7 @@ extension ShortcutAction {
     ///   - candidate: The configured shortcut, or `nil` when no override exists.
     ///   - hostDefault: An optional host-owned default. Pass
     ///     ``StoredShortcut/unbound`` to explicitly disable the built-in value.
+    ///
     /// ``toggleVoiceDictation`` is suppressed when its implicit default overlaps
     /// an older explicit binding; an explicit voice candidate remains unchanged.
     public func effectivePersistedShortcutResolvingLegacyConflicts(
@@ -86,7 +87,7 @@ extension ShortcutAction {
                    configuredAction,
                    normalizedConfiguredShortcut
                )
-            }) {
+           }) {
             return nil
         }
 

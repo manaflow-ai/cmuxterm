@@ -237,6 +237,20 @@ struct DictationControllerTests {
         #expect(inserter.insertions == ["tail"])
     }
 
+    @Test func finalizeFailureDoesNotSettleAsSuccessfulStop() async {
+        let expected = DictationFailure.transcriptionFailed("finalize failed")
+        let transcriber = ScriptedTranscriber(finishError: expected)
+        let (controller, inserter, _, recorder) = makeController(transcriber: transcriber)
+        controller.toggle()
+        #expect(await waitUntil { controller.phase == .listening })
+
+        controller.stop()
+
+        #expect(await waitUntil { controller.phase == .failed(expected) })
+        #expect(recorder.failures == [expected])
+        #expect(inserter.ended == 1)
+    }
+
     @Test func danglingPartialIsCommittedAtSessionEnd() async {
         let (controller, inserter, transcriber, _) = makeController()
         controller.toggle()
@@ -258,6 +272,7 @@ struct DictationControllerTests {
         #expect(await waitUntil { controller.phase == .failed(.microphoneAccessDenied) })
         #expect(recorder.failures == [.microphoneAccessDenied])
         #expect(inserter.began == 0)
+        #expect(inserter.ended == 0)
         #expect(controller.isActive == false)
     }
 
@@ -306,6 +321,7 @@ struct DictationControllerTests {
     @Test func trailingFlushInsertionFailureFailsTheSession() async {
         let inserter = RecordingInserter()
         inserter.insertionSucceedsAfter = 0
+        inserter.yieldBeforeInsertionResult = true
         let (controller, _, transcriber, recorder) = makeController(inserter: inserter)
         controller.toggle()
         #expect(await waitUntil { controller.phase == .listening })
@@ -316,6 +332,7 @@ struct DictationControllerTests {
         controller.stop()
         #expect(await waitUntil { controller.phase == .failed(.insertionTargetUnavailable) })
         #expect(recorder.failures == [.insertionTargetUnavailable])
+        #expect(inserter.ended == 1)
     }
 
     @Test func vanishedTargetMidSessionFailsAndStopsEngine() async {

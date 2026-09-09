@@ -839,7 +839,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// SwiftUI composition root; AppDelegate only forwards the shortcut.
     private var voiceDictationToggleAction: (@MainActor () -> Bool)?
     private var computerUseRuntimeService: ComputerUseRuntimeService?
-    private(set) lazy var voiceDictationCoordinator: VoiceDictationCoordinator = makeVoiceDictationCoordinator()
     weak var fileExplorerState: FileExplorerState?
     weak var fullscreenControlsViewModel: TitlebarControlsViewModel?
     weak var sidebarSelectionState: SidebarSelectionState?
