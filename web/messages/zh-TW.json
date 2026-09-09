@@ -2020,7 +2020,7 @@
         "agentChat": {
           "description": "代理聊天 GUI 伺服器設定。內建的新代理程式聊天操作會在瀏覽器工作區中開啟此 URL，首先探測 /healthz，並且可以在伺服器關閉時執行設定的啟動命令。",
           "url": "電腦本機代理程式聊天 GUI 伺服器的基本 URL。 cmux 在開啟工作區之前偵測 <url>/healthz。",
-          "startCommand": "可選 shell 命令，用於在無法存取 <url>/healthz 時啟動代理聊天伺服器。 cmux 與使用者的 SHELL 分離地運行它，輪詢 healthz 以獲得短邊界窗口，然後以任一方式打開工作區。",
+          "startCommand": "選用的 shell 命令，用於在無法連線至 <url>/healthz 時啟動代理程式聊天伺服器。cmux 會使用使用者的 SHELL 在背景獨立執行命令，並在短時間上限內輪詢 healthz，之後無論結果如何都會開啟工作區。",
           "keys": {
             "description": "代理聊天 Web UI 的鍵盤行為覆蓋。",
             "ctrlJ": "客服人員聊天文字欄位中 Ctrl+J 的行為。使用換行符插入換行符，或在選單開啟時使用選單移動到下一個彈出項目。"
