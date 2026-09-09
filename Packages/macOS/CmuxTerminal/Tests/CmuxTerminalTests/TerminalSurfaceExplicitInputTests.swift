@@ -88,6 +88,31 @@ struct TerminalSurfaceExplicitInputTests {
         #expect(discardCount == 0)
     }
 
+    @Test func acceptedClipboardDeferralRetainsDiscardCallbackUntilTeardown() {
+        let nativeView = FakeTerminalSurfaceNativeView(
+            frame: NSRect(x: 0, y: 0, width: 800, height: 600)
+        )
+        nativeView.shouldDeferRuntimeInput = true
+        var replayCount = 0
+        var discardCount = 0
+
+        #expect(
+            nativeView.deferRuntimeInputDuringClipboardRead(
+                estimatedBytes: 4,
+                isHumanInput: false,
+                replay: { replayCount += 1 },
+                onDiscard: { discardCount += 1 }
+            )
+        )
+        #expect(replayCount == 0)
+        #expect(discardCount == 0)
+
+        #expect(nativeView.discardNextDeferredRuntimeInput())
+        #expect(replayCount == 0)
+        #expect(discardCount == 1)
+        #expect(!nativeView.discardNextDeferredRuntimeInput())
+    }
+
     @Test func parsedInputChecksDeferralBetweenLiveEvents() {
         let runtimeSurface = allocatedRuntimeSurface()
         let fixture = makeFixture(runtimeSurface: runtimeSurface)

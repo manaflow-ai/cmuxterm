@@ -17,6 +17,7 @@ final class FakeTerminalSurfaceNativeView: NSView {
     var deferredRuntimeInputs: [() -> Void] = []
     var deferredRuntimeInputBytes: [Int] = []
     private var deferredRuntimeInputHumanFlags: [Bool] = []
+    private var deferredRuntimeInputDiscards: [(() -> Void)?] = []
     var mobileMouseButtonEvents: [String] = []
 
     func toggleKeyboardCopyMode() -> Bool { false }
@@ -32,10 +33,11 @@ final class FakeTerminalSurfaceNativeView: NSView {
         estimatedBytes: Int,
         replay: @escaping () -> Void
     ) -> Bool {
-        deferRuntimeInputDuringClipboardRead(
+        enqueueDeferredRuntimeInput(
             estimatedBytes: estimatedBytes,
             isHumanInput: true,
-            replay: replay
+            replay: replay,
+            onDiscard: nil
         )
     }
 
@@ -44,6 +46,20 @@ final class FakeTerminalSurfaceNativeView: NSView {
         isHumanInput: Bool,
         replay: @escaping () -> Void
     ) -> Bool {
+        enqueueDeferredRuntimeInput(
+            estimatedBytes: estimatedBytes,
+            isHumanInput: isHumanInput,
+            replay: replay,
+            onDiscard: nil
+        )
+    }
+
+    private func enqueueDeferredRuntimeInput(
+        estimatedBytes: Int,
+        isHumanInput: Bool,
+        replay: @escaping () -> Void,
+        onDiscard: (() -> Void)?
+    ) -> Bool {
         runtimeInputDeferralCallCount += 1
         let shouldDefer = runtimeInputDeferralResponses.isEmpty
             ? shouldDeferRuntimeInput
@@ -51,10 +67,9 @@ final class FakeTerminalSurfaceNativeView: NSView {
         guard shouldDefer else { return false }
         deferredRuntimeInputBytes.append(estimatedBytes)
         deferredRuntimeInputHumanFlags.append(isHumanInput)
+        deferredRuntimeInputDiscards.append(onDiscard)
         deferredRuntimeInputs.append { [weak self] in
-            if let self, !self.deferredRuntimeInputHumanFlags.isEmpty {
-                self.deferredRuntimeInputHumanFlags.removeFirst()
-            }
+            self?.consumeDeferredRuntimeInput()
             replay()
         }
         return true
@@ -66,15 +81,31 @@ final class FakeTerminalSurfaceNativeView: NSView {
         replay: @escaping () -> Void,
         onDiscard: @escaping () -> Void
     ) -> Bool {
-        let deferred = deferRuntimeInputDuringClipboardRead(
+        enqueueDeferredRuntimeInput(
             estimatedBytes: estimatedBytes,
             isHumanInput: isHumanInput,
-            replay: replay
+            replay: replay,
+            onDiscard: onDiscard
         )
-        if !deferred {
+    }
+
+    @discardableResult
+    func discardNextDeferredRuntimeInput() -> Bool {
+        guard !deferredRuntimeInputs.isEmpty else { return false }
+        _ = deferredRuntimeInputs.removeFirst()
+        if let onDiscard = consumeDeferredRuntimeInput() {
             onDiscard()
         }
-        return deferred
+        return true
+    }
+
+    @discardableResult
+    private func consumeDeferredRuntimeInput() -> (() -> Void)? {
+        if !deferredRuntimeInputHumanFlags.isEmpty {
+            deferredRuntimeInputHumanFlags.removeFirst()
+        }
+        guard !deferredRuntimeInputDiscards.isEmpty else { return nil }
+        return deferredRuntimeInputDiscards.removeFirst()
     }
 
     func hasDeferredHumanInputDuringClipboardRead() -> Bool {
