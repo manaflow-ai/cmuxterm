@@ -39,23 +39,9 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         addKeptScreenshot(app.windows.firstMatch.screenshot(), name: "vault-sessions-before")
 
         history.click()
-        // macOS exposes the Menu's visible text as its AXTitle, not its
-        // AXDescription (XCUIElement.label). Keep both attributes in the query
-        // so it follows the visible grouping across supported macOS versions.
-        let groupings = ["Date", "Workspace", "Window", "Agent", "Type"]
-        // SwiftUI exposes Menu with different XCUI roles across supported
-        // macOS/Xcode combinations. Prefer the stable identifier from the
-        // production view, then retain the title/label fallback for older
-        // accessibility bridges.
-        let identifiedPicker = app.descendants(matching: .any)[
-            "VaultHistoryGroupPicker"
-        ].firstMatch
-        let titledPicker = app.menuButtons.matching(
-            NSPredicate(format: "title IN %@ OR label IN %@", groupings, groupings)
-        ).firstMatch
-        let picker = identifiedPicker.waitForExistence(timeout: 3)
-            ? identifiedPicker
-            : titledPicker
+        // The picker exposes its purpose as its accessible label and the
+        // selected grouping as its value, independently of inherited IDs.
+        let picker = app.menuButtons["Group history by"].firstMatch
         XCTAssertTrue(picker.waitForExistence(timeout: 10), app.debugDescription)
         for grouping in ["Workspace", "Window", "Agent", "Type", "Date"] {
             picker.click()
@@ -64,7 +50,7 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
             item.click()
             let selected = XCTNSPredicateExpectation(
                 predicate: NSPredicate { _, _ in
-                    picker.title == grouping || picker.label == grouping
+                    picker.value as? String == grouping
                 },
                 object: nil
             )
