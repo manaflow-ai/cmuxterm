@@ -434,7 +434,7 @@
   },
   "vault": {
     "overview": {
-      "eyebrow": "cmux ボールト",
+      "eyebrow": "cmux Vault",
       "title": "Vault概要",
       "description": "同期済みセッションのストレージ使用量とアップロード状況です。",
       "emptyTitle": "同期済みセッションはまだありません",
@@ -447,7 +447,7 @@
     },
     "cliAuth": {
       "section": "金庫室",
-      "eyebrow": "cmux ボールト",
+      "eyebrow": "cmux Vault",
       "title": "CLIアクセスを承認",
       "description": "cmux-vaultに表示されたコードを確認し、このデバイスをサインイン中のcmuxアカウントに接続します。",
       "coderouterEyebrow": "CodeRouter",
@@ -461,7 +461,7 @@
     },
     "sessions": {
       "section": "金庫室",
-      "eyebrow": "cmux ボールト",
+      "eyebrow": "cmux Vault",
       "title": "同期済みセッション",
       "description": "ローカルマシンから同期された最近のコーディングエージェントのトランスクリプトです。",
       "backToOverview": "概要に戻る",
@@ -1521,7 +1521,7 @@
         "p5": "cmux v0.64+が必要です。"
       },
       "cmuxVault": {
-        "title": "cmux Vaultの紹介",
+        "title": "cmux Vault",
         "summary": "VaultペインからCodex、Claude Code、OpenCode、Piのセッションを検索し、ワークスペースへドラッグできます。",
         "date": "2026年5月22日",
         "p1": "cmuxの右サイドバーに、古いエージェントセッション用のVaultペインが追加されました。",
@@ -1604,10 +1604,10 @@
       ]
     },
     "cmuxVault": {
-      "metaTitle": "cmux Vaultの紹介",
+      "metaTitle": "cmux Vault",
       "metaDescription": "cmux v0.64+ではVaultペインでCodex、Claude Code、OpenCode、Piのセッションを検索し、ワークスペースへドラッグできます。",
       "metaKeywords": [
-        "cmux ボールト",
+        "cmux Vault",
         "Codexセッション",
         "Claude Codeセッション",
         "OpenCodeセッション",
@@ -2625,7 +2625,7 @@
       "suggestCloudVmName": "cmux クラウド VM",
       "suggestCloudVmUse": "Cloud VM の create、attach、exec、SSH endpoint、billing、provider トラブルシュートを扱います。",
       "suggestCloudVmWhy": "Cloud VM 作業は web app、database、provider API、smoke test をまたぎます。",
-      "suggestVaultName": "cmux ボールト",
+      "suggestVaultName": "cmux Vault",
       "suggestVaultUse": "secret を prompt に漏らさず、vault-backed agent configuration、credential、restore behavior を管理します。",
       "suggestVaultWhy": "Vault workflow は secret と agent startup に関わるため、通常の settings より厳密な扱いが必要です。",
       "suggestionsCallout": "今後のスキルは、実際のコマンド列を持つ反復可能なワークフローに絞ってください。製品ドキュメントを言い換えるだけなら、スキルではなくドキュメントに追加します。",
