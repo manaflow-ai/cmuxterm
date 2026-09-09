@@ -486,7 +486,7 @@ describe("POST /api/relay/token", () => {
     expect(response.status).toBe(200);
     expect(authCalls).toBe(1);
     expect(observedKeys).toEqual([
-      `test:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:credential:28333333`,
+      `test:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:credential`,
     ]);
   });
 
@@ -514,9 +514,9 @@ describe("POST /api/relay/token", () => {
     // starves only its duplicate work, never bootstrap, renewal, or another
     // phone, simulator, or tagged build.
     expect(key).toBe(
-      `test:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:credential:28333333`,
+      `test:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:credential`,
     );
-    expect(limited.headers.get("retry-after")).toBe("40");
+    expect(limited.headers.get("retry-after")).toBe("400");
 
     // Malformed requests are rejected before the limiter and never consume
     // the per-device budget.
@@ -560,11 +560,12 @@ describe("POST /api/relay/token", () => {
     expect(unavailable.status).toBe(503);
   });
 
-  test("gives fresh endpoint bootstrap and bound credential renewal separate minute budgets", async () => {
+  test("gives fresh endpoint bootstrap and bound credential renewal stable budgets", async () => {
     let nowSeconds = 1_700_000_000;
     let endpointBound = false;
     const consumedPartitions = new Set<string>();
     const observedPartitions: string[] = [];
+    let limiterBucket = Math.floor(nowSeconds / 600);
     const protocolDeps = deps({
       nowSeconds: () => nowSeconds,
       isEndpointAuthorized: async () => endpointBound,
@@ -573,6 +574,11 @@ describe("POST /api/relay/token", () => {
       checkRateLimit: async (_id, options) => {
         const partition = options.rateLimitKey ?? "";
         if (!partition) return { rateLimited: false };
+        const currentBucket = Math.floor(nowSeconds / 600);
+        if (currentBucket !== limiterBucket) {
+          consumedPartitions.clear();
+          limiterBucket = currentBucket;
+        }
         observedPartitions.push(partition);
         const rateLimited = consumedPartitions.has(partition);
         consumedPartitions.add(partition);
@@ -602,15 +608,15 @@ describe("POST /api/relay/token", () => {
       protocolDeps,
     );
     expect(duplicate.status).toBe(429);
-    expect(duplicate.headers.get("retry-after")).toBe("40");
+    expect(duplicate.headers.get("retry-after")).toBe("400");
 
-    nowSeconds += 60;
+    nowSeconds += 600;
     const renewal = await handleRelayTokenRequest(
       request({ endpointId: ENDPOINT_ID }),
       protocolDeps,
     );
     expect(renewal.status).toBe(200);
-    expect(new Set(observedPartitions).size).toBe(3);
+    expect(new Set(observedPartitions).size).toBe(2);
   });
 
   test("skips rate limiting when no rule is configured", async () => {

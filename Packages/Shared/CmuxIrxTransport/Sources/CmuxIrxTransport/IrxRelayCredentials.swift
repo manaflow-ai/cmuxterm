@@ -38,17 +38,24 @@ public enum IrxRelayCredentialPolicy {
         return base.addingTimeInterval(-max(0, min(jitter, 10)))
     }
 
-    /// On mint failure, retry at half the remaining validity (floor 1s), while
-    /// treating a validated server Retry-After value as an authoritative floor.
+    /// On mint failure, use bounded exponential backoff independent of token
+    /// expiry. The old half-remaining-validity rule reached a one-second loop
+    /// exactly when an Aurora outage was most likely to expire credentials.
+    /// A validated server Retry-After value remains an authoritative floor.
     public static func retryDelay(
         expiresAt: Date,
         now: Date,
-        retryAfterSeconds: Int? = nil
+        retryAfterSeconds: Int? = nil,
+        failureCount: Int = 0,
+        jitterUnitInterval: Double = 0
     ) -> Duration {
-        let remaining = expiresAt.timeIntervalSince(now)
-        let credentialDelay = remaining > 2 ? remaining / 2 : 1
+        let attempt = min(max(failureCount, 0), 10)
+        let localDelay = min(120, 5 * pow(2, Double(attempt)))
         let serverDelay = TimeInterval(max(0, retryAfterSeconds ?? 0))
-        return .seconds(max(credentialDelay, serverDelay))
+        let floor = max(localDelay, serverDelay)
+        let jitter = min(1, max(0, jitterUnitInterval))
+        let jittered = floor + min(floor * 0.25, max(0, 120 - floor)) * jitter
+        return .milliseconds(Int64(jittered * 1_000))
     }
 }
 

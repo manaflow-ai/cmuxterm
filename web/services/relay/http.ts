@@ -1,9 +1,12 @@
 import * as Effect from "effect/Effect";
+import { randomUUID } from "node:crypto";
 
 import {
   RelayAuthenticationError,
   RelayConfigurationError,
   RelayRateLimitError,
+  RelayDatabaseError,
+  relayDatabaseFailureMetadata,
   type RelayRateLimitSource,
   type RelayServiceError,
 } from "./errors";
@@ -108,7 +111,12 @@ export function enforceRelayRateLimit(input: {
   );
 }
 
-export function relayErrorResponse(error: unknown): Response {
+export type RelayErrorContext = { readonly requestId?: string };
+
+export function relayErrorResponse(
+  error: unknown,
+  context: RelayErrorContext = {},
+): Response {
   const tag = (error as { _tag?: string } | null)?._tag;
   if (tag === "RelayAuthenticationError") {
     const typed = error as RelayAuthenticationError;
@@ -165,11 +173,20 @@ export function relayErrorResponse(error: unknown): Response {
     console.error("relay.policy.catalog_integrity", { reason: typed.reason });
     return jsonResponse({ error: "relay_policy_unavailable" }, 503);
   }
-  if (
-    tag === "RelayConfigurationError" ||
-    tag === "RelayDatabaseError" ||
-    tag === "RelaySigningError"
-  ) {
+  if (tag === "RelayDatabaseError") {
+    const metadata = relayDatabaseFailureMetadata(error as RelayDatabaseError);
+    const requestId = context.requestId ?? randomUUID();
+    console.error("relay.policy.database_unavailable", { ...metadata, requestId });
+    // Temporary Aurora outages need a client-visible floor. The client still
+    // applies its own bounded exponential backoff, so this never authorizes a
+    // tight retry loop when the database remains unavailable.
+    return jsonResponse(
+      { error: "relay_policy_unavailable", requestId },
+      503,
+      { "retry-after": "15", "x-cmux-request-id": requestId },
+    );
+  }
+  if (tag === "RelayConfigurationError" || tag === "RelaySigningError") {
     console.error("relay.policy.unavailable", tag);
     return jsonResponse({ error: "relay_policy_unavailable" }, 503);
   }
