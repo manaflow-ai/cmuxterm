@@ -48,7 +48,13 @@ fi
 # then pass it through Xcode's TEST_RUNNER_ environment channel. Xcode strips
 # that prefix when it launches the test runner, so the app host receives the
 # redirects without exposing them to the xcodebuild driver.
-app_host_test_runner_environment=("TEST_RUNNER_CMUX_TEST_PROCESS=1")
+app_host_test_runner_environment=(
+  "TEST_RUNNER_CMUX_TEST_PROCESS=1"
+  # Installing Node on the runner does not put it on the app-host's PATH.
+  # Use Xcode's documented test-runner channel after the console-user hop,
+  # retaining Xcode's own tool paths via its current-value substitution.
+  "TEST_RUNNER_PATH=${TEST_RUNNER_PATH-$PATH:__CURRENT_VALUE__}"
+)
 app_host_home=""
 app_host_key=""
 app_host_receipt_dir=""

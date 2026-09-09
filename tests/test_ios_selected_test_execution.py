@@ -32,12 +32,15 @@ class SelectedIOSTestExecutionGuardTests(unittest.TestCase):
                 result = self.run_guard(summary, "cmuxUITests/cmuxUITests/testExample")
                 self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_accepts_swift_testing_nonzero_count(self) -> None:
-        result = self.run_guard(
-            "Test run with 2 tests passed after 0.012 seconds.",
-            "cmuxFeatureTests/ExampleSuite",
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
+    def test_accepts_swift_testing_singular_and_plural_nonzero_counts(self) -> None:
+        for count, summary in (
+            (1, "Test run with 1 test in 1 suite passed after 0.012 seconds."),
+            (2, "Test run with 2 tests passed after 0.012 seconds."),
+        ):
+            with self.subTest(summary=summary):
+                result = self.run_guard(summary, "cmuxFeatureTests/ExampleSuite")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), str(count))
 
     def test_rejects_zero_tests_for_requested_filter(self) -> None:
         test_filter = "cmuxUITests/testMissingMethod\n::error::injected"

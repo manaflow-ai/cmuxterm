@@ -507,6 +507,20 @@ struct ClaudeHookSurfaceResolutionSwiftTests {
         return fd
     }
 
+    /// Keep intentionally blocking fixture loops off libdispatch's shared pool.
+    /// The app-host test bundle runs Swift Testing work concurrently, and a
+    /// saturated global pool can otherwise delay both socket replies and child
+    /// exit observation without changing the CLI behavior under test.
+    private static func detachBlockingThread(
+        name: String,
+        _ body: @escaping @Sendable () -> Void
+    ) {
+        let thread = Thread(block: body)
+        thread.name = name
+        thread.stackSize = 1 << 20
+        thread.start()
+    }
+
     private func startMockServer(
         listenerFD: Int32,
         state: MockSocketServerState,
@@ -514,7 +528,9 @@ struct ClaudeHookSurfaceResolutionSwiftTests {
         handler: @escaping @Sendable (String) -> String
     ) -> DispatchSemaphore {
         let handled = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .userInitiated).async {
+        // Accept and per-client loops block indefinitely; keep them off the
+        // libdispatch pool so parallel suites cannot starve each other.
+        Self.detachBlockingThread(name: "cmux-test-claude-mock-accept") {
             while true {
                 var clientAddr = sockaddr_un()
                 var clientAddrLen = socklen_t(MemoryLayout<sockaddr_un>.size)
@@ -528,7 +544,7 @@ struct ClaudeHookSurfaceResolutionSwiftTests {
                     return
                 }
 
-                DispatchQueue.global(qos: .userInitiated).async {
+                Self.detachBlockingThread(name: "cmux-test-claude-mock-client") {
                     var authenticated = requiredSocketPassword == nil
 
                     defer {
@@ -829,7 +845,7 @@ struct ClaudeHookSurfaceResolutionSwiftTests {
         }
 
         let exitSignal = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .userInitiated).async {
+        Self.detachBlockingThread(name: "cmux-test-process-reaper") {
             process.waitUntilExit()
             exitSignal.signal()
         }

@@ -4,6 +4,108 @@ import CoreGraphics
 import ImageIO
 
 final class RightSidebarChromeHeightUITests: XCTestCase {
+    func testVaultTabsGroupingAndPopoutStayInteractive() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication.cmuxTestApplication()
+        let dataPath = "/tmp/cmux-ui-test-vault-interaction-\(UUID()).json"
+        defer { try? FileManager.default.removeItem(atPath: dataPath) }
+        app.launchEnvironment["CMUX_UI_TEST_MODE"] = "1"
+        app.launchEnvironment["CMUX_UI_TEST_BONSPLIT_TAB_DRAG_SETUP"] = "1"
+        app.launchEnvironment["CMUX_UI_TEST_BONSPLIT_TAB_DRAG_PATH"] = dataPath
+        app.launchEnvironment["CMUX_UI_TEST_BONSPLIT_SHOW_RIGHT_SIDEBAR"] = "1"
+        app.launchArguments += [
+            "-workspacePresentationMode", "minimal",
+            "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
+        ]
+        app.launch()
+        defer { app.terminate() }
+        app.activate()
+        let ready = try XCTUnwrap(waitForJSONKey("ready", equals: "1", atPath: dataPath, timeout: 25))
+        XCTAssertTrue((ready["setupError"] ?? "").isEmpty, "Setup failed: \(ready)")
+
+        let vault = app.buttons["RightSidebarModeButton.sessions"]
+        XCTAssertTrue(vault.waitForExistence(timeout: 10))
+        vault.click()
+        // The Vault container must preserve its children's identifiers in
+        // both sidebar and standalone-pane mounts.
+        let sessions = app.buttons["VaultPaneTabButton.sessions"].firstMatch
+        let history = app.buttons["VaultPaneTabButton.history"].firstMatch
+        XCTAssertTrue(sessions.waitForExistence(timeout: 10))
+        XCTAssertTrue(history.waitForExistence(timeout: 10))
+        // A launch-argument override would pin this AppStorage value even
+        // after History is clicked. Establish the starting tab through the UI.
+        sessions.click()
+        XCTAssertTrue(app.buttons["Folder"].waitForExistence(timeout: 10))
+        addKeptScreenshot(app.windows.firstMatch.screenshot(), name: "vault-sessions-before")
+
+        history.click()
+        // SwiftUI exposes this Menu as a PopUpButton on macOS 15 and a
+        // MenuButton on newer systems. Its stable identifier is the contract.
+        let picker = app.descendants(matching: .any)["VaultHistoryGroupPicker"].firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 10), app.debugDescription)
+        for grouping in ["Workspace", "Window", "Agent", "Type", "Date"] {
+            picker.click()
+            // The app's File menu also contains a hidden "Workspace" item.
+            // Choose from the open popup, never let XCTest traverse a hidden
+            // menu-bar item that happens to have the same title.
+            let options = app.menuItems.matching(identifier: grouping)
+            let visibleOption = XCTNSPredicateExpectation(
+                predicate: NSPredicate { _, _ in
+                    options.allElementsBoundByIndex.contains { $0.isHittable }
+                },
+                object: nil
+            )
+            XCTAssertEqual(
+                XCTWaiter.wait(for: [visibleOption], timeout: 5),
+                .completed,
+                "Missing visible History grouping: \(grouping)"
+            )
+            let item = try XCTUnwrap(options.allElementsBoundByIndex.first { $0.isHittable })
+            item.click()
+            let selected = XCTNSPredicateExpectation(
+                predicate: NSPredicate { _, _ in
+                    picker.value as? String == grouping
+                },
+                object: nil
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
+        }
+        addKeptScreenshot(app.windows.firstMatch.screenshot(), name: "vault-history-after-menu-interaction")
+
+        sessions.click()
+        XCTAssertTrue(app.buttons["Folder"].waitForExistence(timeout: 5))
+        history.click()
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+
+        let popout = app.buttons["RightSidebar.openAsPaneButton"]
+        XCTAssertTrue(popout.waitForExistence(timeout: 5))
+        popout.click()
+        let mountedTwice = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                app.buttons.matching(identifier: "VaultPaneTabButton.history").count == 2
+            },
+            object: nil
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [mountedTwice], timeout: 10), .completed)
+
+        // Hide the sidebar so subsequent clicks can only target the independent pane.
+        let closeSidebar = app.buttons["RightSidebar.closeButton"]
+        closeSidebar.click()
+        let paneOnly = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                app.buttons.matching(identifier: "VaultPaneTabButton.history").count == 1
+                    && !closeSidebar.exists
+            },
+            object: nil
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [paneOnly], timeout: 10), .completed)
+        app.buttons["VaultPaneTabButton.sessions"].click()
+        XCTAssertTrue(app.buttons["Folder"].waitForExistence(timeout: 5))
+        app.buttons["VaultPaneTabButton.history"].click()
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        addKeptScreenshot(app.windows.firstMatch.screenshot(), name: "vault-history-standalone-pane")
+    }
+
     func testSecondaryBarMatchesModeBarAndPaneTabs() {
         let app = XCUIApplication.cmuxTestApplication()
         let dataPath = "/tmp/cmux-ui-test-right-sidebar-chrome-\(UUID().uuidString).json"

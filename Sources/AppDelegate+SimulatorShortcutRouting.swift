@@ -33,15 +33,18 @@ extension AppDelegate {
 
     func performConfiguredNewSimulatorAction(
         context: MainWindowContext,
-        onExecuted: (() -> Void)?
+        onExecuted: (() -> Void)?,
+        onCompleted: ((Bool) -> Void)? = nil
     ) -> Bool {
         guard CmuxFeatureFlags.shared.isSimulatorEnabled,
               let workspace = context.tabManager.selectedWorkspace,
               let pane = workspace.bonsplitController.focusedPaneId,
               workspace.newSimulatorSurface(inPane: pane, focus: true) != nil else {
+            onCompleted?(false)
             return false
         }
         onExecuted?()
+        onCompleted?(true)
         return true
     }
 

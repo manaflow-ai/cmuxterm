@@ -106,6 +106,7 @@ extension AppDelegate {
             let excludedStableIdentities = liveStableIdentitySet()
             let excludedWorkspaceIds = liveWorkspaceIdSet()
             let windowId = createMainWindow(
+                initialWorkspaceHistoryContext: .bootstrap,
                 sessionWindowSnapshot: windowSnapshot,
                 shouldActivate: shouldActivate,
                 remapClosedPanelHistoryFromSessionSnapshot: false,
@@ -134,6 +135,7 @@ extension AppDelegate {
                 restoredPanelIdsByWorkspaceIndex: restoredPanelIdsByWorkspaceIndex,
                 ambiguousOriginalWorkspaceIds: excludedWorkspaceIds
             )
+            vaultHistoryEventLog?.commitWindowCreation(windowId: windowId)
             return true
         }
     }

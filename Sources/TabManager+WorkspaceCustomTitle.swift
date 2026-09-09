@@ -30,17 +30,18 @@ extension TabManager {
         propagateToCloud: Bool = true
     ) -> Bool {
         guard let index = tabs.firstIndex(where: { $0.id == tabId }) else { return false }
-        let previousCustomTitle = tabs[index].customTitle
-        let previousDisplayTitle = resolvedWorkspaceDisplayTitle(for: tabs[index])
+        let workspace = tabs[index]
+        let previousCustomTitle = workspace.customTitle
+        let previousDisplayTitle = resolvedWorkspaceDisplayTitle(for: workspace)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let applied = tabs[index].setCustomTitle(title, source: source)
+        let applied = workspace.setCustomTitle(title, source: source)
         if applied {
-            recordWorkspaceCustomTitle(tabs[index], source: source)
+            recordWorkspaceCustomTitle(workspace, source: source)
         }
         if applied, selectedTabId == tabId {
-            updateWindowTitle(for: tabs[index])
+            updateWindowTitle(for: workspace)
         }
-        let currentDisplayTitle = resolvedWorkspaceDisplayTitle(for: tabs[index])
+        let currentDisplayTitle = resolvedWorkspaceDisplayTitle(for: workspace)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if applied, currentDisplayTitle != previousDisplayTitle {
             NotificationCenter.default.post(
@@ -48,11 +49,18 @@ extension TabManager {
                 object: self,
                 userInfo: [GhosttyNotificationKey.tabId: tabId]
             )
+            if source == .user {
+                recordVaultHistoryWorkspaceRenamed(
+                    workspace,
+                    previousTitle: previousDisplayTitle,
+                    currentTitle: currentDisplayTitle
+                )
+            }
         }
         // A remote tmux mirror workspace rename propagates to `rename-session`,
         // but only when the write landed (an `.auto` write rejected over a
         // user-set title must not desync the remote session name).
-        if applied, propagateToRemoteTmux, tabs[index].isRemoteTmuxMirror {
+        if applied, propagateToRemoteTmux, workspace.isRemoteTmuxMirror {
             AppDelegate.shared?.remoteTmuxController.handleMirrorWorkspaceRenamed(
                 workspaceId: tabId,
                 title: title
@@ -64,7 +72,7 @@ extension TabManager {
         // so clearing remains a local title operation only.
         if applied, propagateToCloud, source == .user {
             SurfaceCatalog.shared.propagateCloudWorkspaceRename(
-                workspace: tabs[index], localTitle: title, previousCustomTitle: previousCustomTitle
+                workspace: workspace, localTitle: title, previousCustomTitle: previousCustomTitle
             )
         }
         return applied

@@ -16,8 +16,15 @@ struct CmuxConfigExecutor {
         icon: CmuxButtonIcon? = nil,
         iconSourcePath: String? = nil,
         presentingWindow: NSWindow? = nil,
-        onExecuted: (() -> Void)? = nil
+        onExecuted: (() -> Void)? = nil,
+        onCompleted: ((Bool) -> Void)? = nil
     ) -> Bool {
+        var didComplete = false
+        let complete: (Bool) -> Void = { succeeded in
+            guard !didComplete else { return }
+            didComplete = true
+            onCompleted?(succeeded)
+        }
         if let workspace = command.workspace {
             return authorizeProjectActionIfNeeded(
                 descriptor: workspaceTrustDescriptor(
@@ -40,12 +47,21 @@ struct CmuxConfigExecutor {
                     workspace: workspace,
                     tabManager: tabManager,
                     baseCwd: baseCwd
-                ) else { return }
+                ) else {
+                    complete(false)
+                    return
+                }
                 onExecuted?()
+                complete(true)
+            } onDenied: {
+                complete(false)
             }
         } else if let rawCommand = command.command {
             let targetTerminal = tabManager.selectedWorkspace?.focusedTerminalInputTarget()?.panel
-            guard let targetTerminal else { return false }
+            guard let targetTerminal else {
+                complete(false)
+                return false
+            }
             return prepareShellInputIfAuthorized(
                 rawCommand,
                 confirm: command.confirm ?? false,
@@ -56,12 +72,15 @@ struct CmuxConfigExecutor {
                 displayTitle: displayTitle ?? command.name,
                 icon: icon,
                 iconSourcePath: iconSourcePath,
-                presentingWindow: presentingWindow
+                presentingWindow: presentingWindow,
+                onDenied: { complete(false) }
             ) { shellInput in
                 targetTerminal.sendInput(shellInput)
                 onExecuted?()
+                complete(true)
             }
         }
+        complete(false)
         return false
     }
 
@@ -74,7 +93,8 @@ struct CmuxConfigExecutor {
         baseCwd: String,
         globalConfigPath: String,
         presentingWindow: NSWindow? = nil,
-        onExecuted: (() -> Void)? = nil
+        onExecuted: (() -> Void)? = nil,
+        onCompleted: ((Bool) -> Void)? = nil
     ) -> Bool {
         if let syntheticCommand = action.inlineWorkspaceSyntheticCommand {
             // Inline `type: "workspace"` actions reuse the named-command path via a
@@ -91,7 +111,8 @@ struct CmuxConfigExecutor {
                 icon: action.icon,
                 iconSourcePath: action.iconSourcePath,
                 presentingWindow: presentingWindow,
-                onExecuted: onExecuted
+                onExecuted: onExecuted,
+                onCompleted: onCompleted
             )
         }
 
@@ -109,7 +130,8 @@ struct CmuxConfigExecutor {
                 icon: action.icon,
                 iconSourcePath: action.iconSourcePath,
                 presentingWindow: presentingWindow,
-                onExecuted: onExecuted
+                onExecuted: onExecuted,
+                onCompleted: onCompleted
             )
         }
 
@@ -119,7 +141,13 @@ struct CmuxConfigExecutor {
             ? tabManager.selectedWorkspace?.focusedTerminalInputTarget()?.panel
             : nil
         let targetWorkspace = (target == .newTabInCurrentPane) ? tabManager.selectedWorkspace : nil
-        return prepareShellInputIfAuthorized(
+        var didComplete = false
+        let complete: (Bool) -> Void = { succeeded in
+            guard !didComplete else { return }
+            didComplete = true
+            onCompleted?(succeeded)
+        }
+        let didStart = prepareShellInputIfAuthorized(
             command,
             confirm: action.confirm ?? false,
             actionID: action.id,
@@ -129,7 +157,8 @@ struct CmuxConfigExecutor {
             displayTitle: action.title,
             icon: action.icon,
             iconSourcePath: action.iconSourcePath,
-            presentingWindow: presentingWindow
+            presentingWindow: presentingWindow,
+            onDenied: { complete(false) }
         ) { shellInput in
             switch target {
             case .currentTerminal:
@@ -139,7 +168,12 @@ struct CmuxConfigExecutor {
                 targetWorkspace?.newTerminalSurfaceInFocusedPane(focus: true, initialInput: shellInput)
             }
             onExecuted?()
+            complete(true)
         }
+        if !didStart {
+            complete(false)
+        }
+        return didStart
     }
 
     @discardableResult
@@ -154,6 +188,7 @@ struct CmuxConfigExecutor {
         icon: CmuxButtonIcon? = nil,
         iconSourcePath: String? = nil,
         presentingWindow: NSWindow? = nil,
+        onDenied: (() -> Void)? = nil,
         onAuthorized: @escaping (String) -> Void
     ) -> Bool {
         let shellCommand = sanitizeForDisplay(rawCommand)
@@ -175,10 +210,12 @@ struct CmuxConfigExecutor {
             globalConfigPath: globalConfigPath,
             displayCommand: shellCommand,
             displayTitle: displayTitle,
-            presentingWindow: presentingWindow
-        ) {
-            onAuthorized(shellCommand + "\n")
-        }
+            presentingWindow: presentingWindow,
+            onAuthorized: {
+                onAuthorized(shellCommand + "\n")
+            },
+            onDenied: onDenied
+        )
     }
 
     @discardableResult

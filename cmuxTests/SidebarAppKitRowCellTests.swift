@@ -4,6 +4,28 @@ import SwiftUI
 import Testing
 @testable import cmux_DEV
 
+@MainActor
+struct SidebarRowTextAccessibilityTreeTests {
+    @Test(arguments: [1, 2])
+    func plainTextExposesItsValueWithoutRecursiveChildren(lines: Int) {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 100),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let label = SidebarRowTextView(lines: lines)
+        label.frame = NSRect(x: 0, y: 0, width: 280, height: 80)
+        label.configurePlainText("Workspace", font: .systemFont(ofSize: 12), color: .labelColor)
+        window.contentView?.addSubview(label)
+
+        #expect(label.accessibilityValue() as? String == "Workspace")
+        #expect((label.accessibilityChildren() ?? []).isEmpty)
+    }
+}
+
 /// Behavior tests for the pure-AppKit workspace row cell: hover enforcement
 /// (authoritative sweep) and optimistic selection paint semantics.
 @Suite(.serialized)
@@ -66,7 +88,8 @@ struct SidebarAppKitRowCellTests {
         metadataEntries: [SidebarStatusEntry] = [],
         metadataBlocks: [SidebarMetadataBlock] = [],
         shortcutHintText: String? = nil,
-        isMarkdownExpanded: Bool = false
+        isMarkdownExpanded: Bool = false,
+        colorSchemeIsDark: Bool = true
     ) -> SidebarWorkspaceRowModel {
         let resolvedSettings = settings
             ?? SidebarTabItemSettingsSnapshot(defaults: UserDefaults(suiteName: UUID().uuidString)!)
@@ -96,7 +119,7 @@ struct SidebarAppKitRowCellTests {
             isFirstRow: true,
             shortcutHintText: shortcutHintText,
             showsShortcutHints: shortcutHintText != nil,
-            colorSchemeIsDark: true,
+            colorSchemeIsDark: colorSchemeIsDark,
             globalFontMagnificationPercent: 100,
             isChecklistExpanded: false,
             checklistAddFieldActivationToken: 0,
@@ -744,8 +767,10 @@ struct SidebarAppKitRowCellTests {
         #expect(Self.distance(proseGlyph, linkGlyph) > 0.15)
     }
 
-    @Test
-    func rowPaletteSemanticColorsRemainDynamicAcrossAppearances() throws {
+    @Test(arguments: [false, true])
+    func rowPaletteSemanticColorsFollowRowSchemeAcrossAmbientAppearances(
+        colorSchemeIsDark: Bool
+    ) throws {
         let lightAppearance = try #require(NSAppearance(named: .aqua))
         let darkAppearance = try #require(NSAppearance(named: .darkAqua))
         let semanticColor = NSColor(name: nil) { appearance in
@@ -753,7 +778,12 @@ struct SidebarAppKitRowCellTests {
                 ? .white
                 : .black
         }
-        let palette = SidebarRowPalette(model: Self.makeModel())
+        let palette = SidebarRowPalette(
+            model: Self.makeModel(colorSchemeIsDark: colorSchemeIsDark)
+        )
+        let expected = try #require(
+            (colorSchemeIsDark ? NSColor.white : NSColor.black).usingColorSpace(.sRGB)
+        )
         let colors = [
             (palette.semantic(semanticColor), CGFloat(1)),
             (palette.semantic(semanticColor, opacity: 0.6), CGFloat(0.6)),
@@ -763,7 +793,10 @@ struct SidebarAppKitRowCellTests {
             let light = try Self.resolvedColor(color, in: lightAppearance)
             let dark = try Self.resolvedColor(color, in: darkAppearance)
 
-            #expect(Self.distance(light, dark) > 1)
+            // A window's ambient appearance may differ from the cmux theme.
+            // The row model remains authoritative for both color and opacity.
+            #expect(Self.distance(light, expected) < 0.001)
+            #expect(Self.distance(dark, expected) < 0.001)
             #expect(abs(light.alphaComponent - expectedAlpha) < 0.001)
             #expect(abs(dark.alphaComponent - expectedAlpha) < 0.001)
         }

@@ -160,6 +160,32 @@ struct MobileTerminalLaneCoordinatorTests {
     }
 
     @Test
+    func missingOutputProviderDoesNotSelectInputOnlyTransport() async throws {
+        let inputProvider = TerminalLaneTestProvider(lanes: [
+            TerminalLaneTestConnection(
+                frames: [Self.frame(kind: .replay, sequence: 0, bytes: "")],
+                waitsAfterFrames: true
+            ),
+        ])
+        let coordinator = MobileTerminalLaneCoordinator(
+            provider: nil,
+            inputOnlyProvider: { request, surfaceID, cursor in
+                try await inputProvider.callAsFunction(request, surfaceID, cursor: cursor)
+            }
+        )
+
+        // Keep the absent-provider boundary covered separately from the
+        // failing-provider integration test above, without waiting for a non-call.
+        #expect(await coordinator.resolvedProvider(for: .output) == nil)
+        #expect(await inputProvider.requestCount() == 0)
+
+        let selectedInputProvider = try #require(await coordinator.resolvedProvider(for: .inputOnly))
+        let lane = try await selectedInputProvider(try Self.request(), Self.surfaceID, nil)
+        #expect(await inputProvider.requestCount() == 1)
+        await lane.close()
+    }
+
+    @Test
     func sequenceGapSuspendsUntilAuthoritativeCursorThenReopens() async throws {
         let firstLane = TerminalLaneTestConnection(
             frames: [

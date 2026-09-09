@@ -8,6 +8,27 @@ import Testing
 @testable import cmux
 #endif
 
+@MainActor
+struct AgentChatTranscriptServiceLifetimeTests {
+    @Test func finalBackgroundReleaseDoesNotAssumeMainActor() async {
+        weak var releasedService: AgentChatTranscriptService?
+        let retainedService = {
+            let service = AgentChatTranscriptService(
+                registry: AgentChatSessionRegistry(),
+                hasEventSubscribers: { false },
+                emitEventPayload: { _ in }
+            )
+            releasedService = service
+            // Deliberately transfer the sole retain to a background executor,
+            // as the snapshot writer does when its AppDelegate capture expires.
+            return Unmanaged.passRetained(service)
+        }()
+
+        await Task.detached { retainedService.release() }.value
+        #expect(releasedService == nil)
+    }
+}
+
 struct AgentChatFallbackTranscriptResolutionCoordinatorTests {
     @MainActor
     @Test func authoritativeTranscriptBindingCancelsFallbackResolution() async throws {

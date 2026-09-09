@@ -78,7 +78,8 @@ extension AppDelegate {
     func performConfiguredNewAgentChatAction(
         context: MainWindowContext,
         preferredWindow: NSWindow?,
-        onExecuted: (() -> Void)?
+        onExecuted: (() -> Void)?,
+        onCompleted: ((Bool) -> Void)? = nil
     ) -> Bool {
         let cmuxConfigStore = context.cmuxConfigStore
         return performNewAgentChatAction(
@@ -86,7 +87,8 @@ extension AppDelegate {
             agentChat: cmuxConfigStore?.agentChat ?? .default,
             globalConfigPath: cmuxConfigStore?.globalConfigPath,
             preferredWindow: resolvedWindow(for: context) ?? preferredWindow,
-            onExecuted: onExecuted
+            onExecuted: onExecuted,
+            onCompleted: onCompleted
         )
     }
 
@@ -113,37 +115,48 @@ extension AppDelegate {
         agentChat: CmuxAgentChatConfiguration,
         globalConfigPath: String?,
         preferredWindow: NSWindow?,
-        onExecuted: (() -> Void)? = nil
+        onExecuted: (() -> Void)? = nil,
+        onCompleted: ((Bool) -> Void)? = nil
     ) -> Bool {
         guard CmuxFeatureFlags.shared.isAgentChatUIEnabled else {
             NSSound.beep()
+            onCompleted?(false)
             return false
         }
         guard BrowserAvailabilitySettings.isEnabled() else {
             NSSound.beep()
+            onCompleted?(false)
             return false
         }
         AgentChatThemeSync.start()
         guard AgentChatActionInFlightGate.begin() else {
             NSSound.beep()
+            onCompleted?(false)
             return false
         }
         Task { @MainActor [weak self, weak tabManager] in
             defer { AgentChatActionInFlightGate.end() }
-            guard let self else { return }
+            guard let self else {
+                onCompleted?(false)
+                return
+            }
             let availability = await self.ensureAgentChatServerAvailable(
                 agentChat,
                 globalConfigPath: globalConfigPath,
                 preferredWindow: preferredWindow
             )
             AgentChatThemeSync.syncNow(agentChat: agentChat)
-            guard let tabManager else { return }
+            guard let tabManager else {
+                onCompleted?(false)
+                return
+            }
             guard let browserURL = availability.browserURL else {
                 NSSound.beep()
                 self.postAgentChatServerUnavailableNotification(
                     workspace: nil,
                     agentChat: agentChat
                 )
+                onCompleted?(false)
                 return
             }
             guard let workspace = self.openAgentChatWorkspace(
@@ -151,6 +164,7 @@ extension AppDelegate {
                 url: browserURL
             ) else {
                 NSSound.beep()
+                onCompleted?(false)
                 return
             }
             if !availability.isReachable {
@@ -160,6 +174,7 @@ extension AppDelegate {
                 )
             }
             onExecuted?()
+            onCompleted?(true)
         }
         return true
     }

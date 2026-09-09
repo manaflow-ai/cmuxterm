@@ -181,8 +181,9 @@ class TabManager: ObservableObject {
     /// The window that owns this TabManager. Set by AppDelegate.registerMainWindow().
     /// Used to apply title updates to the correct window instead of NSApp.keyWindow.
     weak var window: NSWindow?
-    /// Stable identifier of the owning macOS window. Used only for opt-in title
-    /// templates that expose a WM-matchable per-window token.
+    /// Stable identifier of the owning macOS window. Injected before the first
+    /// workspace is created when the caller already knows it, then reconciled by
+    /// `AppDelegate.registerMainWindow()`.
     var windowId: UUID?
     private(set) var isFinalizedForWindowClose = false
     private var recoverableMainWindowRouteOwnerRegistration:
@@ -493,6 +494,7 @@ class TabManager: ObservableObject {
     private var currentWindowTabBarLeadingInset: CGFloat?
     private var closeConfirmationInFlight = false
     let closeTabWarningDefaults: UserDefaults
+    let vaultHistoryEventLog: VaultHistoryEventLog?
     let tabDragTransferRegistry: TabDragTransferRegistry
     /// File-backed panels in every workspace and Dock owned by this window
     /// share this injected invalidation pipeline.
@@ -564,6 +566,9 @@ class TabManager: ObservableObject {
         nativeSSHConnectionBroker: NativeSSHConnectionBroker = NativeSSHConnectionBroker(),
         agentChatResumeIntentRecorder: any AgentChatResumeIntentRecording = AgentChatTranscriptResumeIntentRecorder(),
         closeTabWarningDefaults: UserDefaults = .standard,
+        windowId: UUID? = nil,
+        vaultHistoryEventLog: VaultHistoryEventLog? = nil,
+        initialWorkspaceHistoryContext: VaultHistoryWorkspaceCreationContext = .bootstrap,
         managedDevicePolicy: ManagedDevicePolicy = ManagedDevicePolicy(),
         fileContentChangeCoordinator: FileContentChangeCoordinator? = nil
     ) {
@@ -585,6 +590,8 @@ class TabManager: ObservableObject {
         self.panelTitleUpdateCoalescer = panelTitleUpdateCoalescer ?? NotificationBurstCoalescer()
         self.windowTitleWriter = windowTitleWriter ?? WindowTitleWriter()
         self.closeTabWarningDefaults = closeTabWarningDefaults
+        self.windowId = windowId
+        self.vaultHistoryEventLog = vaultHistoryEventLog
         self.tabDragTransferRegistry = tabDragTransferRegistry
         self.fileContentChangeCoordinator =
             fileContentChangeCoordinator ?? FileContentChangeCoordinator()
@@ -650,7 +657,8 @@ class TabManager: ObservableObject {
                 titleSource: .auto,
                 workingDirectory: initialWorkingDirectory,
                 initialTerminalInput: initialTerminalInput,
-                autoWelcomeIfNeeded: autoWelcomeIfNeeded
+                autoWelcomeIfNeeded: autoWelcomeIfNeeded,
+                vaultHistoryContext: initialWorkspaceHistoryContext
             )
         }
         observers.append(NotificationCenter.default.addObserver(
@@ -1297,7 +1305,8 @@ class TabManager: ObservableObject {
         titleSource: Workspace.CustomTitleSource,
         workingDirectory: String?,
         initialTerminalInput: String?,
-        autoWelcomeIfNeeded: Bool
+        autoWelcomeIfNeeded: Bool,
+        vaultHistoryContext: VaultHistoryWorkspaceCreationContext
     ) {
         precondition(
             !isFinalizedForWindowClose,
@@ -1308,7 +1317,8 @@ class TabManager: ObservableObject {
             titleSource: titleSource,
             workingDirectory: workingDirectory,
             initialTerminalInput: initialTerminalInput,
-            autoWelcomeIfNeeded: autoWelcomeIfNeeded
+            autoWelcomeIfNeeded: autoWelcomeIfNeeded,
+            vaultHistoryContext: vaultHistoryContext
         ) != nil else {
             preconditionFailure("Initial workspace creation failed for an active window manager")
         }
@@ -1337,7 +1347,8 @@ class TabManager: ObservableObject {
         autoRefreshMetadata: Bool = true,
         normalizeWorkspaceGroupsAfterInsert: Bool = true,
         applyCreationTitleAsCustomTitle: Bool = true,
-        allowTextBoxFocusDefault: Bool = true
+        allowTextBoxFocusDefault: Bool = true,
+        vaultHistoryContext: VaultHistoryWorkspaceCreationContext = .semanticCreation
     ) -> Workspace? {
         guard !isFinalizedForWindowClose else { return nil }
         let sourceWorkspace = selectedWorkspace
@@ -1463,6 +1474,9 @@ class TabManager: ObservableObject {
             }
             publishCmuxWorkspaceCreated(newWorkspace, selected: select)
             publishCmuxInitialSurfaceCreated(newWorkspace, selected: select)
+            if vaultHistoryContext.recordsCreationEvent {
+                recordVaultHistoryWorkspaceCreated(newWorkspace)
+            }
             if select {
 #if DEBUG
                 debugPrimeWorkspaceSwitchTrigger("create", to: newWorkspace.id)
@@ -1644,7 +1658,8 @@ class TabManager: ObservableObject {
         autoRefreshMetadata: Bool = true,
         normalizeWorkspaceGroupsAfterInsert: Bool = true,
         applyCreationTitleAsCustomTitle: Bool = true,
-        allowTextBoxFocusDefault: Bool = true
+        allowTextBoxFocusDefault: Bool = true,
+        vaultHistoryContext: VaultHistoryWorkspaceCreationContext = .semanticCreation
     ) -> Workspace {
         guard let workspace = addWorkspaceIfActive(
             id: id,
@@ -1668,7 +1683,8 @@ class TabManager: ObservableObject {
             autoRefreshMetadata: autoRefreshMetadata,
             normalizeWorkspaceGroupsAfterInsert: normalizeWorkspaceGroupsAfterInsert,
             applyCreationTitleAsCustomTitle: applyCreationTitleAsCustomTitle,
-            allowTextBoxFocusDefault: allowTextBoxFocusDefault
+            allowTextBoxFocusDefault: allowTextBoxFocusDefault,
+            vaultHistoryContext: vaultHistoryContext
         ) else {
             preconditionFailure("Legacy addWorkspace requires an active window manager")
         }
@@ -1679,7 +1695,7 @@ class TabManager: ObservableObject {
     @discardableResult
     func recoverEmptyWorkspaceAfterStartupIfNeeded() -> Bool {
         guard !isFinalizedForWindowClose, tabs.isEmpty else { return false }
-        return addWorkspaceIfActive() != nil
+        return addWorkspaceIfActive(vaultHistoryContext: .structuralReplacement) != nil
     }
 
     // Keep addTab as a nontrapping compatibility alias for runtime callers.
@@ -2463,6 +2479,9 @@ class TabManager: ObservableObject {
                 snapshot: snapshot
             )))
         }
+        if recordHistory {
+            recordVaultHistoryWorkspaceClosed(workspace)
+        }
         finalizeWorkspaceForRemoval(workspace)
 
         if let index = tabs.firstIndex(where: { $0.id == workspace.id }) {
@@ -2503,7 +2522,7 @@ class TabManager: ObservableObject {
 
     /// Finalizes every workspace owned by a closing window without creating a
     /// replacement workspace or recording per-workspace closed-item history.
-    func finalizeAllWorkspacesForWindowClose() {
+    func finalizeAllWorkspacesForWindowClose(recordVaultHistory: Bool = true) {
         guard !isFinalizedForWindowClose else { return }
         isFinalizedForWindowClose = true
         let closingWorkspaces = Array(tabs)
@@ -2511,6 +2530,9 @@ class TabManager: ObservableObject {
         sidebarGitMetadataService.resetAllWorkspaceGitProbeTracking()
 
         for workspace in closingWorkspaces {
+            if recordVaultHistory {
+                recordVaultHistoryWorkspaceClosed(workspace)
+            }
             finalizeWorkspaceForRemoval(workspace, clearsWorkspaceGitProbes: false)
         }
 
@@ -4777,7 +4799,8 @@ class TabManager: ObservableObject {
             workingDirectory: entry.snapshot.currentDirectory,
             select: false,
             autoWelcomeIfNeeded: false,
-            applyCreationTitleAsCustomTitle: false
+            applyCreationTitleAsCustomTitle: false,
+            vaultHistoryContext: .restoration
         ) else { return false }
         let restoredPanelIds = workspace.restoreSessionSnapshot(entry.snapshot, excludingStableIdentities: excludedStableIdentities)
         guard !entry.snapshot.hasRestorablePanels || !restoredPanelIds.isEmpty else {
