@@ -83,9 +83,13 @@ import Testing
             secondChunks.continuation.yield(chunk)
             time.advance(by: chunk)
         }
-        var secondIterator = secondChunks.stream.makeAsyncIterator()
-        let firstSecondChunk = await secondIterator.next()
-        #expect(firstSecondChunk! > 0 && firstSecondChunk! <= 86_400)
+        secondChunks.continuation.finish()
+        var recordedSecondChunks: [TimeInterval] = []
+        for await chunk in secondChunks.stream {
+            recordedSecondChunks.append(chunk)
+        }
+        #expect(!recordedSecondChunks.isEmpty)
+        #expect(recordedSecondChunks.allSatisfy { $0 > 0 && $0 <= 86_400 })
         #expect(time.now == 172_801)
     }
 }
