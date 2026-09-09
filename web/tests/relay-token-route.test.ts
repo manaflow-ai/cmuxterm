@@ -11,6 +11,7 @@ import {
 import type { RelayPolicyPayload } from "../services/relay/model";
 import { mintManagedRelayCredentials } from "../services/relay/token";
 import type { AuthedUser } from "../services/vms/auth";
+import { RelayDatabaseError } from "../services/relay/errors";
 
 const { privateKey, publicKey } = generateKeyPairSync("ed25519");
 const ENDPOINT_ID = "0123456789abcdef".repeat(4);
@@ -98,6 +99,36 @@ describe("POST /api/relay/token", () => {
   afterEach(() => {
     if (previousVercelEnv === undefined) delete process.env.VERCEL_ENV;
     else process.env.VERCEL_ENV = previousVercelEnv;
+  });
+
+  test("bounds legacy database outage retries before the binding lookup", async () => {
+    const keys: Array<string | undefined> = [];
+    let bindingReads = 0;
+    const outageDeps = deps({
+      isVercel: () => true,
+      rateLimitRuleId: () => "relay-token",
+      checkRateLimit: async (_id, options) => {
+        keys.push(options.rateLimitKey);
+        return { rateLimited: keys.length > 2 };
+      },
+      isEndpointAuthorized: async () => {
+        bindingReads += 1;
+        throw new RelayDatabaseError({
+          operation: "irohBinding.findByEndpoint",
+          cause: new Error("connection unavailable"),
+        });
+      },
+    });
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await handleRelayTokenRequest(
+        request({ endpointId: ENDPOINT_ID }), outageDeps,
+      );
+      statuses.push(response.status);
+    }
+    expect(statuses).toEqual([503, 503, 429]);
+    expect(bindingReads).toBe(2);
+    expect(keys).toEqual(Array(3).fill(`test:account-a:legacy:${ENDPOINT_ID}:admission`));
   });
 
   test("rate limits invalid binding proofs before database and signature work", async () => {
