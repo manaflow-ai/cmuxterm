@@ -165,7 +165,7 @@ export async function handleRelayTokenRequest(
     // Namespaced requests always require a proof. Charge their credential
     // partition before database/crypto work, including rejected signatures.
     if (clientNamespace !== "legacy") {
-      await checkTokenQuota(request, deps, user.id, clientNamespace, endpointId, "credential", nowSeconds);
+      await checkTokenQuota(request, deps, user.id, clientNamespace, endpointId, "credential", nowSeconds, requestId);
     }
     const isEndpointAuthorized = await deps.isEndpointAuthorized({
       accountId: user.id,
@@ -186,7 +186,7 @@ export async function handleRelayTokenRequest(
     // credential issuance in stable, separate partitions.
     if (clientNamespace === "legacy") {
       await checkTokenQuota(request, deps, user.id, clientNamespace, endpointId,
-        isEndpointAuthorized ? "credential" : "bootstrap", nowSeconds);
+        isEndpointAuthorized ? "credential" : "bootstrap", nowSeconds, requestId);
     }
     const policy = await deps.signedPolicy(user.id, nowSeconds);
     const relayUrls = policy.payload.relays.map((relay) => relay.url);
@@ -242,9 +242,11 @@ async function checkTokenQuota(
   endpointId: string,
   phase: "credential" | "bootstrap",
   nowSeconds: number,
+  requestId: string,
 ): Promise<void> {
   await runRelayEffect(enforceRelayRateLimit({
     request,
+    requestId,
     accountId,
     deploymentPartition: rateLimitDeploymentPartition(),
     devicePartition: `${namespace}:${endpointId}:${phase}`,

@@ -27,6 +27,8 @@ export async function runRelayEffect<A, E>(
 
 export function enforceRelayRateLimit(input: {
   readonly request: Request;
+  /** Correlates ingress-limit events with the originating API request. */
+  readonly requestId?: string;
   readonly accountId: string;
   /**
    * Override the key sent to Vercel. `null` deliberately omits the override,
@@ -79,7 +81,10 @@ export function enforceRelayRateLimit(input: {
           : input.devicePartition
             ? "device_budget"
             : "account_budget";
-        console.warn("relay.rate_limited", { source });
+        console.warn("relay.rate_limited", {
+          source,
+          ...(input.requestId ? { requestId: input.requestId } : {}),
+        });
         const retryAfterSeconds = input.retryAfterSeconds;
         return Effect.fail(new RelayRateLimitError({
           code: "rate_limited",
