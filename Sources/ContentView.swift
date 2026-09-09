@@ -942,7 +942,7 @@ struct ContentView: View {
     @State private var isSidebarResizerCursorActive = false
     @State private var sidebarResizerCursorStabilizer = MainActorRepeatingActionScheduler()
     @State private var isCommandPalettePresented = false
-    @State private var commandPaletteQuery: String = ""
+    @State var commandPaletteQuery: String = ""
     @State private var commandPaletteMode: CommandPaletteMode = .commands
     @State private var commandPaletteRenameDraft: String = ""
     @State private var commandPaletteWorkspaceDescriptionDraft: String = ""
@@ -989,8 +989,8 @@ struct ContentView: View {
     @State private var commandPaletteForkableAgentProbeResultExpiryScheduler = MainActorDeferredActionScheduler()
     @State private var isCommandPaletteSearchPending = false
     @State private var commandPalettePendingActivation: CommandPalettePendingActivation?
-    @State private var commandPaletteResultsRevision: UInt64 = 0
-    @State private var pluginSnapshotRevision: UInt64 = 0
+    @State var commandPaletteResultsRevision: UInt64 = 0
+    @State var pluginSnapshotRevision: UInt64 = 0
     @State private var commandPaletteUsageHistoryByCommandId: [String: CommandPaletteUsageEntry] = [:]
     @State private var isFeedbackComposerPresented = false
     @AppStorage(AppCatalogSection().renameSelectsExistingName.userDefaultsKey)
@@ -2874,29 +2874,7 @@ struct ContentView: View {
             refreshCommandPaletteForkableAgentAvailabilityAfterSharedIndexChange(notification)
         })
 
-        view = AnyView(view.task {
-            for await _ in NotificationCenter.default.notifications(
-                named: .cmuxPluginManagementDidChange
-            ) {
-                guard !Task.isCancelled else { return }
-                pluginSnapshotRevision &+= 1
-                commandPaletteResultsRevision &+= 1
-            }
-        })
-
-        view = AnyView(view.task {
-            for await _ in NotificationCenter.default.notifications(
-                named: .cmuxPluginShortcutsDidChange
-            ) {
-                guard !Task.isCancelled else { return }
-                commandPaletteResultsRevision &+= 1
-                scheduleCommandPaletteResultsRefresh(
-                    query: commandPaletteQuery,
-                    forceSearchCorpusRefresh: true,
-                    preservePendingActivation: true
-                )
-            }
-        })
+        view = applyingPluginChangeObservers(to: view)
 
         view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .ghosttyDidFocusTab)) { _ in
             sidebarSelectionState.selection = .tabs
@@ -5434,7 +5412,7 @@ struct ContentView: View {
         commandPaletteOverlayRenderModel.scheduleCommandListUpdate(commandPaletteOverlayCommandListStateSnapshot())
     }
 
-    private func scheduleCommandPaletteResultsRefresh(
+    func scheduleCommandPaletteResultsRefresh(
         query: String? = nil,
         forceSearchCorpusRefresh: Bool = false,
         preservePendingActivation: Bool = false
@@ -8456,8 +8434,6 @@ struct ContentView: View {
         )
 
         let cmuxConfigDefaultSubtitle = String(localized: "command.cmuxConfig.subtitle", defaultValue: "cmux.json")
-        let pluginContributions = pluginCommandPaletteContributions()
-        let activePluginCommandIDs = Set(pluginContributions.map(\.commandId))
         for issue in cmuxConfigStore.configurationIssues {
             contributions.append(
                 CommandPaletteCommandContribution(
@@ -8468,24 +8444,9 @@ struct ContentView: View {
                 )
             )
         }
-        for action in cmuxConfigStore.paletteCustomActions() {
-            guard !activePluginCommandIDs.contains(action.id) else { continue }
-            let actionTitle = sanitizeCmuxConfigPaletteText(action.title)
-            let subtitleText = action.subtitle
-                .map { sanitizeCmuxConfigPaletteText($0) }
-                .flatMap { $0.isEmpty ? nil : $0 }
-                ?? cmuxConfigDefaultSubtitle
-            contributions.append(
-                CommandPaletteCommandContribution(
-                    commandId: action.id,
-                    title: constant(actionTitle),
-                    subtitle: constant(subtitleText),
-                    keywords: action.keywords
-                )
-            )
-        }
-
-        contributions.append(contentsOf: pluginContributions)
+        contributions.append(contentsOf: pluginAndConfigPaletteContributions(
+            defaultSubtitle: cmuxConfigDefaultSubtitle
+        ))
 
         return contributions
     }
@@ -8501,7 +8462,7 @@ struct ContentView: View {
         return filtered.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func commandPaletteCmuxConfigIssueCommandID(_ issue: CmuxConfigIssue) -> String {
+    func commandPaletteCmuxConfigIssueCommandID(_ issue: CmuxConfigIssue) -> String {
         var hash: UInt64 = 1_469_598_103_934_665_603
         for byte in issue.id.utf8 {
             hash ^= UInt64(byte)
@@ -9318,27 +9279,10 @@ struct ContentView: View {
             }
         }
 
-        for issue in cmuxConfigStore.configurationIssues {
-            let captured = issue
-            registry.register(commandId: commandPaletteCmuxConfigIssueCommandID(issue)) {
-                openCmuxConfigIssue(captured)
-            }
-        }
-        let activePluginCommandIDs = Set(
-            pluginCommandPaletteContributions().map(\.commandId)
-        )
-        for action in cmuxConfigStore.paletteCustomActions() {
-            guard !activePluginCommandIDs.contains(action.id) else { continue }
-            let captured = action
-            registry.register(commandId: action.id) {
-                executeConfiguredAction(captured)
-            }
-        }
-
-        registerPluginCommandPaletteHandlers(&registry)
+        registerPluginAndConfiguredCommandPaletteHandlers(&registry)
     }
 
-    private func openCmuxConfigIssue(_ issue: CmuxConfigIssue) {
+    func openCmuxConfigIssue(_ issue: CmuxConfigIssue) {
         guard let sourcePath = issue.sourcePath,
               FileManager.default.fileExists(atPath: sourcePath) else {
             NSSound.beep()
@@ -9356,7 +9300,7 @@ struct ContentView: View {
     }
 
     @discardableResult
-    private func executeConfiguredAction(_ action: CmuxResolvedConfigAction) -> Bool {
+    func executeConfiguredAction(_ action: CmuxResolvedConfigAction) -> Bool {
         let baseCwd = configuredActionBaseCwd()
         return CmuxConfigExecutor.execute(
             action: action,

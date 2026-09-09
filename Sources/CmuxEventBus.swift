@@ -21,13 +21,7 @@ final class CmuxEventSubscription: @unchecked Sendable {
     private var closed = false
     private var closedReason: String?
 
-    init(
-        id: UUID = UUID(),
-        names: Set<String>,
-        categories: Set<String>,
-        maxPendingEvents: Int,
-        deliveryFilter: @escaping @Sendable ([String: Any]) -> Bool = { _ in true }
-    ) {
+    init(id: UUID = UUID(), names: Set<String>, categories: Set<String>, maxPendingEvents: Int, deliveryFilter: @escaping @Sendable ([String: Any]) -> Bool = { _ in true }) {
         self.id = id
         self.names = names
         self.categories = categories
@@ -263,18 +257,8 @@ final class CmuxEventBus: @unchecked Sendable {
         }
     }
 
-    func subscribe(
-        afterSequence: Int64?,
-        names: Set<String>,
-        categories: Set<String>,
-        deliveryFilter: @escaping @Sendable ([String: Any]) -> Bool = { _ in true }
-    ) -> CmuxEventSubscriptionSnapshot {
-        let subscription = CmuxEventSubscription(
-            names: names,
-            categories: categories,
-            maxPendingEvents: maxPendingEventsPerSubscription,
-            deliveryFilter: deliveryFilter
-        )
+    func subscribe(afterSequence: Int64?, names: Set<String>, categories: Set<String>, deliveryFilter: @escaping @Sendable ([String: Any]) -> Bool = { _ in true }) -> CmuxEventSubscriptionSnapshot {
+        let subscription = CmuxEventSubscription(names: names, categories: categories, maxPendingEvents: maxPendingEventsPerSubscription, deliveryFilter: deliveryFilter)
 
         lock.lock()
         let oldestSequence = Self.int64(retained.first?["seq"]) ?? nextSequence

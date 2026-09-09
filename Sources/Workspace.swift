@@ -6330,10 +6330,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
     func updatePanelGitBranch(panelId: UUID, branch: String, isDirty: Bool) {
         let state = SidebarGitBranchState(branch: branch, isDirty: isDirty)
         let existing = panelGitBranches[panelId]
-        let branchValueChanged = existing?.branch != state.branch
-        // A first observation fills in git metadata but must not erase PR
-        // metadata that arrived earlier in the startup race.
-        let branchChanged = existing?.branch != nil && branchValueChanged
+        let branchChanged = existing?.branch != nil && existing?.branch != state.branch
         if existing?.branch != branch || existing?.isDirty != isDirty {
             panelGitBranches[panelId] = state
         }
@@ -6348,18 +6345,11 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         if panelId == focusedPanelId, gitBranch != state {
             gitBranch = state
         }
-        // Dirty-state refreshes are useful to the sidebar but are not branch
-        // transitions. Keep the plugin lifecycle event tied to the branch
-        // value so a polling git status update cannot flood subscriptions.
-        guard branchValueChanged else { return }
-        publishCmuxGitBranchChanged(panelId: panelId, branch: state.branch, isDirty: state.isDirty, previousBranch: existing?.branch)
+        guard existing?.branch != state.branch else { return }; publishCmuxGitBranchChanged(panelId: panelId, branch: state.branch, isDirty: state.isDirty, previousBranch: existing?.branch)
     }
 
     func clearPanelGitBranch(panelId: UUID) {
-        let previous = panelGitBranches[panelId]
-        if panelGitBranches[panelId] != nil {
-            panelGitBranches.removeValue(forKey: panelId)
-        }
+        let previous = panelGitBranches.removeValue(forKey: panelId)
         if panelPullRequests[panelId] != nil {
             panelPullRequests.removeValue(forKey: panelId)
         }
@@ -6371,8 +6361,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
                 pullRequest = nil
             }
         }
-        guard let previous else { return }
-        publishCmuxGitBranchChanged(panelId: panelId, branch: nil, isDirty: nil, previousBranch: previous.branch)
+        if let previous { publishCmuxGitBranchChanged(panelId: panelId, branch: nil, isDirty: nil, previousBranch: previous.branch) }
     }
 
     func updatePanelPullRequest(

@@ -1,8 +1,69 @@
 import CmuxCommandPalette
 import CmuxExtensionKit
 import Foundation
+import SwiftUI
 
 extension ContentView {
+    fileprivate func pluginAndConfigPaletteContributions(
+        defaultSubtitle: String
+    ) -> [CommandPaletteCommandContribution] {
+        var contributions: [CommandPaletteCommandContribution] = []
+        let pluginContributions = pluginCommandPaletteContributions()
+        let activePluginCommandIDs = Set(pluginContributions.map(\.commandId))
+        for action in cmuxConfigStore.paletteCustomActions() {
+            guard !activePluginCommandIDs.contains(action.id) else { continue }
+            let actionTitle = sanitizeCmuxConfigPaletteText(action.title)
+            let subtitleText = action.subtitle
+                .map { sanitizeCmuxConfigPaletteText($0) }
+                .flatMap { $0.isEmpty ? nil : $0 }
+                ?? defaultSubtitle
+            contributions.append(CommandPaletteCommandContribution(
+                commandId: action.id,
+                title: constant(actionTitle),
+                subtitle: constant(subtitleText),
+                keywords: action.keywords
+            ))
+        }
+        contributions.append(contentsOf: pluginContributions)
+        return contributions
+    }
+
+    fileprivate func registerPluginAndConfiguredCommandPaletteHandlers(
+        _ registry: inout CommandPaletteHandlerRegistry
+    ) {
+        for issue in cmuxConfigStore.configurationIssues {
+            let captured = issue
+            registry.register(commandId: commandPaletteCmuxConfigIssueCommandID(issue)) {
+                openCmuxConfigIssue(captured)
+            }
+        }
+        let activePluginCommandIDs = Set(pluginCommandPaletteContributions().map(\.commandId))
+        for action in cmuxConfigStore.paletteCustomActions() {
+            guard !activePluginCommandIDs.contains(action.id) else { continue }
+            let captured = action
+            registry.register(commandId: action.id) { executeConfiguredAction(captured) }
+        }
+        registerPluginCommandPaletteHandlers(&registry)
+    }
+
+    fileprivate func applyingPluginChangeObservers(to view: AnyView) -> AnyView {
+        AnyView(view
+            .task {
+                for await _ in NotificationCenter.default.notifications(named: .cmuxPluginManagementDidChange) {
+                    guard !Task.isCancelled else { return }
+                    pluginSnapshotRevision &+= 1
+                    commandPaletteResultsRevision &+= 1
+                }
+            }
+            .task {
+                for await _ in NotificationCenter.default.notifications(named: .cmuxPluginShortcutsDidChange) {
+                    guard !Task.isCancelled else { return }
+                    commandPaletteResultsRevision &+= 1
+                    scheduleCommandPaletteResultsRefresh(query: commandPaletteQuery, forceSearchCorpusRefresh: true, preservePendingActivation: true)
+                }
+            })
+    }
+
     private typealias AuthorizedPluginAction = (
         pluginID: String,
         pluginName: String,

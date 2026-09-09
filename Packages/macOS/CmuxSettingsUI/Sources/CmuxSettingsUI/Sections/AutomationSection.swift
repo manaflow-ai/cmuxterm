@@ -492,31 +492,11 @@ public struct AutomationSection: View {
 
     @ViewBuilder
     private var portCard: some View {
-        SettingsCard {
-            SettingsCardRow(
-                configurationReview: .json("automation.portBase"),
-                String(localized: "settings.automation.portBase", defaultValue: "Port Base"),
-                subtitle: String(localized: "settings.automation.portBase.subtitle", defaultValue: "Starting port for CMUX_PORT env var."),
-                controlWidth: Self.columnWidth
-            ) {
-                TextField("", value: Binding(get: { portBaseModel.current }, set: { portBaseModel.set($0) }), format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.trailing)
-            }
-            SettingsCardDivider()
-            SettingsCardRow(
-                configurationReview: .json("automation.portRange"),
-                String(localized: "settings.automation.portRange", defaultValue: "Port Range Size"),
-                subtitle: String(localized: "settings.automation.portRange.subtitle", defaultValue: "Number of ports per workspace."),
-                controlWidth: Self.columnWidth
-            ) {
-                TextField("", value: Binding(get: { portRangeModel.current }, set: { portRangeModel.set($0) }), format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.trailing)
-            }
-            SettingsCardDivider()
-            SettingsCardNote(String(localized: "settings.automation.port.note", defaultValue: "Each workspace gets CMUX_PORT and CMUX_PORT_END env vars with a dedicated port range. New terminals inherit these values."))
-        }
+        AutomationPortSettingsCard(
+            portBase: Binding(get: { portBaseModel.current }, set: { portBaseModel.set($0) }),
+            portRange: Binding(get: { portRangeModel.current }, set: { portRangeModel.set($0) }),
+            controlWidth: Self.columnWidth
+        )
     }
 
     private func saveSocketPassword() {
