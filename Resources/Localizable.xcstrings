@@ -127391,40 +127391,6 @@
         }
       }
     },
-    "featureFlags.cloudVM.description": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shows Cloud VM entrypoints in the new-workspace dropdown and command palette."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新規ワークスペースのドロップダウンとコマンドパレットにクラウドVMのエントリーポイントを表示します。"
-          }
-        }
-      }
-    },
-    "featureFlags.cloudVM.title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cloud VM UI"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "クラウドVM UI"
-          }
-        }
-      }
-    },
     "featureFlags.column.current": {
       "extractionState": "manual",
       "localizations": {
@@ -187626,13 +187592,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hides every Cloud Machines surface unless remote rollout enables it."
+            "value": "Hides every Cloud Machines surface, and keeps the Cloud tunnel and fleet polling off, until you enable it here."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "リモートロールアウトで有効化されない限り、クラウドマシンのすべての画面を非表示にします。"
+            "value": "ここで有効にするまで、クラウドマシンのすべての画面を非表示にし、クラウドトンネルとフリートのポーリングもオフのままにします。"
           }
         }
       }
@@ -298863,7 +298829,58 @@
         }
       }
     }
-  }
+  },
+    "cloudTunnel.error.cloudMachinesOff": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud Machines is turned off. Turn it on in Settings › Beta Features, then retry."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラウドマシンはオフになっています。設定 › ベータ機能でオンにしてから、もう一度お試しください。"
+          }
+        }
+      }
+    },
+    "cloudTunnel.error.noCloudMachine": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a Cloud machine first. The cmux Cloud Tunnel runs only for an account with at least one machine."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先にクラウドマシンを作成してください。cmux Cloud Tunnelは、マシンを1台以上持つアカウントでのみ動作します。"
+          }
+        }
+      }
+    },
+    "cli.vpn.status.unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tunnel: unavailable (%@)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "トンネル: 利用不可（%@）"
+          }
+        }
+      }
+    }
   },
   "version": "1.0"
 }
