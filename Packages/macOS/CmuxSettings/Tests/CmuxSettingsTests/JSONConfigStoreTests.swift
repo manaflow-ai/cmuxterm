@@ -78,6 +78,25 @@ struct JSONConfigStoreTests {
         #expect(try Data(contentsOf: fileURL) == original)
     }
 
+    @Test func coherentSnapshotsDistinguishReturningToEarlierContents() async throws {
+        let (store, fileURL, catalog) = makeStore()
+        defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
+
+        try await store.set(.login, for: catalog.terminal.shellStartupMode)
+        let initial = await store.coherentSnapshot()
+        #expect(await store.coherentSnapshot() == initial)
+
+        try await store.set(.nonLogin, for: catalog.terminal.shellStartupMode)
+        let changed = await store.coherentSnapshot()
+        #expect(changed != initial)
+
+        try await store.set(.login, for: catalog.terminal.shellStartupMode)
+        let reverted = await store.coherentSnapshot()
+        #expect(reverted.data == initial.data)
+        #expect(reverted != initial)
+        #expect(await store.coherentSnapshot() == reverted)
+    }
+
     @Test func snapshotStreamPublishesOneCoherentRevision() async throws {
         let (store, fileURL, _) = makeStore()
         try Data("{}".utf8).write(to: fileURL)

@@ -200,19 +200,25 @@ public final class DeclarativeTerminalConfigurationModel:
         async let legacyInheritanceEnabled = userDefaultsStore.value(
             for: catalog.app.workspaceInheritWorkingDirectory
         )
-        let terminal = await reader.decode(await revision)
-        publish(terminal, legacyInheritanceEnabled: await legacyInheritanceEnabled)
+        await apply(await revision, legacyInheritanceEnabled: await legacyInheritanceEnabled)
     }
 
     private func observeTerminalConfiguration() async {
         for await revision in jsonStore.snapshots() {
             if Task.isCancelled { return }
-            let terminal = await reader.decode(revision)
-            publish(
-                terminal,
-                legacyInheritanceEnabled: values.legacyInheritanceEnabled
-            )
+            await apply(revision)
         }
+    }
+
+    func apply(
+        _ revision: JSONConfigStoreSnapshot,
+        legacyInheritanceEnabled: Bool? = nil
+    ) async {
+        let terminal = await reader.decode(revision)
+        publish(
+            terminal,
+            legacyInheritanceEnabled: legacyInheritanceEnabled ?? values.legacyInheritanceEnabled
+        )
     }
 
     private func observeLegacyInheritance() async {
