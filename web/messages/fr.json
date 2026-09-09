@@ -2437,7 +2437,7 @@
       "customCommandNote": "La commande s'exécute indépendamment du sélecteur de son système. Définissez le sélecteur sur « Aucun » pour utiliser uniquement la commande personnalisée, ou gardez les deux pour un son système plus une action personnalisée.",
       "sending": "Envoyer des notifications",
       "cli": "CLI",
-      "osc777Title": "OSC 777 (simple)",
+      "osc777Title": "OSC 777 (format simple)",
       "osc777Desc": "Le protocole RXVT utilise un format fixe avec titre et corps :",
       "osc99Title": "OSC 99 (riche)",
       "osc99Desc": "Le protocole Kitty supporte les sous-titres et les IDs de notification :",
@@ -5051,7 +5051,7 @@
     "done": "Terminé"
   },
   "enterprise": {
-    "metaTitle": "Enterprise | cmux",
+    "metaTitle": "Pour les entreprises | cmux",
     "metaDescription": "Discutez avec cmux du déploiement d'entreprise, du SSO, des machines virtuelles Cloud auto-hébergées, des journaux d'audit et de l'utilisation engagée.",
     "section": "Entreprise",
     "title": "Apportez des machines virtuelles cmux Cloud, SSO et des contrôles d'audit à votre équipe.",
@@ -5172,7 +5172,7 @@
       "sectionLabel": "TUI",
       "metaTitle": "cmux TUI : un espace de travail de terminal pour les agents",
       "metaDescription": "Exécutez des espaces de travail, des volets divisés, des onglets de navigateur et des machines distantes à partir d'une interface utilisateur de terminal open source rapide pour macOS, Linux et Windows.",
-      "eyebrow": "cmux TUI · open source",
+      "eyebrow": "cmux TUI · à code source ouvert",
       "title": "Un espace de travail de terminal qui s'exécute n'importe où.",
       "intro": "cmux TUI apporte le modèle d'espace de travail conçu pour les agents de codage sur macOS, Linux et Windows. Conservez les shells, les navigateurs, les tests et les agents de longue durée dans une seule arborescence axée sur le clavier.",
       "runButton": "Installer cmux",
@@ -5204,7 +5204,7 @@
           "body": "Donnez à chaque équipe de fonctionnalité, d’enquête ou d’agent son propre espace de travail. Basculez sans perdre l’état ou la disposition du terminal."
         },
         "agents": {
-          "number": "02 / AGENTS",
+          "number": "02 / AGENTS IA",
           "title": "Voir les travaux parallèles",
           "body": "Placez les agents de codage à côté des tests, des journaux et des commandes de révision. Les notifications et l'état de l'agent restent attachés à leurs surfaces."
         },
@@ -5214,7 +5214,7 @@
           "body": "Conduisez les cibles Chrome sous forme d'onglets à côté des processus de terminal, avec des profils persistants, une saisie au clavier, une saisie à la souris et des images en direct."
         },
         "remote": {
-          "number": "04 / MACHINES",
+          "number": "04 / MACHINES DISTANTES",
           "title": "Se déplacer entre les machines",
           "body": "Utilisez le rail machine facultatif pour basculer entre les sessions locales, les sockets Unix, les hôtes SSH et les connexions Cloud cmux."
         }
