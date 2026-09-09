@@ -1,6 +1,6 @@
 import AppKit
 
-private extension NSApplication {
+extension NSApplication {
     @objc func cmux_accessibilityAttributeValue(_ attribute: NSAccessibility.Attribute) -> Any? {
         if Thread.isMainThread, let cache = AppDelegate.shared?.accessibilityWindowCache {
             switch cache.resolve(attribute: attribute, application: self) {
