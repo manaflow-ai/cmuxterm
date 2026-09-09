@@ -13,7 +13,7 @@ extension TerminalController {
     }
 
     /// Applies the plugin transport policy before ordinary socket authorization.
-    private nonisolated func admitPluginConnection(
+    nonisolated func admitPluginConnection(
         processID: pid_t?,
         isEventStreamRequest: Bool,
         writer: ControlClientAsyncWriter,
