@@ -120,8 +120,19 @@ private func agentHookDebugSocketName(_ socketPath: String?) -> String {
 /// is compiled out of release builds and is inert unless explicitly enabled
 /// by a Debug test process.
 private func agentHookDebugWaitForTestBarrier(event: String, env: [String: String]) {
-    guard event == "session-end",
-          let barrierPath = agentHookDebugNonEmpty(env["CMUX_TEST_AGENT_HOOK_SESSION_END_BARRIER"]) else {
+    let barrierEnvironmentKey: String?
+    switch event {
+    case "session-end":
+        barrierEnvironmentKey = "CMUX_TEST_AGENT_HOOK_SESSION_END_BARRIER"
+    case "stop":
+        barrierEnvironmentKey = "CMUX_TEST_AGENT_HOOK_STOP_BARRIER"
+    case "notification":
+        barrierEnvironmentKey = "CMUX_TEST_AGENT_HOOK_NOTIFICATION_BARRIER"
+    default:
+        barrierEnvironmentKey = nil
+    }
+    guard let barrierEnvironmentKey,
+          let barrierPath = agentHookDebugNonEmpty(env[barrierEnvironmentKey]) else {
         return
     }
     let readyPath = barrierPath + ".ready"
@@ -35818,6 +35829,9 @@ export default CMUXSessionRestore;
 
         case .stop:
             let mapped = sessionId.isEmpty ? nil : (try? store.lookup(sessionId: sessionId))
+#if DEBUG
+            agentHookDebugWaitForTestBarrier(event: "stop", env: env)
+#endif
             let effectiveCodexStopTurnID = def.name == "codex" && isCodexSettledStopRetry
                 ? (normalizedHookValue(input.turnId) ?? settledStopTurnID)
                 : input.turnId
@@ -36056,6 +36070,10 @@ export default CMUXSessionRestore;
                     lastBody: nil,
                     runtimeStatus: runtimeStatusAfterStop,
                     updateRuntimeStatus: true,
+                    settleOnlyIfPromptActive: def.promptDepthPolicy.closesActivePrompt,
+                    expectedPromptLifecycleRevision: def.promptDepthPolicy.closesActivePrompt
+                        ? mapped?.promptLifecycleRevision
+                        : nil,
                     autoNameMessages: autoNamingMessages(
                         for: def,
                         parsedInput: input,
@@ -36516,6 +36534,9 @@ export default CMUXSessionRestore;
             let mapped = sessionId.isEmpty
                 ? nil
                 : (try? store.lookup(sessionId: sessionId, deadline: cursorShellDeadline))
+#if DEBUG
+            agentHookDebugWaitForTestBarrier(event: "notification", env: env)
+#endif
             guard let target = resolveAgentHookTarget(mapped: mapped) else {
                 reportTargetResolutionFailure()
                 emitJournal(.stateChanged, workspaceId: nil, surfaceId: nil, unattributedReason: "target-unresolved")
@@ -36770,6 +36791,10 @@ export default CMUXSessionRestore;
                         updateLastNotificationStatus: true,
                         runtimeStatus: storedRuntimeStatus,
                         updateRuntimeStatus: true,
+                        settleOnlyIfPromptActive: def.promptDepthPolicy.closesActivePrompt,
+                        expectedPromptLifecycleRevision: def.promptDepthPolicy.closesActivePrompt
+                            ? mapped?.promptLifecycleRevision
+                            : nil,
                         autoNameMessages: autoNamingMessages(
                             for: def,
                             parsedInput: input,
