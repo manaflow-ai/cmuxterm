@@ -224,9 +224,11 @@ export default async function PricingPage({
               {snapshot.isPro ? (
                 <div className="space-y-2">
                   <DisabledButton>{t("currentPlan")}</DisabledButton>
-                  <SecondaryLink href="/api/billing/portal">
-                    {t("manageBilling")}
-                  </SecondaryLink>
+                  {snapshot.billingManagement === "stripe" ? (
+                    <SecondaryLink href="/api/billing/portal">
+                      {t("manageBilling")}
+                    </SecondaryLink>
+                  ) : null}
                 </div>
               ) : canManageBilling ? (
                 <SecondaryLink href="/api/billing/portal">

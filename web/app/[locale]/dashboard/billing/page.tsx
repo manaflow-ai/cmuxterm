@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
@@ -27,9 +27,11 @@ import { stripeCustomers, stripeSubscriptions } from "@/db/schema";
 import { Link } from "@/i18n/navigation";
 import {
   ACTIVE_STRIPE_PRO_STATUSES,
+  isFounderSubscriptionRaw,
   PRO_PLAN_ID,
   TEAM_PLAN_ID,
   isPaidPlanId,
+  hasStripeCustomerForUser,
   manualVmPlanOverride,
   resolveProPlanStatus,
 } from "@/services/billing/pro";
@@ -58,6 +60,7 @@ type StripeSubscriptionRow = {
   raw: Record<string, unknown> | null;
 };
 
+// oxlint-disable-next-line complexity -- The billing page keeps auth, plan-state, and mutually exclusive billing surfaces in one request-scoped render.
 export default async function DashboardBillingPage({
   params,
   searchParams,
@@ -85,12 +88,14 @@ export default async function DashboardBillingPage({
     status,
     billingTeam,
     subscription,
+    hasStripeCustomer,
   ] = await Promise.all([
     getTranslations({ locale, namespace: "dashboard.billing" }),
     getTranslations({ locale, namespace: "pricing" }),
     resolveProPlanStatus(user),
     billingTeamPromise,
     latestActiveStripeSubscription(user.id),
+    hasStripeCustomerForUser(user.id),
   ]);
   const [teamSubscription, hasTeamStripeCustomer] = await Promise.all([
     billingTeam ? latestActiveStripeSubscriptionForTeam(billingTeam.id) : Promise.resolve(null),
@@ -159,12 +164,14 @@ export default async function DashboardBillingPage({
           t={t}
           locale={locale}
           subscription={subscription}
-          canManageBilling={canManagePersonalBilling}
+          canManageBilling={canManagePersonalBilling && hasStripeCustomer}
         />
-      ) : hasPaidManualGrant ? (
-        <GrantedPlan t={t} />
       ) : (
-        <FreePlan t={t} showBillingPortal={canManagePersonalBilling} />
+        <ProEntitlement
+          t={t}
+          granted={hasPaidManualGrant}
+          canManageBilling={canManagePersonalBilling && hasStripeCustomer}
+        />
       )}
 
       {billingTeam && teamSubscription ? (
@@ -198,11 +205,12 @@ async function latestActiveStripeSubscription(stackUserId: string): Promise<Stri
         eq(stripeSubscriptions.scope, "user"),
         eq(stripeSubscriptions.plan, PRO_PLAN_ID),
         inArray(stripeSubscriptions.status, ACTIVE_STRIPE_PRO_STATUSES),
+        sql`${stripeSubscriptions.raw}->'metadata'->>'founders_edition' is distinct from 'true'`,
       ),
     )
     .orderBy(desc(stripeSubscriptions.currentPeriodEnd), desc(stripeSubscriptions.updatedAt))
     .limit(1);
-  return rows[0] ?? null;
+  return rows.find((row) => !isFounderSubscriptionRaw(row.raw)) ?? null;
 }
 
 async function latestActiveStripeSubscriptionForTeam(stackTeamId: string): Promise<StripeSubscriptionRow | null> {
@@ -251,15 +259,7 @@ function FreePlan({
       <h2 className="text-sm font-medium">{t("free.name")}</h2>
       <p className="mt-2 max-w-2xl text-muted">{t("free.body")}</p>
       {showBillingPortal ? (
-        // The portal route creates a Stripe session and needs a full document
-        // navigation rather than a Next.js client transition.
-        // eslint-disable-next-line @next/next/no-html-link-for-pages
-        <a
-          href="/api/billing/portal"
-          className="mt-3 inline-block border border-border bg-background px-3 py-1.5 text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground hover:bg-foreground hover:text-background"
-        >
-          {t("actions.manageBilling")}
-        </a>
+        <PersonalBillingPortalLink t={t} className="mt-3" />
       ) : (
         <Link
           href="/pricing"
@@ -272,14 +272,42 @@ function FreePlan({
   );
 }
 
-// Pro granted by an operator (`cmuxVmPlan`), with no Stripe subscription to
-// manage. Shown so a granted account never reads as Free with an upgrade CTA.
-function GrantedPlan({ t }: { t: Awaited<ReturnType<typeof getTranslations>> }) {
+function ProEntitlement({
+  t,
+  granted,
+  canManageBilling,
+}: {
+  t: Awaited<ReturnType<typeof getTranslations>>;
+  granted: boolean;
+  canManageBilling: boolean;
+}) {
   return (
     <section className="border border-border p-3">
       <h2 className="text-sm font-medium">{t("pro.name")}</h2>
-      <p className="mt-2 max-w-2xl text-muted">{t("pro.grantedBody")}</p>
+      <p className="mt-2 max-w-2xl text-muted">
+        {t(granted && !canManageBilling ? "pro.grantedBody" : "pro.entitledBody")}
+      </p>
+      {canManageBilling ? <PersonalBillingPortalLink t={t} className="mt-3" /> : null}
     </section>
+  );
+}
+
+function PersonalBillingPortalLink({
+  t,
+  className = "",
+}: {
+  t: Awaited<ReturnType<typeof getTranslations>>;
+  className?: string;
+}) {
+  return (
+    // The API creates a Stripe session and requires a full document navigation.
+    // eslint-disable-next-line @next/next/no-html-link-for-pages
+    <a
+      href="/api/billing/portal"
+      className={`${className} inline-block border border-border bg-background px-3 py-1.5 text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground hover:bg-foreground hover:text-background`}
+    >
+      {t("actions.manageBilling")}
+    </a>
   );
 }
 
@@ -475,15 +503,7 @@ function StripePlan({
         )}
 
         {canManageBilling ? (
-          // This API route creates a Stripe portal session and must perform a
-          // full document navigation rather than a Next.js client transition.
-          // eslint-disable-next-line @next/next/no-html-link-for-pages
-          <a
-            href="/api/billing/portal"
-            className="border border-border bg-background px-3 py-1.5 text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground hover:bg-foreground hover:text-background"
-          >
-            {t("actions.manageBilling")}
-          </a>
+          <PersonalBillingPortalLink t={t} />
         ) : null}
       </div>
     </section>

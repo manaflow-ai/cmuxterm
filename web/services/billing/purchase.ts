@@ -28,6 +28,8 @@ import {
   PRO_PLAN_ID,
   type ProMetadataJson,
   TEAM_PLAN_ID,
+  hasEffectiveFounderEntitlement,
+  normalizePersonalPlan,
   syncProPlanMetadata,
   syncTeamPlanMetadata,
 } from "./pro";
@@ -260,6 +262,7 @@ type CheckoutCompletionLockedResult = {
   };
 };
 
+// oxlint-disable-next-line complexity -- Checkout completion must keep ownership fencing, account-deletion locks, durable Stripe writes, and post-commit metadata ordering explicit.
 export async function recordCheckoutCompletion(
   input: CheckoutCompletionInput,
   dependencies: BillingPurchaseDependencies = {},
@@ -324,6 +327,71 @@ export async function recordCheckoutCompletion(
     const parkedAnonymousSource = Boolean(
       mappedOwner?.isAnonymous === true && !mappedOwner.primaryEmail,
     );
+    // A delayed webhook or a browser replay may still carry the anonymous
+    // checkout id after the exact customer was already transferred. Accept
+    // only the durable claim created for this customer/source pair and the
+    // same verified destination; never upsert the replay back onto its source.
+    const claimedReplay = Boolean(
+      !input.allowCanonicalOwnershipRecovery &&
+        checkoutEmailValue &&
+        mappedOwner &&
+        isVerifiedCanonicalBillingOwner(mappedOwner, checkoutEmailValue) &&
+        (await hasClaimedBillingOwnership(
+          db,
+          customerId,
+          requestedStackUserId,
+          mappedCustomerBeforeLookup.stackUserId,
+        )) &&
+        (await hasMappedStripeSubscriptionOwnership(
+          db,
+          customerId,
+          subscription.id,
+          mappedCustomerBeforeLookup.stackUserId,
+        )),
+    );
+    // Direct canonical-owner resolution (for a verified Gmail alias) does not
+    // create a billing claim. Once that exact customer/subscription pair is
+    // already mapped, an idempotent replay is still safe to acknowledge.
+    const canonicalOwnerReplay = Boolean(
+      !input.allowCanonicalOwnershipRecovery &&
+        !claimedReplay &&
+        user?.isAnonymous === true &&
+        checkoutEmailValue &&
+        mappedOwner &&
+        isVerifiedCanonicalBillingOwner(mappedOwner, checkoutEmailValue) &&
+        (await hasMappedStripeSubscriptionOwnership(
+          db,
+          customerId,
+          subscription.id,
+          mappedCustomerBeforeLookup.stackUserId,
+        )),
+    );
+    if (claimedReplay || canonicalOwnerReplay) {
+      if (!mappedOwner || !checkoutEmailValue) {
+        throw new Error("Stripe checkout customer ownership conflict");
+      }
+      // The durable rows make this replay ownership-safe, but the first
+      // delivery may have failed after the transaction (metadata, claims, or
+      // provider reconciliation). Re-run the idempotent post-commit work
+      // before acknowledging the webhook so a transient failure is retryable.
+      await retryMappedCheckoutPostCommit({
+        db,
+        checkout: input,
+        subscription,
+        customerId,
+        targetStackUserId: mappedCustomerBeforeLookup.stackUserId,
+        sourceStackUserId: requestedStackUserId,
+        targetUser: mappedOwner,
+        email: checkoutEmailValue,
+        stackApp: checkoutStackApp,
+        dependencies,
+      });
+      return {
+        scope: "user",
+        stackUserId: mappedCustomerBeforeLookup.stackUserId,
+        subscriptionId: subscription.id,
+      };
+    }
     const recoveryTargetIsVerified = Boolean(
       input.allowCanonicalOwnershipRecovery &&
         user &&
@@ -754,14 +822,20 @@ export async function recordFoundersCheckoutCompletion(
       // Re-read after attaching or promoting the channel, then grant the
       // Founder entitlement only when Stack reports a verified ordinary owner.
       const entitlementUser = await stackApp.getUser(user.id);
-      if (entitlementUser && isVerifiedCanonicalBillingOwner(entitlementUser, email)) {
-        await syncProPlanMetadata(entitlementUser, true, mutationLease);
+      const verifiedCanonicalOwner = Boolean(
+        entitlementUser && isVerifiedCanonicalBillingOwner(entitlementUser, email),
+      );
+      if (
+        verifiedCanonicalOwner &&
+        normalizePersonalPlan(entitlementUser?.clientReadOnlyMetadata, false, true).isPro
+      ) {
+        await syncProPlanMetadata(entitlementUser!, true, mutationLease);
         await enrollFounderTester(
           input.enrollmentEmail?.trim() || email,
           checkoutCustomerName(input.session, input.customer),
           dependencies,
         );
-      } else {
+      } else if (!verifiedCanonicalOwner) {
         await mutationLease.refresh();
         await recordBillingEmailClaim(db, {
           email,
@@ -1244,6 +1318,7 @@ export async function claimPendingProBilling(
   const claims = await repository.findClaims(email, user.id);
   let claimed = 0;
   let founderClaimed = false;
+  let regularClaimed = false;
 
   for (const claim of claims) {
     if (claim.claimedByUserId) continue;
@@ -1258,7 +1333,11 @@ export async function claimPendingProBilling(
     const transfer = await repository.transferClaim(claim, user.id);
     if (!transfer) continue;
     claimed += 1;
-    founderClaimed ||= (transfer.founderSubscriptionIds?.length ?? 0) > 0;
+    const founderSubscriptionIds = new Set(transfer.founderSubscriptionIds ?? []);
+    founderClaimed ||= founderSubscriptionIds.size > 0;
+    regularClaimed ||= transfer.subscriptionIds.some(
+      (subscriptionId) => !founderSubscriptionIds.has(subscriptionId),
+    );
     await clearTransferredSourceProMetadata(transfer, db, stackApp);
     await syncTransferredStripeOwnership(transfer, dependencies.stripeClient ?? stripe);
   }
@@ -1287,8 +1366,15 @@ export async function claimPendingProBilling(
         ) {
           return;
         }
-        await syncProPlanMetadata(freshUser, true, lease);
-        entitlementReady = true;
+        const personalPlan = normalizePersonalPlan(
+          freshUser.clientReadOnlyMetadata,
+          regularClaimed,
+          founderPurchasePending,
+        );
+        if (personalPlan.isPro) {
+          await syncProPlanMetadata(freshUser, true, lease);
+        }
+        entitlementReady = personalPlan.isPro;
       },
     });
     if (founderPurchasePending && entitlementReady) {
@@ -1809,6 +1895,69 @@ async function syncUserCheckoutAfterCommit(
   });
 }
 
+/**
+ * Retry the idempotent work that follows a checkout transaction when a later
+ * webhook replay sees the customer and exact subscription already mapped.
+ */
+async function retryMappedCheckoutPostCommit(input: {
+  readonly db: BillingDb;
+  readonly checkout: CheckoutCompletionInput;
+  readonly subscription: Stripe.Subscription;
+  readonly customerId: string;
+  readonly targetStackUserId: string;
+  readonly sourceStackUserId: string;
+  readonly targetUser: StackBillingUser;
+  readonly email: string;
+  readonly stackApp: StackBillingApp | null | undefined;
+  readonly dependencies: BillingPurchaseDependencies;
+}): Promise<void> {
+  await syncUserCheckoutAfterCommit(
+    input.db,
+    {
+      user: input.targetUser,
+      email: input.email,
+      checkoutSessionId: input.checkout.session.id,
+      stripeCustomerId: input.customerId,
+      stackUserId: input.targetStackUserId,
+      stackApp: input.stackApp,
+      deferProMetadataUntilVerification:
+        input.checkout.deferProMetadataUntilVerification,
+      sendRecoveryMagicLink: input.checkout.sendRecoveryMagicLink,
+    },
+    input.dependencies,
+  );
+
+  if (input.sourceStackUserId !== input.targetStackUserId) {
+    try {
+      await syncStackUserMetadataWithAccountDeletionGuard({
+        db: input.db,
+        stackUserId: input.sourceStackUserId,
+        stackApp: input.stackApp,
+        sync: async (source, mutationLease) => {
+          if (await hasActiveUserProSubscription(input.db, source.id)) return;
+          await syncProPlanMetadata(source, false, mutationLease);
+        },
+      });
+    } catch {
+      // The durable ownership move is safe; source cleanup can be retried on
+      // the next billing read without moving the customer back.
+    }
+    await syncResolvedStripeOwnership(
+      input.customerId,
+      input.subscription.id,
+      input.targetStackUserId,
+      input.dependencies,
+    );
+  }
+  await resolveBillingEmailClaimsForCustomer(
+    input.db,
+    input.customerId,
+    input.targetStackUserId,
+    input.targetUser,
+    input.email,
+  );
+}
+
 async function cleanupCheckoutStripeResourcesForAccountDeletion(input: {
   subscription: Stripe.Subscription;
   customerId: string;
@@ -1996,17 +2145,31 @@ export async function applySubscriptionUpdate(
   );
   if ("skipped" in lockedResult) return { skipped: true };
 
+  let effectiveIsActive = isActive;
   await syncStackUserMetadataWithAccountDeletionGuard({
     db,
     stackUserId: lockedResult.stackUserId,
     stackApp: dependencies.stackApp ?? getStackServerApp(),
     sync: async (freshUser, mutationLease) => {
+      // A recurring Pro cancellation must not clear the shared metadata marker
+      // while a separate paid Founder row still backs it. An operator grant
+      // protects effective access independently, not this billing mirror.
+      const founderSubscriptionActive = !isActive &&
+        await hasActiveFounderSubscription(db, lockedResult.stackUserId);
+      const founderEntitlementActive = !isActive &&
+        hasEffectiveFounderEntitlement(
+          freshUser.clientReadOnlyMetadata,
+          founderSubscriptionActive,
+        );
+      effectiveIsActive = isActive || founderEntitlementActive;
       const currentMetadata = await syncProPlanMetadata(
         freshUser,
-        isActive,
+        isActive || founderSubscriptionActive,
         mutationLease,
       );
-      if (!isActive) {
+      // An independent paid operator grant keeps TestFlight access, but must
+      // not keep the lapsed Stripe mirror alive after that grant is removed.
+      if (!normalizePersonalPlan(currentMetadata, isActive, founderSubscriptionActive).isPro) {
         await removeUserFromTestflightOnLapse(
           freshUser,
           lockedResult.stackUserId,
@@ -2017,7 +2180,11 @@ export async function applySubscriptionUpdate(
       }
     },
   });
-  return { scope: "user", stackUserId: lockedResult.stackUserId, isActive };
+  return {
+    scope: "user",
+    stackUserId: lockedResult.stackUserId,
+    isActive: effectiveIsActive,
+  };
 }
 
 function isAccountDeletionInProgress(user: StackBillingUser): boolean {
@@ -2709,10 +2876,11 @@ async function hasActiveFounderSubscription(
         eq(stripeSubscriptions.plan, PRO_PLAN_ID),
         inArray(stripeSubscriptions.status, [...ACTIVE_STRIPE_SUBSCRIPTION_STATUSES]),
         isNull(stripeSubscriptions.stackTeamId),
+        sql`${stripeSubscriptions.raw}->'metadata'->>'founders_edition' = 'true'`,
       ),
     )
-    .limit(100);
-  return rows.some((row) => isFounderSubscriptionRaw(row.raw));
+    .limit(1);
+  return rows.length > 0;
 }
 
 async function attachPurchaseEmailOrRecordClaim(
@@ -3079,6 +3247,49 @@ async function stripeCustomerRowForId(
     .where(eq(stripeCustomers.id, customerId))
     .limit(1);
   return rows[0] ?? null;
+}
+
+async function hasClaimedBillingOwnership(
+  db: BillingDbClient,
+  customerId: string,
+  sourceStackUserId: string,
+  targetStackUserId: string,
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: billingEmailClaims.id })
+    .from(billingEmailClaims)
+    .where(
+      and(
+        eq(billingEmailClaims.stripeCustomerId, customerId),
+        eq(billingEmailClaims.stackUserId, sourceStackUserId),
+        eq(billingEmailClaims.claimedByUserId, targetStackUserId),
+        eq(billingEmailClaims.plan, PRO_PLAN_ID),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+async function hasMappedStripeSubscriptionOwnership(
+  db: BillingDbClient,
+  customerId: string,
+  subscriptionId: string,
+  stackUserId: string,
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: stripeSubscriptions.id })
+    .from(stripeSubscriptions)
+    .where(
+      and(
+        eq(stripeSubscriptions.id, subscriptionId),
+        eq(stripeSubscriptions.customerId, customerId),
+        eq(stripeSubscriptions.stackUserId, stackUserId),
+        eq(stripeSubscriptions.scope, "user"),
+        isNull(stripeSubscriptions.stackTeamId),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
 }
 
 async function stackUserIdForTeamStripeCustomer(

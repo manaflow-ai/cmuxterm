@@ -169,7 +169,8 @@ jobs:
               # early exit as a printf SIGPIPE when the xcodebuild log is
               # large. Feed grep with a here-string so a passing suite cannot
               # be reported as empty because of that logging artifact.
-              if ! grep -Eq 'Test run with [1-9][0-9]* tests|Executed [1-9][0-9]* tests' <<<"$suite_output"; then
+              # One-test suites use singular "test" in their execution summary.
+              if ! grep -Eq 'Test run with [1-9][0-9]* tests?|Executed [1-9][0-9]* tests?' <<<"$suite_output"; then
                 echo "No tests executed for $suite" >&2
                 return 1
               fi
@@ -184,7 +185,7 @@ jobs:
           # SwiftPM binary artifact resolution can occasionally fail with
           # "Could not resolve package dependencies". Retry once after clearing
           # SwiftPM/DerivedData caches to recover from transient corruption.
-          if [ "$EXIT_CODE" -ne 0 ] && echo "$OUTPUT" | grep -q "Could not resolve package dependencies"; then
+          if [ "$EXIT_CODE" -ne 0 ] && grep -q "Could not resolve package dependencies" <<< "$OUTPUT"; then
             echo "SwiftPM package resolution failed, clearing caches and retrying once"
             rm -rf ~/Library/Caches/org.swift.swiftpm
             rm -rf ~/Library/Developer/Xcode/DerivedData/cmux-*

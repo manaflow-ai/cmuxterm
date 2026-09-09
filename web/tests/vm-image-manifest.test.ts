@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-  devboxImageLadderProblems,
   imageManifestProblems,
   promoteImageManifestEntry,
   readImageManifest,
@@ -43,36 +42,6 @@ describe("checked-in image manifest", () => {
       }
     }
   });
-
-  test("has a complete, shape-correct base and desktop ladder", () => {
-    expect(devboxImageLadderProblems(readImageManifest())).toEqual([]);
-  });
-});
-
-describe("devboxImageLadderProblems", () => {
-  test("rejects a missing size and a wrong shape", () => {
-    const manifest = readImageManifest();
-    const base = manifest.images.filter((entry) => {
-      const isBaseDefault =
-        entry.provider === "freestyle" &&
-        (entry.kind ?? "base") === "base" &&
-        entry.defaultForKind;
-      return !isBaseDefault || !["sm", "md"].includes(entry.size?.name ?? "");
-    });
-    const sm = manifest.images.find(
-      (entry) => entry.provider === "freestyle" && (entry.kind ?? "base") === "base" && entry.size?.name === "sm" && entry.defaultForKind,
-    )!;
-    const bad = {
-      ...manifest,
-      images: [
-        ...base,
-        { ...sm, size: { ...sm.size!, memoryMb: sm.size!.memoryMb + 1 }, version: `${sm.version}-bad`, imageId: `${sm.imageId}-bad`, defaultForKind: true },
-      ],
-    };
-    const problems = devboxImageLadderProblems(bad);
-    expect(problems.some((problem) => problem.includes("missing default size md"))).toBe(true);
-    expect(problems.some((problem) => problem.includes("shape is"))).toBe(true);
-  });
 });
 
 describe("promoteImageManifestEntry", () => {
@@ -87,16 +56,12 @@ describe("promoteImageManifestEntry", () => {
         defaultForLocalDev: true,
       }),
       passedEntry({ version: "freestyle-old-base", imageId: "sh-old", kind: "base", defaultForKind: true }),
-      // A foreign provider's entry: the type only knows freestyle now, but the
-      // promote step must still leave such rows alone.
-      passedEntry({
-        provider: "e2b" as unknown as DevboxManifestEntry["provider"],
-        version: "e2b-x",
-        imageId: "cmux-devbox:x",
-        envVar: "E2B_CMUXD_WS_TEMPLATE",
-        kind: "base",
-        defaultForKind: true,
-      }),
+      // Legacy provider rows remain valid manifest data even though the active
+      // provider union only permits Freestyle for new bake entries.
+      ({
+        ...passedEntry({ version: "e2b-x", imageId: "cmux-devbox:x", envVar: "E2B_CMUXD_WS_TEMPLATE", kind: "base", defaultForKind: true }),
+        provider: "e2b",
+      } as unknown as DevboxManifestEntry),
     ],
   };
 
@@ -161,12 +126,8 @@ describe("imageManifestProblems", () => {
       ],
     };
     const problems = imageManifestProblems(bad);
-    for (const expected of [
-      "b: defaultForKind but validationStatus is unknown",
-      "freestyle/base: 2 entries flagged defaultForKind",
-      "freestyle/d: version listed more than once",
-    ]) {
-      expect(problems.some((problem) => problem.includes(expected))).toBe(true);
-    }
+    expect(problems.some((problem) => problem.includes("b: defaultForKind but validationStatus is unknown"))).toBe(true);
+    expect(problems.some((problem) => problem.includes("freestyle/base: 2 entries flagged defaultForKind"))).toBe(true);
+    expect(problems.some((problem) => problem.includes("freestyle/d: version listed more than once"))).toBe(true);
   });
 });
