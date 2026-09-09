@@ -1287,10 +1287,15 @@ jobs:
                   echo "All failures in app-host batch ${logical_shard}/${LOGICAL_SHARD_TOTAL} are expected, continuing"
                   return 0
                 fi
-                # A timeout is accepted only when this invocation emitted the
-                # terminal selected-test marker as well; this prevents a decoy
-                # or stale summary from turning a killed batch into a pass.
+                # XCTest emits its Selected-tests marker before a mixed
+                # XCTest/Swift-Testing invocation starts Swift Testing. If a
+                # Swift Testing run began, require its own terminal summary too;
+                # otherwise a hang in that later phase could be accepted.
                 if grep -Eq "Test Suite 'Selected tests' (passed|failed)" "$batch_output"; then
+                  if grep -Fq "Test run started." "$batch_output" \
+                    && ! grep -Eq "Test run with [0-9]+ tests? in [0-9]+ suites? (passed|failed) after " "$batch_output"; then
+                    return "$batch_status"
+                  fi
                   echo "App-host batch ${logical_shard}/${LOGICAL_SHARD_TOTAL} completed its test summary before launcher timeout; all failures are expected"
                   return 0
                 fi
