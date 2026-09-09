@@ -434,7 +434,7 @@
   },
   "vault": {
     "overview": {
-      "eyebrow": "cmux 保险库",
+      "eyebrow": "cmux Vault",
       "title": "保险库概览",
       "description": "同步会话的存储和上传活动。",
       "emptyTitle": "尚未同步会话",
@@ -447,7 +447,7 @@
     },
     "cliAuth": {
       "section": "拱顶",
-      "eyebrow": "cmux 保险库",
+      "eyebrow": "cmux Vault",
       "title": "批准 CLI 访问",
       "description": "确认 cmux-vault 显示的代码以将此设备连接到您登录的 cmux 帐户。",
       "coderouterEyebrow": "CodeRouter",
@@ -461,7 +461,7 @@
     },
     "sessions": {
       "section": "拱顶",
-      "eyebrow": "cmux 保险库",
+      "eyebrow": "cmux Vault",
       "title": "同步会话",
       "description": "最近的编码代理转录本从您的本地计算机同步。",
       "backToOverview": "返回概览",
@@ -1521,7 +1521,7 @@
         "p5": "需要 cmux v0.64+。"
       },
       "cmuxVault": {
-        "title": "cmux Vault 介绍",
+        "title": "cmux Vault",
         "summary": "从 Vault 窗格搜索 Codex、Claude Code、OpenCode 和 Pi 会话，并拖入工作区。",
         "date": "2026年5月22日",
         "p1": "cmux 现在在右侧边栏提供 Vault 窗格，用于查看旧的代理会话。",
@@ -1604,10 +1604,10 @@
       ]
     },
     "cmuxVault": {
-      "metaTitle": "cmux Vault 介绍",
+      "metaTitle": "cmux Vault",
       "metaDescription": "cmux v0.64+ 新增 Vault 窗格，可搜索 Codex、Claude Code、OpenCode 和 Pi 会话，并拖入你的工作区。",
       "metaKeywords": [
-        "cmux 保险库",
+        "cmux Vault",
         "Codex 会话",
         "Claude Code 会话",
         "OpenCode 会话",
@@ -2625,7 +2625,7 @@
       "suggestCloudVmName": "cmux 云虚拟机",
       "suggestCloudVmUse": "操作云虚拟机创建、附加、执行、SSH 端点、计费和提供商故障排除流程。",
       "suggestCloudVmWhy": "云虚拟机工作涉及 Web 应用程序、数据库、提供商 API 和冒烟测试。",
-      "suggestVaultName": "cmux 保险库",
+      "suggestVaultName": "cmux Vault",
       "suggestVaultUse": "管理保管库支持的代理配置、凭据和恢复行为，而不会在提示中泄露机密。",
       "suggestVaultWhy": "Vault 工作流程需要比正常设置更严格的处理，因为它们会影响机密和代理启动。",
       "suggestionsCallout": "让未来的技能专注于具有真实命令序列的可重复工作流程。如果某项技能只能重述产品文档，请将其添加到文档中。",
