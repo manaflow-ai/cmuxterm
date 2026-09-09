@@ -12267,6 +12267,10 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         invalidatedRestoredAgentFingerprintsByPanelId.removeValue(forKey: panelId)
     }
 
+    func resolveDeferredAgentResumeRestoresForTesting(using index: RestorableAgentSessionIndex) {
+        resolveDeferredAgentResumeRestores(using: index)
+    }
+
     func restoredAgentSnapshotForTesting(panelId: UUID) -> SessionRestorableAgentSnapshot? {
         restoredAgentSnapshotsByPanelId[panelId]
     }

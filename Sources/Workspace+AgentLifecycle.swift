@@ -740,7 +740,6 @@ extension Workspace {
             self.resolveDeferredAgentResumeRestores(using: index)
         }
     }
-
     /// The index a deferred restore resolves against: the settled refresh when
     /// it completed, otherwise the most recent completed load.
     nonisolated static func deferredResumeIndex(
@@ -749,7 +748,6 @@ extension Workspace {
     ) -> RestorableAgentSessionIndex? {
         refreshed ?? lastKnown
     }
-
     private func resolveDeferredAgentResumeRestores(
         using index: RestorableAgentSessionIndex
     ) {
@@ -898,7 +896,6 @@ extension Workspace {
                 cancelDeferredAgentResumeRestore(panelId: panelId, restore: restore)
                 continue
             }
-
             let startupInput: String?
             let claim: (kind: String, sessionId: String)?
             if let restorableAgent = restore.restorableAgent {
@@ -935,9 +932,14 @@ extension Workspace {
                     promptForApproval: true,
                     approvalStoreURL: SurfaceResumeApprovalStore.defaultURL()
                 )
+                let matchingRestorableAgent = restoredAgentSnapshotsByPanelId[panelId].flatMap {
+                    Self.restorableAgentForSessionRestore($0, resumeBinding: binding)
+                }
                 startupInput = approvedBinding.flatMap {
                     if restore.restoresRemoteWorkspaceTerminalSnapshot {
-                        return $0.remoteStartupInput()
+                        return $0.remoteStartupInput(
+                            registration: matchingRestorableAgent?.registration
+                        )
                     }
                     return policy.surfaceResumeStartupLaunch(forApprovedBinding: $0)?.initialInput
                 }
@@ -1082,7 +1084,6 @@ extension Workspace {
         } else if restore.restorableAgent != nil {
             return false
         }
-
         if restore.resumeBinding != nil {
             guard let currentBinding = surfaceResumeBindingsByPanelId[panelId],
                   let currentKind = currentBinding.kind,
@@ -1143,8 +1144,8 @@ extension Workspace {
                     restoredAgentLifecycle.clearSessionRestore(panelId: panelId)
                 }
                 removeDeferredAgentResumeRestore(panelId: panelId)
-            }
         }
+    }
         deferredAgentResumeRestoresByPanelId.removeAll()
     }
     func agentHibernationLifecycleState(
@@ -1161,11 +1162,10 @@ extension Workspace {
             statusKeyedStates: agentLifecycleStatesByPanelId[panelId] ?? [:]
         )
     }
-
     private func recordAgentLifecycleChange(panelId: UUID) {
         AgentHibernationController.shared.recordAgentLifecycleChange(
             workspaceId: id,
             panelId: panelId
         )
+        }
     }
-}

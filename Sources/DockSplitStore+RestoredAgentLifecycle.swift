@@ -59,7 +59,6 @@ extension DockSplitStore {
             break
         }
     }
-
     /// Starts title admission for a terminal rebuilt directly inside this Dock.
     func armRestoredPanelTitleBoundary(
         panelId: UUID,
@@ -179,7 +178,6 @@ extension DockSplitStore {
             return self.resumeAgentHibernation(panelId: terminal.id, focus: focus)
         }
     }
-
     @discardableResult
     func resumeAgentHibernation(panelId: UUID, focus: Bool) -> Bool {
         guard let terminal = panels[panelId] as? TerminalPanel,
@@ -223,7 +221,6 @@ extension DockSplitStore {
             }
         }
     }
-
     func resendRestoredStartupInputIfStillIdle(panelId: UUID) {
         guard let terminal = panels[panelId] as? TerminalPanel,
               let input = restoredAgentLifecycle.takeStartupInputForResend(
@@ -276,7 +273,6 @@ extension DockSplitStore {
             }
         }
     }
-
     func markRestoredAgentCompleted(panelId: UUID) {
         // A live completion belongs to the current session generation. Keep
         // older cached metadata invalidated, but no longer classify this
@@ -311,7 +307,6 @@ extension DockSplitStore {
             $0.statusEntries[key] = entry
         }
     }
-
     func clearAgentRuntimeStatusEntry(key: String, panelId: UUID) {
         mutateAgentRuntime(panelId: panelId) {
             $0.statusEntries.removeValue(forKey: key)
@@ -699,9 +694,14 @@ extension DockSplitStore {
                     promptForApproval: true,
                     approvalStoreURL: SurfaceResumeApprovalStore.defaultURL()
                 )
+                let matchingRestorableAgent = restoredAgentLifecycle.snapshotsByPanelId[panelId].flatMap {
+                    Workspace.restorableAgentForSessionRestore($0, resumeBinding: binding)
+                }
                 startupInput = approvedBinding.flatMap {
                     if restore.restoresRemoteWorkspaceTerminalSnapshot {
-                        return $0.remoteStartupInput()
+                        return $0.remoteStartupInput(
+                            registration: matchingRestorableAgent?.registration
+                        )
                     }
                     return policy.surfaceResumeStartupLaunch(forApprovedBinding: $0)?.initialInput
                 }
