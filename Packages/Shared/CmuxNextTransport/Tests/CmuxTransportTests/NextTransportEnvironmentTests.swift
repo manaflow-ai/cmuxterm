@@ -310,12 +310,16 @@ struct NextTransportEnvironmentTests {
         #expect(credentials.first?.expiresAt == 4_102_444_800)
     }
 
-    @Test("Missing server expiry falls back to the token's own JWT exp claim")
-    func expiryFallsBackToJwtExp() async throws {
+    @Test("Minted credentials renew before the earlier broker or JWT expiry", arguments: [
+        Optional<Int64>.none, 4_102_444_740, 4_102_444_800, 4_102_445_400,
+    ])
+    func expiryUsesEarliestKnownDeadline(serverExpiresAt: Int64?) async throws {
         let identity = Self.identity()
+        let jwtExpiry: Int64 = 4_102_444_800
         let jwt = try Self.fakeJWT(
-            exp: 4_102_444_800,
+            exp: jwtExpiry,
             endpointHex: HexEncoding().lowercase(identity.publicKeyData))
+        let expiryField = serverExpiresAt.map { ",\"expiresAt\":\($0)" } ?? ""
         let script = ScriptedBroker { request in
             switch request.url!.path {
             case "/api/devices/iroh/challenge":
@@ -325,7 +329,7 @@ struct NextTransportEnvironmentTests {
             case "/api/relay/token":
                 return (
                     200,
-                    #"{"relayCredentials":[{"relayUrl":"https://r1.relay/","token":"\#(jwt)"}]}"#
+                    #"{"relayCredentials":[{"relayUrl":"https://r1.relay/","token":"\#(jwt)"\#(expiryField)}]}"#
                 )
             default:
                 return (404, "unexpected")
@@ -337,6 +341,11 @@ struct NextTransportEnvironmentTests {
             transport: script.transport)
 
         let credentials = try await client.mint(preferredUrl: nil)
-        #expect(credentials.first?.expiresAt == 4_102_444_800)
+        let expectedExpiry = min(serverExpiresAt ?? jwtExpiry, jwtExpiry)
+        #expect(credentials.first?.expiresAt == expectedExpiry)
+        let refresh = try #require(RelayCredentialSchedule().nextRefresh(
+            credentials: credentials, now: jwtExpiry - 300))
+        #expect(refresh == expectedExpiry - RelayCredentialSchedule.defaultLeadSeconds)
+        #expect(refresh < jwtExpiry)
     }
 }
