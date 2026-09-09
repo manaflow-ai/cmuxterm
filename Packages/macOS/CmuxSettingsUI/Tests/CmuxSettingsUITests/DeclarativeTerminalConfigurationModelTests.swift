@@ -165,6 +165,39 @@ import Testing
         #expect(model.values.shellStartupMode == .login)
     }
 
+    @Test(arguments: [false, true])
+    func externalEditBeforeFirstSubscriptionIsDelivered(initiallyMissing: Bool) async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("declarative-terminal-model-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let fileURL = directory.appendingPathComponent("cmux.json")
+        if !initiallyMissing {
+            try Data(#"{"terminal":{"shellStartup":{"mode":"login"}}}"#.utf8)
+                .write(to: fileURL, options: .atomic)
+        }
+        let store = JSONConfigStore(fileURL: fileURL)
+        let cached = await store.coherentSnapshot()
+        #expect(DeclarativeTerminalConfiguration().snapshot(data: cached.data).shellStartupMode == .login)
+
+        try Data(#"{"terminal":{"shellStartup":{"mode":"nonLogin"}}}"#.utf8)
+            .write(to: fileURL, options: .atomic)
+
+        let suiteName = "DeclarativeTerminalConfigurationModelTests.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let model = DeclarativeTerminalConfigurationModel(
+            jsonStore: store,
+            userDefaultsStore: makeTestUserDefaultsStore(suiteName: suiteName),
+            catalog: SettingCatalog(),
+            errorLog: SettingsErrorLog()
+        )
+
+        model.startObserving()
+        await model.waitForInitialSnapshot()
+        try #require(await waitUntil { model.values.shellStartupMode == .nonLogin })
+    }
+
     @Test func newerExternalSnapshotWinsOverRefreshStartedEarlier() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("declarative-terminal-model-\(UUID().uuidString)", isDirectory: true)
