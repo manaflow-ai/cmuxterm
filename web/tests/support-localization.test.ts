@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { PricingCompareTable } from "../app/components/pricing-shared";
 
 import arabicMessages from "../messages/ar.json";
 import bosnianMessages from "../messages/bs.json";
@@ -177,6 +180,24 @@ describe("support page localization", () => {
 });
 
 describe("website message catalog parity", () => {
+  test("renders pricing availability as icons in every release locale", () => {
+    for (const locale of parityLocales) {
+      const { pricing } = messagesByLocale[locale];
+      const html = renderToStaticMarkup(createElement(PricingCompareTable, {
+        rows: [pricing.compare.rows[0], pricing.compare.rows[5]],
+        names: { free: "", pro: "", team: "", enterprise: "" },
+        prices: { free: "", pro: "", team: "", enterprise: "" },
+      }));
+      expect(html.match(/<svg /g)?.length ?? 0).toBe(7);
+      expect(html.match(/aria-label="Not included"/g)?.length ?? 0).toBe(1);
+    }
+  });
+
+  test("preserves string-valued feature flags", async () => {
+    expect(await validateCatalog("ar", { included: "true" }, { included: "true" })).toEqual([]);
+    expect((await validateCatalog("ar", { included: "true" }, { included: "صحيح" })).map(({ message }) => message)).toEqual(["invalid message value"]);
+  });
+
   test("preserves product names instead of translating their literal meanings", async () => {
     for (const [source, translation] of [
       ["Homebrew", "البيرة المنزلية"],
