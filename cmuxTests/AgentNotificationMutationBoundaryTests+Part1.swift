@@ -11,6 +11,19 @@ import Testing
 #endif
 
 extension AgentNotificationRegressionTests {
+    @Test("Oversized Cursor metadata ignores conversation aliases")
+    func oversizedCursorMetadataUsesOnlySessionIdentifiers() {
+        var scanner = CMUXCLI.CursorNativeApprovalRootFieldScanner()
+        scanner.consume(
+            Data(
+                #"{"conversation_id":"conversation","tool_use_id":"tool","session_id":"session"}"#.utf8
+            )
+        )
+
+        #expect(scanner.metadata?.sessionId == "session")
+        #expect(scanner.metadata?.toolCallId == "tool")
+    }
+
     @Test("Generic hook recovery does not trust a merely live inferred PID")
     func genericHookRecoveryRequiresProcessBindingCorroboration() {
         let cli = CMUXCLI(args: [])

@@ -64,9 +64,10 @@ final class CursorNativeApprovalFileObserver {
         ) {
             return decision
         }
-        // The initial tail is historical evidence. Clear its partial first
-        // line and give future writes their own bounded observation budget.
-        pendingBytes.removeAll(keepingCapacity: true)
+        // Complete historical lines were consumed above. Keep the trailing
+        // partial line: Cursor commonly starts this observer while it is still
+        // writing the decision record, so the next read must append to that
+        // buffered prefix before classifying the line.
         offset = initialEnd
 
         let eventQueue = kqueue()

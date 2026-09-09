@@ -293,7 +293,7 @@ extension CMUXCLI {
 
         private static func field(for key: String?) -> Field? {
             switch key {
-            case "session_id", "sessionId", "conversation_id", "conversationId":
+            case "session_id", "sessionId":
                 return .session
             case "tool_call_id", "toolCallId", "tool_use_id", "toolUseId", "toolUseID":
                 return .toolCall
