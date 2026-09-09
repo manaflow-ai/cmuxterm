@@ -21,6 +21,7 @@ extension SettingsWindowRoot {
             }
         }
         .listStyle(.sidebar)
+        .tint(chromePalette.surfaceSelected.swiftUIColor)
         .scrollContentBackground(.hidden)
         .background(chromePalette.surface.swiftUIColor)
         .navigationTitle(String(localized: "settings.title", defaultValue: "Settings"))

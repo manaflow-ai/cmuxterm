@@ -37,5 +37,6 @@ struct SettingsSidebarEntryRow: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .listRowBackground(isSelected ? chromePalette.surfaceSelected.swiftUIColor : Color.clear)
     }
 }
