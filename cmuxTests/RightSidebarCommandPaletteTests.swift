@@ -14,6 +14,7 @@ final class RightSidebarCommandPaletteTests: XCTestCase {
             let defaults = UserDefaults.standard
             defaults.removeObject(forKey: RightSidebarBetaFeatureSettings.feedEnabledKey)
             defaults.removeObject(forKey: RightSidebarBetaFeatureSettings.dockEnabledKey)
+            defaults.removeObject(forKey: RightSidebarBetaFeatureSettings.cloudMachinesEnabledKey)
             // Pin the subrouter opt-out: the Agents mode is additionally
             // gated by the DEBUG-on rollout flag, so without this the
             // expected default mode set differs between configurations.
@@ -41,10 +42,13 @@ final class RightSidebarCommandPaletteTests: XCTestCase {
                 XCTAssertTrue(contribution.enablement(context))
             }
 
-            // Files/Find/Vault are always present; Machines follows the Cloud VM
-            // UI feature flag (visible in DEBUG builds), and feed/dock stay off.
-            let expectedCount = RightSidebarMode.machines.isAvailable() ? 4 : 3
-            XCTAssertEqual(contributions.count, expectedCount)
+            // Files/Find/Vault are always present; Machines follows the Cloud
+            // Machines beta toggle, which is off by default on every build
+            // (cleared above) unless a managed profile forces Cloud off, and
+            // feed/dock stay off.
+            let machinesAvailable = RightSidebarMode.machines.isAvailable()
+            XCTAssertFalse(machinesAvailable)
+            XCTAssertEqual(contributions.count, 3)
             XCTAssertNil(contributionsByID[ContentView.commandPaletteRightSidebarModeCommandID(.feed)])
             XCTAssertNil(contributionsByID[ContentView.commandPaletteRightSidebarModeCommandID(.dock)])
             XCTAssertNil(contributionsByID[ContentView.commandPaletteRightSidebarModeCommandID(.agents)])
@@ -60,6 +64,7 @@ final class RightSidebarCommandPaletteTests: XCTestCase {
             let defaults = UserDefaults.standard
             defaults.set(true, forKey: RightSidebarBetaFeatureSettings.feedEnabledKey)
             defaults.set(true, forKey: RightSidebarBetaFeatureSettings.dockEnabledKey)
+            defaults.set(true, forKey: RightSidebarBetaFeatureSettings.cloudMachinesEnabledKey)
 
             for mode in RightSidebarMode.allCases {
                 XCTAssertEqual(
@@ -124,10 +129,12 @@ final class RightSidebarCommandPaletteTests: XCTestCase {
         let defaults = UserDefaults.standard
         let previousFeed = defaults.object(forKey: RightSidebarBetaFeatureSettings.feedEnabledKey)
         let previousDock = defaults.object(forKey: RightSidebarBetaFeatureSettings.dockEnabledKey)
+        let previousCloudMachines = defaults.object(forKey: RightSidebarBetaFeatureSettings.cloudMachinesEnabledKey)
         let previousSubrouter = defaults.object(forKey: SubrouterIntegrationSettings.enabledKey)
         defer {
             restore(previousFeed, forKey: RightSidebarBetaFeatureSettings.feedEnabledKey)
             restore(previousDock, forKey: RightSidebarBetaFeatureSettings.dockEnabledKey)
+            restore(previousCloudMachines, forKey: RightSidebarBetaFeatureSettings.cloudMachinesEnabledKey)
             restore(previousSubrouter, forKey: SubrouterIntegrationSettings.enabledKey)
         }
         try body()
