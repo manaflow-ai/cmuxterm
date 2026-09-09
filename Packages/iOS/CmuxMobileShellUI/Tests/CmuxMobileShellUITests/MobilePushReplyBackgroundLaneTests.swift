@@ -117,7 +117,9 @@ private final class ReplyRelayFake: ReplyRelaying, @unchecked Sendable {
 
 private final class RateLimitedReplyURLProtocol: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
-    private static var storedRequestCount = 0
+    // URLProtocol callbacks are nonisolated; the lock makes this shared test
+    // counter safe while nonisolated(unsafe) documents that synchronization.
+    private nonisolated(unsafe) static var storedRequestCount = 0
 
     static var requestCount: Int { lock.withLock { storedRequestCount } }
 
