@@ -179,4 +179,138 @@ struct GrantLifecycleTests {
         #expect(await client.isClosed == false)
         #expect(await host.counters.grantRenewalRejections == 1)
     }
+
+    @Test("A renewal cannot be expired from a stale multi-session snapshot")
+    func renewalDuringAnotherExpiryCloseKeepsSessionAlive() async throws {
+        let host = makeHost(grace: 1, warning: 0)
+        let gate = ExpiryCloseGate()
+        let firstIdentity = PeerIdentity.generate(appIdentity: "dev.cmux.lite", deviceID: "phone-1")
+        let secondIdentity = PeerIdentity.generate(appIdentity: "dev.cmux.lite", deviceID: "phone-2")
+        let firstGrant = try mint(for: firstIdentity, grantID: "g-1", expiresAt: now + 100)
+        let secondGrant = try mint(for: secondIdentity, grantID: "g-2", expiresAt: now + 100)
+
+        let firstWire = LoopbackWire().makeEnds(
+            authenticatedClientKey: firstIdentity.publicKeyData)
+        let firstHost = ExpiryGatedConnection(
+            base: firstWire.host, id: firstIdentity.deviceID, gate: gate)
+        async let firstServing: Void = host.serve(connection: firstHost, now: now)
+        let firstOutcome = try await TransportClient().connect(
+            connection: firstWire.client, identity: firstIdentity, grant: firstGrant)
+        #expect(firstOutcome == .admitted(sessionID: "s1"))
+        await firstServing
+
+        let secondWire = LoopbackWire().makeEnds(
+            authenticatedClientKey: secondIdentity.publicKeyData)
+        let secondHost = ExpiryGatedConnection(
+            base: secondWire.host, id: secondIdentity.deviceID, gate: gate)
+        async let secondServing: Void = host.serve(connection: secondHost, now: now)
+        let secondOutcome = try await TransportClient().connect(
+            connection: secondWire.client, identity: secondIdentity, grant: secondGrant)
+        #expect(secondOutcome == .admitted(sessionID: "s2"))
+        await secondServing
+
+        let enforcing = Task { await host.enforceExpiries(now: now + 102) }
+        let closedID = await gate.waitForFirstClose()
+        let renewedIdentity: PeerIdentity
+        let renewedClient: LoopbackConnectionEnd
+        if closedID == firstIdentity.deviceID {
+            renewedIdentity = secondIdentity
+            renewedClient = secondWire.client
+        } else {
+            renewedIdentity = firstIdentity
+            renewedClient = firstWire.client
+        }
+
+        let renewed = try mint(
+            for: renewedIdentity, grantID: "renewed", expiresAt: now + 100_000)
+        let control = await renewedClient.lane("ctl")
+        try await control.send(Frame.grantUpdate(renewed))
+        let acknowledgement = await control.receive()
+        #expect(acknowledgement?.type == FrameTypePolicy.grantAck)
+        #expect(acknowledgement?.payload["ok"]?.boolValue == true)
+
+        await gate.release()
+        await enforcing.value
+
+        let key = SessionKey(
+            deviceID: renewedIdentity.deviceID, appIdentity: renewedIdentity.appIdentity)
+        #expect(await renewedClient.isClosed == false)
+        #expect(await host.session(for: key)?.grant == renewed)
+        #expect(await host.counters.closesByCode[CloseReason.grantExpired.code] == 1)
+    }
+}
+
+/// Async gate used only to hold one real close await open while another
+/// session renews. Its actor-owned streams avoid polling and preserve the
+/// actor reentrancy that exposed the stale snapshot bug.
+private actor ExpiryCloseGate {
+    private let enteredStream: AsyncStream<String>
+    private let enteredContinuation: AsyncStream<String>.Continuation
+    private let releaseStream: AsyncStream<Void>
+    private let releaseContinuation: AsyncStream<Void>.Continuation
+    private var blocked = true
+
+    init() {
+        let entered = AsyncStream<String>.makeStream()
+        enteredStream = entered.stream
+        enteredContinuation = entered.continuation
+        let release = AsyncStream<Void>.makeStream()
+        releaseStream = release.stream
+        releaseContinuation = release.continuation
+    }
+
+    func waitIfBlocked(id: String) async {
+        guard blocked else { return }
+        enteredContinuation.yield(id)
+        for await _ in releaseStream { break }
+    }
+
+    func waitForFirstClose() async -> String {
+        for await id in enteredStream { return id }
+        fatalError("expiry close gate ended before a close")
+    }
+
+    func release() {
+        blocked = false
+        releaseContinuation.yield(())
+    }
+}
+
+/// The wrapper is safe to send because its immutable connection and actor gate
+/// are Sendable; all mutable gate state remains isolated in ``ExpiryCloseGate``.
+private final class ExpiryGatedConnection: PeerConnection, @unchecked Sendable {
+    let base: LoopbackConnectionEnd
+    let id: String
+    let gate: ExpiryCloseGate
+
+    init(base: LoopbackConnectionEnd, id: String, gate: ExpiryCloseGate) {
+        self.base = base
+        self.id = id
+        self.gate = gate
+    }
+
+    var authenticatedRemoteKey: Data? { base.authenticatedRemoteKey }
+
+    func lane(_ name: String) async -> any TransportLane {
+        await base.lane(name)
+    }
+
+    func closeAll(reason: ConnectionTermination?) async {
+        if reason?.code == CloseReason.grantExpired.code {
+            await gate.waitIfBlocked(id: id)
+        }
+        await base.closeAll(reason: reason)
+    }
+
+    func termination() async -> ConnectionTermination? {
+        await base.termination()
+    }
+
+    func terminationAfterLaneEOF() async -> ConnectionTermination? {
+        await base.terminationAfterLaneEOF()
+    }
+
+    var isClosed: Bool {
+        get async { await base.isClosed }
+    }
 }
