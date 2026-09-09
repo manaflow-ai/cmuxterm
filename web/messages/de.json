@@ -1294,7 +1294,7 @@
     },
     "introducingCmux": {
       "metaTitle": "Wir stellen cmux vor",
-      "metaDescription": "Warum wir cmux gebaut haben, ein neues Terminal für macOS."
+      "metaDescription": "Ein natives macOS-Terminal auf Ghostty-Basis, um mehrere KI-Programmieragenten nebeneinander auszuführen."
     },
     "posts": {
       "tokenMultitasking": {
@@ -1453,7 +1453,7 @@
         "title": "Claude Code ist der beste Worktree-Manager",
         "summary": "Verwenden Sie Claude Code, Codex, Skripte und cmux-Grundelemente, um den Arbeitsbaum-Workflow zu erstellen, den Ihre Codebasis tatsächlich benötigt.",
         "date": "3. Juli 2026",
-        "p1": "Integrierte Worktree-Manager sind garantiert begrenzt. Sie gehen normalerweise von einem Repo, Git, einem gesegneten Branch-Flow und der Vorstellung eines Produktteams aus, was Setup bedeuten sollte. Echte Codebasen bleiben nicht innerhalb dieser Zeilen.",
+        "p1": "Unterschiedliche Aufgaben brauchen unterschiedliche Formen der Parallelisierung. Worktrees eignen sich für gewöhnliche Git-Änderungen. Mehrere Checkouts helfen, wenn Submodule oder Build-Werkzeuge mit Worktrees nicht zurechtkommen. Freestyle und Modal bieten entfernte Sandbox-Umgebungen; GitHub Actions lässt sich ebenfalls dafür einsetzen. Docker, UTM, Lima und OrbStack ermöglichen lokale Isolation. Manche Teams nutzen Mac minis oder Linux-Rechner. ML-Experimente sind häufig auf Ray, Modal oder Slurm besser aufgehoben. Manchmal geht es am schnellsten, alles ohne weitere Absicherung auf main laufen zu lassen.",
         "p2": "Der <zen>Zen von cmux</zen> besteht darin, dass Entwickler ihre eigenen Tools erstellen und den Suchraum für die Arbeit mit Code erkunden sollten. Worktrees sind ein nützliches Grundelement, aber auch mehrere Checkouts, Backend-/Frontend-Repos in verschiedenen Ordnern, Remote-Rechner, No-Git-Projekte, lokale Skripte und gelegentlich nur das Codieren auf Main, weil es für diese Aufgabe am schnellsten ist.",
         "superRepoTitle": "Das Super-Repo-Muster",
         "superRepoP1": "Ein Super-Repo ist ein Kontroll-Checkout, der weiß, wo sich alle echten Repos befinden, wie Arbeitsbäume erstellt werden, wie verwandte Repos gepaart werden, welche Skripte jeden Arbeitsbereich vorbereiten und wie PRs überprüft und zusammengeführt werden. cmuxterm-hq ist ein Super-Repo: Es enthält den primären cmux-Checkout, aufgabenbezogene cmux-Arbeitsbäume, Zed-Checkouts, HQ-Skripte, wiederverwendbare Fertigkeiten und die Regeln, die Agenten befolgen, um zu vermeiden, dass sie aufeinander treten.",
@@ -2070,7 +2070,7 @@
           "textBoxSubmitActionTitle": "Menübezeichnung für diese Übermittlungsaktion.",
           "textBoxSubmitActionKind": "Ob diese Aktion eine reine Texteingabe sendet oder eine Shell-Befehlsvorlage erweitert.",
           "textBoxSubmitActionCommandTemplate": "Shell-Befehlsvorlage für commandTemplate-Aktionen. Fügen Sie {{prompt}} ein, um die Eingabeaufforderung in Shell-Anführungszeichen in den Befehl einzufügen.",
-          "textBoxSubmitActionPreservePromptAfterLaunch": "Wenn „true“, starten Sie commandTemplate ohne die Eingabeaufforderung und behalten Sie die Eingabeaufforderung im Textfeld für den aktiven Agenten bei.",
+          "textBoxSubmitActionPreservePromptAfterLaunch": "Wenn true, wird commandTemplate ohne den Prompt gestartet. Der Prompt bleibt in TextBox für den aktiven Agenten erhalten.",
           "textBoxSubmitActionSystemImage": "Der Name des Fallback-SF-Symbols wird auf der Schaltfläche „Senden“ angezeigt.",
           "textBoxSubmitActionAssetName": "Optionaler Bildname des App-Asset-Katalogs, der auf der Schaltfläche „Senden“ angezeigt wird.",
           "textBoxSubmitActionImagePath": "Optionaler PNG- oder Bilddateipfad, der auf der Schaltfläche „Senden“ angezeigt wird. Tilde wird erweitert.",
@@ -2461,7 +2461,7 @@
       "createHookScript": "1. Hook-Skript erstellen",
       "configureClaude": "2. Claude Code konfigurieren",
       "restartNote": "Starten Sie Claude Code neu, um die Hooks zu aktivieren.",
-      "copilotCliHooks": "GitHub Copilot-CLI",
+      "copilotCliHooks": "GitHub Copilot CLI",
       "copilotCliHooksDesc": "Copilot CLI unterstützt <link>Hooks</link>, die Shell-Befehle bei Lebenszyklus-Ereignissen wie Prompt-Übermittlung, Agent-Stopp und Fehlern ausführen.",
       "copilotCliRepoHooks": "Für Hooks auf Repository-Ebene erstellen Sie eine .github/hooks/notify.json-Datei mit der gleichen Struktur:",
       "integrationExamples": "Integrationsbeispiele",
@@ -2757,7 +2757,7 @@
     "ohMyOpenCode": {
       "title": "oh-my-opencode",
       "metaTitle": "oh-my-opencode: OpenCode-Multi-Agent in cmux",
-      "metaDescription": "cmux omo startet OpenCode mit oh-my-openagent. Claude, GPT, Gemini und Grok arbeiten parallel als Agenten, jeweils in einem nativen cmux-Split.",
+      "metaDescription": "oh-my-opencode (cmux omo) startet die OpenCode-CLI mit oh-my-openagent in cmux. Claude, GPT, Gemini und Grok laufen parallel in eigenen nativen cmux-Teilbereichen.",
       "nightlyWarning": "Nur in <nightly>nightly builds</nightly> verfügbar.",
       "intro": "cmux omo startet OpenCode mit dem oh-my-openagent-Plugin in einer cmux-fähigen Umgebung. oh-my-openagent orchestriert mehrere KI-Modelle (Claude, GPT, Gemini, Grok) als spezialisierte Agenten, die parallel arbeiten. Wenn Agent-Bereiche erzeugt werden, werden diese zu nativen Cmux-Splits.",
       "usage": "Verwendung",
@@ -2837,8 +2837,8 @@
       "envSocket": "Pfad zum cmux-Steuersockel, an den der Shim angeschlossen werden soll"
     },
     "ohMyPi": {
-      "title": "Oh mein Pi",
-      "metaTitle": "oh-mein-pi - cmux",
+      "title": "oh-my-pi",
+      "metaTitle": "oh-my-pi - cmux",
       "metaDescription": "Verbinden Sie oh-my-pi (omp) mit cmux mit Hooks für Status, Benachrichtigungen, Sitzungswiederherstellung, automatische Benennung und Task-Manager-Zuordnung.",
       "intro": "oh-my-pi ist eine Abzweigung von Pi, die als Coding-First-Agent umgeschrieben wurde. Seine Binärdatei ist omp, und cmux lässt sich über die Omp-Hooks-Erweiterung darin integrieren.",
       "setupUsage": "Einrichtung und Nutzung",
@@ -2917,7 +2917,7 @@
       "claudeCodeTeams": "Claude Code-Teams",
       "ohMyOpenCode": "oh-my-opencode",
       "ohMyCodex": "oh-my-codex",
-      "ohMyPi": "Oh mein Pi",
+      "ohMyPi": "oh-my-pi",
       "ohMyClaudeCode": "oh-mein-Claudecode",
       "changelog": "Änderungsprotokoll",
       "dock": "Dock",
