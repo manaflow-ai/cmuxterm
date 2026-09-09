@@ -63,7 +63,7 @@ GATEKEEPER_ASSESS_DELAY_SECONDS="${CMUX_GATEKEEPER_ASSESS_DELAY_SECONDS:-15}"
 assess_with_gatekeeper() {
   local target="$1" attempt=1
   while :; do
-    if "$SPCTL_TOOL" -a -vv --type execute "$target"; then
+    if "$SPCTL_TOOL" -a -vv --ignore-cache --no-cache --type execute "$target"; then
       return 0
     fi
     if [ "$attempt" -eq 1 ]; then
