@@ -4637,6 +4637,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                             notificationStore: notificationStore
                         )
                     )
+                    hasher.combine(
+                        dock.sessionAutosaveFingerprint(
+                            notificationStore: notificationStore,
+                            restorableAgentIndex: restorableAgentIndex,
+                            surfaceResumeBindingIndex: surfaceResumeBindingIndex
+                        )
+                    )
                 }
 
                 switch liveRoute.sidebarSelection.selection {

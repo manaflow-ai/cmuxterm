@@ -12,8 +12,10 @@ extension DockSplitStore {
         restoredTerminalScrollbackByPanelId.removeValue(forKey: panelId)
         restoredAgentLifecycle.clearSessionRestore(panelId: panelId)
         restoredAgentLifecycle.invalidatedFingerprintsByPanelId.removeValue(forKey: panelId)
-        surfaceResumeBindingsByPanelId.removeValue(forKey: panelId)
+        _ = removeStoredSurfaceResumeBinding(panelId: panelId)
+        surfaceResumeBindingGenerationsByPanelId.removeValue(forKey: panelId)
         surfaceResumeRestoreClaimsByPanelId.removeValue(forKey: panelId)
+        setResumeBindingGap(false, panelId: panelId)
         managedAgentResumeBindingsByPanelId.removeValue(forKey: panelId)
         invalidatedCachedTransferAgentSessionPanelIds.remove(panelId)
         replacedCachedTransferAgentSessionPanelIds.remove(panelId)
@@ -150,12 +152,20 @@ extension DockSplitStore {
         managedAgentResumeBindingsByPanelId.removeValue(forKey: detached.panelId)
         if let resumeBinding = detached.resumeBinding {
             if surfaceResumeBindingMutationAllowed(resumeBinding, panelId: detached.panelId) {
-                surfaceResumeBindingsByPanelId[detached.panelId] = resumeBinding
+                installSurfaceResumeBinding(resumeBinding, panelId: detached.panelId)
             }
         }
         if let transferredManagedBinding = detached.resolvedManagedAgentResumeBinding {
             managedAgentResumeBindingsByPanelId[detached.panelId] = transferredManagedBinding
         }
+        setResumeBindingGap(
+            Workspace.resumeBindingGapRequired(
+                restorableAgent: detached.restorableAgent,
+                resumeBinding: surfaceResumeBindingsByPanelId[detached.panelId],
+                managedResumeBinding: managedAgentResumeBindingsByPanelId[detached.panelId]
+            ),
+            panelId: detached.panelId
+        )
         if let deferredRestore = detached.deferredAgentResumeRestore {
             deferAgentResumeRestore(
                 panelId: detached.panelId,
@@ -267,12 +277,12 @@ extension DockSplitStore {
         if let effectiveBinding = surfaceResumeBindingsByPanelId[panelId] {
             if effectiveBinding == originalBinding || effectiveBinding.isSameManagedSession(as: binding) {
                 if surfaceResumeBindingMutationAllowed(binding, panelId: panelId) {
-                    surfaceResumeBindingsByPanelId[panelId] = binding
+                    installSurfaceResumeBinding(binding, panelId: panelId)
                 }
             }
         } else {
             if surfaceResumeBindingMutationAllowed(binding, panelId: panelId) {
-                surfaceResumeBindingsByPanelId[panelId] = binding
+                installSurfaceResumeBinding(binding, panelId: panelId)
             }
         }
     }
@@ -539,6 +549,11 @@ extension DockSplitStore {
             }
             guard let terminal = panels[panelId] as? TerminalPanel else {
                 removeDeferredAgentResumeRestore(panelId: panelId)
+                continue
+            }
+            guard restore.restorableAgent?.hasAuthoritativeResumeIdentity != false ||
+                restore.resumeBinding?.isAgentHookBinding == true else {
+                cancelDeferredAgentResumeRestore(panelId: panelId, restore: restore)
                 continue
             }
             guard AgentSessionAutoResumeSettings.isEnabled(

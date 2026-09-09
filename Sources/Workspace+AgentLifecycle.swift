@@ -459,7 +459,7 @@ extension Workspace {
         }
         binding.autoResume = false
         if surfaceResumeBindingMutationAllowed(binding, panelId: panelId) {
-            surfaceResumeBindingsByPanelId[panelId] = binding
+            installSurfaceResumeBinding(binding, panelId: panelId)
         }
     }
 
@@ -538,7 +538,8 @@ extension Workspace {
     func isStaleAgentHookBinding(
         _ binding: SurfaceResumeBindingSnapshot,
         panelId: UUID,
-        restorableAgentIndex: RestorableAgentSessionIndex? = nil
+        restorableAgentIndex: RestorableAgentSessionIndex? = nil,
+        retireWhenCompleteIndexHasNoEntry: Bool = false
     ) -> Bool {
         // `RestorableAgentSessionIndex` / `SharedLiveAgentIndex` are built by
         // scanning LOCAL processes (pid/sysctl-based). A `.persistentSSH`
@@ -582,11 +583,21 @@ extension Workspace {
             workspaceId: id,
             panelId: panelId,
             revalidateProcessEvidence: false
-        )?.matchingAgentSession(kind: kind, sessionId: checkpointId) else {
+        ) else {
+            return retireWhenCompleteIndexHasNoEntry && liveIndex.isComplete(
+                forWorkspaceId: id,
+                panelId: panelId,
+                kind: kind
+            )
+        }
+        guard let matchingSessionEntry = sessionEntry.matchingAgentSession(
+            kind: kind,
+            sessionId: checkpointId
+        ) else {
             return false
         }
         return !AgentResumeLiveness.hasLiveProcess(
-            for: sessionEntry,
+            for: matchingSessionEntry,
             kind: kind,
             sessionId: checkpointId
         )
@@ -762,6 +773,11 @@ extension Workspace {
             }
             guard let terminal = panels[panelId] as? TerminalPanel else {
                 removeDeferredAgentResumeRestore(panelId: panelId)
+                continue
+            }
+            guard restore.restorableAgent?.hasAuthoritativeResumeIdentity != false ||
+                restore.resumeBinding?.isAgentHookBinding == true else {
+                cancelDeferredAgentResumeRestore(panelId: panelId, restore: restore)
                 continue
             }
             guard AgentSessionAutoResumeSettings.isEnabled(

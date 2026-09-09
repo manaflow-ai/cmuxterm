@@ -6256,17 +6256,31 @@ extension TabManager {
                         panelId: panelId
                     )?.processLiveness
                 )
+                // Restored agent identity is durable session data even when a
+                // process scan is temporarily empty. Include the retained
+                // snapshot and lifecycle phase so restoring a workspace cannot
+                // look unchanged to autosave before save-time binding backfill
+                // runs.
+                let retainedAgent = workspace.restoredAgentSnapshotsByPanelId[panelId]
+                Self.hashRestorableAgentSnapshot(retainedAgent, into: &hasher)
+                switch workspace.restoredAgentResumeStatesByPanelId[panelId] {
+                case .manualResumeAvailable: hasher.combine(0)
+                case .awaitingAutoResumeCommand: hasher.combine(1)
+                case .autoResumeCommandRunning: hasher.combine(2)
+                case .observedAgentCommandRunning: hasher.combine(3)
+                case .completedAgentExit: hasher.combine(4)
+                case nil: hasher.combine(-1)
+                }
                 Self.hashAgentHibernationPanelState(
                     (workspace.panels[panelId] as? TerminalPanel)?.agentHibernationState,
                     into: &hasher
                 )
-                Self.hashSurfaceResumeBindingSnapshot(
-                    workspace.effectiveSurfaceResumeBinding(
-                        panelId: panelId,
-                        surfaceResumeBindingIndex: surfaceResumeBindingIndex
-                    ),
-                    into: &hasher
+                let effectiveResumeBinding = workspace.effectiveSurfaceResumeBinding(
+                    panelId: panelId,
+                    surfaceResumeBindingIndex: surfaceResumeBindingIndex
                 )
+                Self.hashSurfaceResumeBindingSnapshot(effectiveResumeBinding, into: &hasher)
+                hasher.combine(workspace.unresolvedResumeBindingPanelIds.contains(panelId))
                 if let terminalPanel = workspace.terminalPanel(for: panelId) {
                     Self.hashTextBoxDraftSnapshot(
                         terminalPanel.sessionTextBoxDraftSnapshot(),
@@ -6314,7 +6328,15 @@ extension TabManager {
         hasher.combine(true)
         hasher.combine(snapshot.kind.rawValue)
         hasher.combine(snapshot.sessionId)
+        // The persisted command is the value the restore path actually writes;
+        // include it so a builder/registration change cannot leave autosave
+        // believing an unchanged snapshot already contains the new binding.
+        hashOptionalString(snapshot.resumeCommand, into: &hasher)
+        hasher.combine(snapshot.processDetectedSessionIDSource)
+        hasher.combine(snapshot.registration)
+        hashOptionalString(snapshot.permissionMode, into: &hasher)
         hashOptionalString(snapshot.workingDirectory, into: &hasher)
+        hashOptionalString(snapshot.resumeEvidenceProvenance, into: &hasher)
         hashAgentLaunchCommand(snapshot.launchCommand, into: &hasher)
     }
 
@@ -6362,7 +6384,7 @@ extension TabManager {
         hasher.combine(state.lastActivityAt.timeIntervalSince1970)
     }
 
-    nonisolated private static func hashSurfaceResumeBindingSnapshot(
+    nonisolated static func hashSurfaceResumeBindingSnapshot(
         _ snapshot: SurfaceResumeBindingSnapshot?,
         into hasher: inout Hasher
     ) {

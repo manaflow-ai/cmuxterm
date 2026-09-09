@@ -320,6 +320,9 @@ struct ControlCommandCoordinatorSurfaceTests {
         let context = FakeSurfaceControlCommandContext()
         context.resumeResolution = .setFailed
         let coordinator = ControlCommandCoordinator(context: context)
+        let expectedOwnerGeneration = try #require(
+            UUID(uuidString: "dddddddd-dddd-dddd-dddd-dddddddddddd")
+        )
 
         _ = coordinator.handle(ControlRequest(
             id: .int(1),
@@ -344,6 +347,7 @@ struct ControlCommandCoordinatorSurfaceTests {
                     "source": .string("test"),
                 ]),
                 "resume_evidence_provenance": .string("tui"),
+                "_cmux_expected_binding_generation": .string(expectedOwnerGeneration.uuidString),
             ]
         ))
 
@@ -361,6 +365,7 @@ struct ControlCommandCoordinatorSurfaceTests {
             source: "test"
         ))
         #expect(inputs.resumeEvidenceProvenance == "tui")
+        #expect(inputs.expectedBindingGeneration == expectedOwnerGeneration)
     }
 
     @Test(
@@ -507,6 +512,7 @@ struct ControlCommandCoordinatorSurfaceTests {
     @Test func surfaceResumeGetForwardsAtomicClaimAndReportsOutcome() throws {
         let context = FakeSurfaceControlCommandContext()
         let surfaceID = UUID()
+        let ownerGeneration = UUID()
         context.resumeResolution = .result(ControlSurfaceResumeSnapshot(
             windowID: nil,
             workspaceID: UUID(),
@@ -515,7 +521,8 @@ struct ControlCommandCoordinatorSurfaceTests {
             cleared: false,
             binding: nil,
             restoreRecord: nil,
-            resumeClaimed: false
+            resumeClaimed: false,
+            resumeBindingGeneration: ownerGeneration
         ))
         let coordinator = ControlCommandCoordinator(context: context)
 
@@ -538,6 +545,7 @@ struct ControlCommandCoordinatorSurfaceTests {
             return
         }
         #expect(payload["resume_claimed"] == .bool(false))
+        #expect(payload["resume_binding_generation"] == .string(ownerGeneration.uuidString))
     }
 
     @Test func surfaceResumeClearForwardsManagedSessionEndProvenance() {
