@@ -589,6 +589,13 @@ extension CMUXCLI {
             ),
             maximumLength: 80
         )
+        for key in ["agent_state", "turn_outcome"] {
+            setBoundedString(
+                key,
+                value: firstString(in: rawObject, keys: [key]),
+                maximumLength: 80
+            )
+        }
         for key in [
             "fullyIdle",
             "cmux_notification_routed",

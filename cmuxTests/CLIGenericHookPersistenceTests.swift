@@ -1672,7 +1672,11 @@ extension CLINotifyProcessIntegrationRegressionTests {
             "CMUX_CLI_SENTRY_DISABLED": "1",
         ]
 
-        func runHermesHook(_ subcommand: String, input: String) -> ProcessRunResult {
+        func runHermesHook(
+            _ subcommand: String,
+            input: String,
+            barrierFails: Bool = false
+        ) -> ProcessRunResult {
             let serverHandled = startMockServer(listenerFD: listenerFD, state: state) { line in
                 guard let payload = self.jsonObject(line) else {
                     return "OK"
@@ -1685,6 +1689,14 @@ extension CLINotifyProcessIntegrationRegressionTests {
                     return self.surfaceListResponse(id: id, surfaceId: surfaceId)
                 case "feed.push":
                     return self.v2Response(id: id, ok: true, result: [:])
+                case "agent.hook.barrier":
+                    return barrierFails
+                        ? self.v2Response(
+                            id: id,
+                            ok: false,
+                            error: ["code": "timeout", "message": "queued hook delivery timed out"]
+                        )
+                        : self.v2Response(id: id, ok: true, result: [:])
                 default:
                     return self.v2Response(id: id, ok: false, error: ["code": "unrecognized_method", "message": "unexpected method: \(method)"])
                 }
@@ -1767,7 +1779,8 @@ extension CLINotifyProcessIntegrationRegressionTests {
         let finalizeCommandStart = state.commands.count
         let finalize = runHermesHook(
             "session-finalize",
-            input: #"{"session_id":"\#(sessionId)","cwd":"\#(root.path)","hook_event_name":"on_session_finalize"}"#
+            input: #"{"session_id":"\#(sessionId)","cwd":"\#(root.path)","hook_event_name":"on_session_finalize"}"#,
+            barrierFails: true
         )
         XCTAssertFalse(finalize.timedOut, finalize.stderr)
         XCTAssertEqual(finalize.status, 0, finalize.stderr)

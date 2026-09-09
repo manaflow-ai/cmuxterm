@@ -65,6 +65,10 @@ struct CLIRelayQueuedHookRegressionTests {
             "session_crons": [
                 ["id": "cron-1"],
             ],
+            "agent_state": "awaiting-approval",
+            "turn_outcome": "error",
+            "tool_name": "Bash",
+            "tool_input": ["plan": String(repeating: "p", count: 4 * 1_024)],
             "additional_details": String(repeating: "z", count: 6 * 1_024),
         ]
         let inputData = try JSONSerialization.data(withJSONObject: input)
@@ -97,6 +101,8 @@ struct CLIRelayQueuedHookRegressionTests {
         #expect(backgroundTasks.contains { $0["status"] as? String == "running" })
         let sessionCrons = try #require(compact["session_crons"] as? [Any])
         #expect(!sessionCrons.isEmpty)
+        #expect(compact["agent_state"] as? String == "awaiting-approval")
+        #expect(compact["turn_outcome"] as? String == "error")
     }
 
     @Test("Relay admission carries transcript-only Codex failures into local replay")

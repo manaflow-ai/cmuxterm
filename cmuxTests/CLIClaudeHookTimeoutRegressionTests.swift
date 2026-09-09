@@ -1,7 +1,9 @@
 import Darwin
 import Foundation
+import CryptoKit
 import Testing
 import CMUXAgentLaunch
+import CmuxFoundation
 #if canImport(cmux_DEV)
 @testable import cmux_DEV
 #elseif canImport(cmux)
@@ -993,6 +995,72 @@ struct CLIClaudeHookTimeoutRegressionTests {
         #expect(deliveryTargetRequests.allSatisfy { request in
             (request["params"] as? [String: Any])?["pid"] == nil
         })
+    }
+
+    @Test("Relay feed fallbacks omit synthetic process identity")
+    func relayFeedFallbackOmitsSyntheticProcessIdentity() throws {
+        let cliPath = try BundledCLITestSupport.bundledCLIPath(for: BundledCLILinkageTests.self)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "cmux-relay-feed-fallback-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        let socketPath = makeCodexHookSocketPath("relay-feed-fallback")
+        let listenerFD = try bindCodexHookUnixSocket(at: socketPath)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        let capturedCommands = CodexHookCapturedSocketCommands()
+        startCodexHookMockSocketServerAccepting(
+            listenerFD: listenerFD,
+            commands: capturedCommands,
+            surfaceId: "22222222-2222-2222-2222-222222222222",
+            connectionLimit: 8
+        )
+        let result = runCodexHookProcess(
+            executablePath: cliPath,
+            arguments: [
+                "--socket", socketPath,
+                "hooks", "feed", "--source", "gemini", "--event", "PreToolUse",
+            ],
+            environment: [
+                "HOME": root.path,
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                "PWD": root.path,
+                "CMUX_SOCKET_PATH": socketPath,
+                "CMUX_WORKSPACE_ID": "11111111-1111-1111-1111-111111111111",
+                "CMUX_SURFACE_ID": "22222222-2222-2222-2222-222222222222",
+                "CMUX_GEMINI_PID": "8535",
+                "CMUX_AGENT_HOOK_RELAY_ORIGIN": "1",
+                "CMUX_CLI_SENTRY_DISABLED": "1",
+            ],
+            standardInput: #"{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"true"}}"#,
+            timeout: 10
+        )
+        #expect(!result.timedOut, Comment(rawValue: result.stderr))
+        #expect(result.status == 0, Comment(rawValue: result.stderr))
+
+        let requests = capturedCommands.snapshot().compactMap(codexHookJSONObject)
+        let feedPush = try #require(requests.first {
+            $0["method"] as? String == "feed.push"
+        })
+        let params = try #require(feedPush["params"] as? [String: Any])
+        let event = try #require(params["event"] as? [String: Any])
+        let digest = SHA256.hash(data: Data("source=gemini".utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let fallbackSessionId = "fallback-\(String(digest.prefix(16)))"
+        let expectedWorkstreamId = try #require(
+            FeedWorkstreamIdentifier(
+                agentID: "gemini",
+                sessionID: fallbackSessionId
+            )?.rawValue
+        )
+        #expect(event["session_id"] as? String == expectedWorkstreamId)
+        #expect(event["_ppid"] == nil)
     }
 
     @Test("Relay-origin Codex stop ignores local transcript path collisions")

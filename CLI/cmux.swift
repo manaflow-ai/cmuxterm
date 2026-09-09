@@ -34003,11 +34003,16 @@ export default CMUXSessionRestore;
         if env["CMUX_AGENT_HOOK_DELIVERY_PROCESS_GROUP"] != "1",
            subcommand == "session-finalize"
             || (def.name == "codex" && subcommand == "notification") {
-            try waitForPriorAgentHookDeliveries(
-                agent: def.name,
-                client: client,
-                socketPassword: socketPassword
-            )
+            do {
+                try waitForPriorAgentHookDeliveries(
+                    agent: def.name,
+                    client: client,
+                    socketPassword: socketPassword
+                )
+            } catch {
+                guard subcommand == "session-finalize" else { throw error }
+                telemetry.breadcrumb("\(def.name)-hook.session-finalize.barrier-failed")
+            }
         }
 
         if def.name == "codex", subcommand == "monitor" {
@@ -37310,7 +37315,7 @@ export default CMUXSessionRestore;
         let sessionId = parsedInput.sessionId ?? stableFallbackFeedSessionId(
             source: source,
             rawObject: fallbackObject,
-            agentPid: agentPid
+            agentPid: agentPid > 0 ? agentPid : nil
         )
         guard let workstreamID = Self.feedWorkstreamID(
             source: source,
@@ -39633,7 +39638,11 @@ export default CMUXSessionRestore;
         let sessionId = firstString(
             in: stdinObj,
             keys: ["session_id", "sessionId", "conversation_id", "conversationId"]
-        ) ?? stableFallbackFeedSessionId(source: source, rawObject: stdinObj, agentPid: agentPid)
+        ) ?? stableFallbackFeedSessionId(
+            source: source,
+            rawObject: stdinObj,
+            agentPid: agentPid > 0 ? agentPid : nil
+        )
         guard let workstreamID = Self.feedWorkstreamID(
             source: source,
             sessionID: sessionId
