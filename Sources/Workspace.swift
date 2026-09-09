@@ -3062,6 +3062,14 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         get { sidebarMetadata.panelPullRequests }
         set { sidebarMetadata.panelPullRequests = newValue }
     }
+    var repositoryLink: SidebarRepositoryLinkState? {
+        get { sidebarMetadata.repositoryLink }
+        set { sidebarMetadata.repositoryLink = newValue }
+    }
+    var panelRepositoryLinks: [UUID: SidebarRepositoryLinkState] {
+        get { sidebarMetadata.panelRepositoryLinks }
+        set { sidebarMetadata.panelRepositoryLinks = newValue }
+    }
     @Published var surfaceListeningPorts: [UUID: [Int]] = [:]
     var agentListeningPorts: [Int] = []
     @Published var remoteConfiguration: WorkspaceRemoteConfiguration?
@@ -5936,6 +5944,9 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         }
         let directoryChanged = panelDirectories[panelId] != trimmed
         if directoryChanged || provenanceChanged { panelDirectories[panelId] = trimmed }
+        if directoryChanged {
+            clearPanelRepositoryLink(panelId: panelId)
+        }
         let trimmedDisplayLabel = displayLabel?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !trimmedDisplayLabel.isEmpty {
             if panelDirectoryDisplayLabels[panelId] != trimmedDisplayLabel {
@@ -6347,12 +6358,19 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         }
     }
 
-    func clearPanelGitBranch(panelId: UUID) {
+    /// Clears branch and dependent pull-request state for a panel.
+    ///
+    /// - Parameter preservingRepositoryLink: Keep a valid repository link
+    ///   while applying a detached-head snapshot.
+    func clearPanelGitBranch(panelId: UUID, preservingRepositoryLink: Bool = false) {
         if panelGitBranches[panelId] != nil {
             panelGitBranches.removeValue(forKey: panelId)
         }
         if panelPullRequests[panelId] != nil {
             panelPullRequests.removeValue(forKey: panelId)
+        }
+        if !preservingRepositoryLink {
+            clearPanelRepositoryLink(panelId: panelId)
         }
         if panelId == focusedPanelId {
             if gitBranch != nil {
@@ -6362,6 +6380,26 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
                 pullRequest = nil
             }
         }
+    }
+
+    func updatePanelRepositoryLink(panelId: UUID, link: SidebarRepositoryLinkState) {
+        if panelRepositoryLinks[panelId] != link {
+            panelRepositoryLinks[panelId] = link
+        }
+        if panelId == focusedPanelId, repositoryLink != link {
+            repositoryLink = link
+        }
+    }
+
+    func clearPanelRepositoryLink(panelId: UUID) {
+        let removedLink = panelRepositoryLinks.removeValue(forKey: panelId)
+        guard removedLink != nil || panelId == focusedPanelId else { return }
+
+        // `focusedPanelId` can change while panel teardown removes the panel
+        // and its surface mapping. Re-derive the workspace projection from
+        // the remaining per-panel links instead of only clearing it when the
+        // removed id still compares equal to the current focus.
+        repositoryLink = focusedPanelId.flatMap { panelRepositoryLinks[$0] }
     }
 
     func updatePanelPullRequest(
@@ -6434,6 +6472,12 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         if gitBranch != nil {
             gitBranch = nil
         }
+        if !panelRepositoryLinks.isEmpty {
+            panelRepositoryLinks.removeAll()
+        }
+        if repositoryLink != nil {
+            repositoryLink = nil
+        }
     }
 
     func resetSidebarContext(reason: String = "unspecified") {
@@ -6450,6 +6494,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         panelGitBranches.removeAll()
         pullRequest = nil
         panelPullRequests.removeAll()
+        repositoryLink = nil
+        panelRepositoryLinks.removeAll()
         surfaceListeningPorts.removeAll()
         listeningPorts.removeAll()
         metadataBlocks.removeAll()
@@ -6520,6 +6566,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         manualUnreadPanelIds = manualUnreadPanelIds.filter { validSurfaceIds.contains($0) }
         restoredUnreadPanelIndicators = restoredUnreadPanelIndicators.filter { validSurfaceIds.contains($0.key) }
         panelGitBranches = panelGitBranches.filter { validSurfaceIds.contains($0.key) }
+        panelRepositoryLinks = panelRepositoryLinks.filter { validSurfaceIds.contains($0.key) }
+        repositoryLink = focusedPanelId.flatMap { panelRepositoryLinks[$0] }
         manualUnreadMarkedAt = manualUnreadMarkedAt.filter { validSurfaceIds.contains($0.key) }
         surfaceListeningPorts = surfaceListeningPorts.filter { validSurfaceIds.contains($0.key) }
         surfaceTTYNames = surfaceTTYNames.filter { validSurfaceIds.contains($0.key) }
@@ -11870,6 +11918,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         }
         gitBranch = panelGitBranches[targetPanelId]
         pullRequest = panelPullRequests[targetPanelId]
+        repositoryLink = panelRepositoryLinks[targetPanelId]
     }
 
     /// Reconcile focus/first-responder convergence.
@@ -13631,6 +13680,7 @@ extension Workspace: BonsplitDelegate {
         }
         gitBranch = panelGitBranches[panelId]
         pullRequest = panelPullRequests[panelId]
+        repositoryLink = panelRepositoryLinks[panelId]
 
         // Broadcast the focus change. This is deferred + coalesced (not posted
         // synchronously) so the `@Published` mutations above settle before any
