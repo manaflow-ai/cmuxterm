@@ -95,6 +95,29 @@ import Testing
         #expect(await log.recentEvents().map(\.id) == ["launch"])
     }
 
+    @Test(arguments: [VaultHistoryRecordingPhase.launching, .restoring])
+    func terminatingFlushRetainsCommittedLaunchEvents(phaseBeforeQuit: VaultHistoryRecordingPhase) async {
+        let log = VaultHistoryEventLog(store: VaultHistoryEventStore(fileURL: nil))
+        let retainedWindowId = UUID()
+        let uncommittedWindowId = UUID()
+        log.beginWindowCreation(windowId: retainedWindowId)
+        log.record(event(id: "retained", windowId: retainedWindowId))
+        log.commitWindowCreation(windowId: retainedWindowId)
+        log.beginWindowCreation(windowId: uncommittedWindowId)
+        log.record(event(id: "uncommitted", windowId: uncommittedWindowId))
+        log.transition(to: phaseBeforeQuit)
+
+        #expect(log.hasPendingRecords)
+        log.transition(to: .terminating)
+        log.record(event(id: "shutdown"))
+        await log.flushPendingRecords()
+
+        #expect(await log.recentEvents().map(\.id) == ["retained"])
+        #expect(log.revision == 1)
+        #expect(!log.hasPendingRecords)
+        #expect(log.phase == .terminating)
+    }
+
     @Test func startupRestoreDiscardsInitialWindowHistoryAfterRestoreCompletes() async throws {
         try await withWindowHistory(initialPhase: .launching) { app, log in
             let restoredWindowSnapshot = SessionWindowSnapshot(
