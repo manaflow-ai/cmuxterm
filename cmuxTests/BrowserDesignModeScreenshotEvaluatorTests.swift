@@ -475,6 +475,62 @@ struct BrowserDesignModeScreenshotEvaluatorTests {
         _ = navigationDelegate
     }
 
+    @Test(arguments: [1.0, 1.1, 1.2, 1.3, 1.5])
+    func fractionalZoomCapturesAtScrollLimitsAndRestoresOffset(zoom: Double) async throws {
+        let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 704, height: 528))
+        let (loaded, loadedContinuation) = AsyncStream<Void>.makeStream()
+        let navigationDelegate = BrowserDesignModeTestNavigationDelegate {
+            loadedContinuation.yield()
+            loadedContinuation.finish()
+        }
+        webView.navigationDelegate = navigationDelegate
+        webView.loadHTMLString(
+            """
+            <!doctype html>
+            <style>
+              html { scroll-behavior: smooth; }
+              body { margin: 0; width: 2100.5px; height: 2100.5px; background: red; }
+              #target {
+                position: absolute; left: 1900px; top: 1900px;
+                width: 200.5px; height: 200.5px; background: blue;
+              }
+            </style>
+            <div id="target"></div>
+            """,
+            baseURL: nil
+        )
+        let didLoad = await Self.awaitPageLoad(loaded)
+        #expect(didLoad, "WebKit never finished loading the test page")
+        guard didLoad else { return }
+        webView.pageZoom = zoom
+        let initialOffset = try #require(
+            try await webView.evaluateJavaScript(
+                "window.scrollTo({left: 43, top: 67, behavior: 'instant'}); [scrollX, scrollY]"
+            ) as? [Double]
+        )
+
+        // This crop requires clamping both axes at their maximum scroll offset.
+        // Fractional zoom rounds innerWidth/innerHeight differently from the
+        // scrolling element's client size, especially with visible scrollbars.
+        let image = try await BrowserScreenshotWebViewSnapshotter.captureDocumentRect(
+            NSRect(x: 2000 * zoom, y: 2000 * zoom, width: 50 * zoom, height: 50 * zoom),
+            from: webView
+        )
+        let bitmap = try #require(NSBitmapImageRep(data: try #require(image.tiffRepresentation)))
+        let color = try #require(
+            bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh / 2)?.usingColorSpace(.deviceRGB)
+        )
+        let restoredOffset = try #require(
+            try await webView.evaluateJavaScript("[scrollX, scrollY]") as? [Double]
+        )
+
+        #expect(color.blueComponent > 0.9)
+        #expect(color.redComponent < 0.1)
+        #expect(abs(restoredOffset[0] - initialOffset[0]) <= 1)
+        #expect(abs(restoredOffset[1] - initialOffset[1]) <= 1)
+        _ = navigationDelegate
+    }
+
     @Test func synthesizedClickKeepsPageRuntimeOutOfTheNativeComposerInputPath() async throws {
         let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 640, height: 480))
         let controller = BrowserDesignModeController(
