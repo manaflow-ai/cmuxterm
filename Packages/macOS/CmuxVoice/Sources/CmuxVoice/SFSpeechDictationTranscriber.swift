@@ -53,6 +53,7 @@ public actor SFSpeechDictationTranscriber: SpeechTranscribing {
     private var retryTask: Task<Void, Never>?
     private var isFinishing = false
     private var consecutiveErrorCycles = 0
+    private var recognitionCycleGeneration = 0
     private let retryClock: any Clock<Duration>
     private let retryDelay: Duration
 
@@ -173,6 +174,8 @@ public actor SFSpeechDictationTranscriber: SpeechTranscribing {
 
     private func beginRecognitionCycle() {
         guard let recognizer, !isFinishing else { return }
+        recognitionCycleGeneration += 1
+        let cycleID = recognitionCycleGeneration
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         request.requiresOnDeviceRecognition = true
@@ -187,6 +190,7 @@ public actor SFSpeechDictationTranscriber: SpeechTranscribing {
             let errorDescription = error?.localizedDescription
             Task { [weak self] in
                 await self?.handleRecognition(
+                    cycleID: cycleID,
                     text: text,
                     isFinal: isFinal,
                     errorDescription: errorDescription
@@ -195,7 +199,13 @@ public actor SFSpeechDictationTranscriber: SpeechTranscribing {
         }
     }
 
-    private func handleRecognition(text: String?, isFinal: Bool, errorDescription: String?) {
+    private func handleRecognition(
+        cycleID: Int,
+        text: String?,
+        isFinal: Bool,
+        errorDescription: String?
+    ) {
+        guard cycleID == recognitionCycleGeneration else { return }
         if let text, !isFinal {
             yield(.partial(text))
             // Apple may deliver a last partial hypothesis together with an
@@ -232,12 +242,12 @@ public actor SFSpeechDictationTranscriber: SpeechTranscribing {
             if consecutiveErrorCycles >= 3 {
                 failStream(.transcriptionFailed(errorDescription))
             } else {
-                scheduleRecognitionRetry()
+                scheduleRecognitionRetry(for: cycleID)
             }
         }
     }
 
-    private func scheduleRecognitionRetry() {
+    private func scheduleRecognitionRetry(for cycleID: Int) {
         retryTask?.cancel()
         let clock = retryClock
         let delay = retryDelay
@@ -248,11 +258,12 @@ public actor SFSpeechDictationTranscriber: SpeechTranscribing {
                 return
             }
             guard !Task.isCancelled, let self else { return }
-            await self.retryDelayElapsed()
+            await self.retryDelayElapsed(for: cycleID)
         }
     }
 
-    private func retryDelayElapsed() {
+    private func retryDelayElapsed(for cycleID: Int) {
+        guard cycleID == recognitionCycleGeneration else { return }
         retryTask = nil
         guard !isFinishing else { return }
         beginRecognitionCycle()

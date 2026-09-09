@@ -87,6 +87,7 @@ final class VoiceDictationInsertionRouter: DictationTextInserting {
             // probe, fail closed instead of typing into a stale workspace PTY.
             hasFocusedTerminalSurface: webView == nil
                 && !isUnverifiedFieldEditor
+                && !isSecureNativeInput
                 && terminalPanel != nil
         ) else { return false }
 
