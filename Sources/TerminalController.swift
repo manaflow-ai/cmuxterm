@@ -4132,6 +4132,9 @@ class TerminalController {
         case .success(let payload):
             return v2Ok(id: id, result: payload)
         case .failure(let error):
+            if case VMClientError.disabledByManagedPolicy = error {
+                return v2Error(id: id, code: "cloud_disabled", message: String(describing: error))
+            }
             if let deliveryError = error as? CloudEnvDelivery.DeliveryError {
                 return v2Error(id: id, code: "vm_env_delivery_failed", message: deliveryError.localizedDescription)
             }
@@ -4249,7 +4252,7 @@ class TerminalController {
             return true
         case .httpStatus(let status, _):
             return status == 401
-        case .sessionRefreshFailed, .backendUnreachable, .malformedResponse, .lifecycleUnsupported:
+        case .sessionRefreshFailed, .backendUnreachable, .malformedResponse, .lifecycleUnsupported, .disabledByManagedPolicy:
             return false
         }
     }

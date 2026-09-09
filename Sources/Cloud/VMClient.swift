@@ -39,6 +39,8 @@ enum VMClientError: Error, CustomStringConvertible {
     case backendUnreachable(url: String, detail: String)
     case httpStatus(Int, String)
     case malformedResponse(String)
+    /// An MDM profile forces `DisableCloud`; no request was attempted.
+    case disabledByManagedPolicy
     /// The control plane answered 501 to `pause`/`resume`: this provider has no such operation.
     case lifecycleUnsupported(action: String)
 
@@ -80,6 +82,8 @@ enum VMClientError: Error, CustomStringConvertible {
                 What to do:
                   Machines here stay available until you delete them; `cmux vm rm <id>` when the work is done.
                 """
+        case .disabledByManagedPolicy:
+            return "Cloud is disabled by a managed device policy."
         case .malformedResponse(let message):
             return """
                 The cmux Cloud VM backend returned a response this client could not read.
@@ -812,15 +816,21 @@ actor VMClient {
     private let session: URLSession
     private let auth: AuthCoordinator
     private let telemetry: VMClientTelemetry
+    private let machineCache: CloudMachineCache
+    private let isDisabledByManagedPolicy: (@Sendable () -> Bool)?
 
     init(
         session: URLSession = .shared,
         auth: AuthCoordinator,
-        telemetry: VMClientTelemetry = .shared
+        telemetry: VMClientTelemetry = .shared,
+        machineCache: CloudMachineCache = CloudMachineCache(),
+        isDisabledByManagedPolicy: (@Sendable () -> Bool)? = nil
     ) {
         self.session = session
         self.auth = auth
         self.telemetry = telemetry
+        self.machineCache = machineCache
+        self.isDisabledByManagedPolicy = isDisabledByManagedPolicy
     }
 
     func list() async throws -> [VMSummary] {
@@ -2055,7 +2065,7 @@ actor VMClient {
         case .sessionRefreshFailed: return .sessionRefreshFailed
         case .backendUnreachable: return .backendUnreachable
         case .malformedResponse: return .malformedResponse
-        case .httpStatus, .lifecycleUnsupported: return .unknown
+        case .httpStatus, .lifecycleUnsupported, .disabledByManagedPolicy: return .unknown
         }
     }
 
@@ -2063,7 +2073,7 @@ actor VMClient {
         switch error {
         case .backendUnreachable(let url, let detail): return "\(url): \(detail)"
         case .malformedResponse(let message): return message
-        case .notSignedIn, .sessionRefreshFailed, .httpStatus, .lifecycleUnsupported: return ""
+        case .notSignedIn, .sessionRefreshFailed, .httpStatus, .lifecycleUnsupported, .disabledByManagedPolicy: return ""
         }
     }
 

@@ -516,7 +516,7 @@ private struct NativePricingPlansView: View {
                 isProminent: true,
                 features: [
                     String(localized: "pricing.native.pro.feature.vms", defaultValue: "Cloud agents on isolated Cloud VMs"),
-                    String(localized: "pricing.native.pro.feature.hours", defaultValue: "Up to 50 Cloud VMs. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk. Sizes from 4 to 64 GB RAM are available."),
+                    String(localized: "pricing.native.pro.feature.hours", defaultValue: "Up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs"),
                     String(localized: "pricing.native.pro.feature.gateway", defaultValue: "Unlimited workspaces"),
                     String(localized: "pricing.native.pro.feature.ios", defaultValue: "cmux iOS app and email support"),
                 ]
@@ -531,7 +531,7 @@ private struct NativePricingPlansView: View {
                 features: [
                     String(localized: "pricing.native.team.feature.billing", defaultValue: "Unified billing for the whole team"),
                     String(localized: "pricing.native.team.feature.seats", defaultValue: "Centralized seat management"),
-                    String(localized: "pricing.native.team.feature.compute", defaultValue: "Up to 50 Cloud VMs per paid seat. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk. Sizes from 4 to 64 GB RAM are available."),
+                    String(localized: "pricing.native.team.feature.compute", defaultValue: "Up to 50 Cloud VMs per user, with 24 GB RAM and 6 vCPUs per user shared across all their VMs"),
                     String(localized: "pricing.native.team.feature.gateway", defaultValue: "Team-wide model gateway analytics"),
                     String(localized: "pricing.native.team.feature.support", defaultValue: "Priority email support"),
                 ]
@@ -705,7 +705,7 @@ private struct NativePricingComparisonSection: View {
             label: String(localized: "pricing.native.compare.concurrent", defaultValue: "Concurrent Cloud VMs"),
             free: .text(String(localized: "pricing.native.compare.concurrent.free", defaultValue: "1")),
             pro: .text(String(localized: "pricing.native.compare.concurrent.paid", defaultValue: "50")),
-            team: .text(String(localized: "pricing.native.compare.concurrent.team", defaultValue: "50 per paid seat")),
+            team: .text(String(localized: "pricing.native.compare.concurrent.team", defaultValue: "50 per user")),
             enterprise: .text(String(localized: "pricing.native.compare.custom", defaultValue: "Custom"))
         ),
         NativePricingCompareRow(
@@ -866,7 +866,7 @@ private struct NativePricingSizeSection: View {
                 .foregroundStyle(.secondary)
             Text(String(
                 localized: "pricing.native.sizes.body",
-                defaultValue: "Pro: Up to 50 Cloud VMs. Team: Up to 50 Cloud VMs per paid seat. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk. Sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+                defaultValue: "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
             ))
             .font(.system(size: 13))
             .foregroundStyle(.secondary)
