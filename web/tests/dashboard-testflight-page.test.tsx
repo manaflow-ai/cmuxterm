@@ -1,7 +1,21 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import enMessages from "../messages/en.json";
+import {
+  TEST_STACK_PROJECT_ID,
+  nextHeadersMock,
+} from "./helpers/dashboard-session-mock";
+
+const previousStackProjectId = process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
+process.env.NEXT_PUBLIC_STACK_PROJECT_ID = TEST_STACK_PROJECT_ID;
+afterAll(() => {
+  if (previousStackProjectId === undefined) {
+    delete process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
+  } else {
+    process.env.NEXT_PUBLIC_STACK_PROJECT_ID = previousStackProjectId;
+  }
+});
 import {
   createTestflightUser,
   testflightUserEligibility,
@@ -10,11 +24,17 @@ import {
 let stackConfigured = true;
 let userPending = false;
 let currentUser: ReturnType<typeof createTestflightUser> | null = null;
+let freshUser: ReturnType<typeof createTestflightUser> | null | undefined;
 let ascConfigured = true;
 let status = { enrolled: false } as { enrolled: boolean; state?: string };
 
 const pendingUser = new Promise<never>(() => {});
-const getUser = mock(async () => userPending ? pendingUser : currentUser);
+const getUser = mock(async (input?: unknown) => {
+  if (typeof input === "string") {
+    return freshUser === undefined ? currentUser : freshUser;
+  }
+  return userPending ? pendingUser : currentUser;
+});
 const isTestflightEligible = mock(async (user: unknown) =>
   testflightUserEligibility(user) ?? false,
 );
@@ -53,9 +73,9 @@ mock.module("next-intl/server", () => ({
   setRequestLocale: () => undefined,
 }));
 
-mock.module("next/headers", () => ({
-  headers: async () => new Headers(),
-}));
+mock.module("next/headers", () =>
+  nextHeadersMock({ refreshToken: () => "refresh-1" }),
+);
 
 mock.module("next/cache", () => ({
   cacheLife: () => undefined,
@@ -116,6 +136,7 @@ describe("dashboard TestFlight page", () => {
     stackConfigured = true;
     userPending = false;
     currentUser = createTestflightUser();
+    freshUser = undefined;
     ascConfigured = true;
     status = { enrolled: false };
     getUser.mockClear();
@@ -124,7 +145,7 @@ describe("dashboard TestFlight page", () => {
     captureAscError.mockClear();
   });
 
-  test("keeps the page header hidden until the private page content is ready", () => {
+  test("paints the page header and a section skeleton before the private content", () => {
     userPending = true;
 
     const html = renderToStaticMarkup(
@@ -134,7 +155,9 @@ describe("dashboard TestFlight page", () => {
       />,
     );
 
-    expect(html).not.toContain('data-testid="testflight-page-header"');
+    expect(html).toContain('data-testid="testflight-page-header"');
+    expect(html).toContain('data-testid="dashboard-section-skeleton"');
+    expect(html).not.toContain("/api/testflight");
   });
 
   test("renders not eligible state with pricing link", async () => {
@@ -144,7 +167,6 @@ describe("dashboard TestFlight page", () => {
 
     expect(html).toContain("Subscription required");
     expect(html).toContain("cmux Pro entitlement");
-    expect(html).toContain('data-testid="testflight-page-header"');
     expect(html).toContain('href="/pricing"');
     expect(html).not.toContain("/api/testflight");
     expect(ascFetch).not.toHaveBeenCalled();
@@ -179,15 +201,15 @@ describe("dashboard TestFlight page", () => {
     expect(await renderTestflightPage()).toContain("Subscription required");
     expect(ascFetch).not.toHaveBeenCalled();
 
-    currentUser = Object.assign(createTestflightUser(), {
+    freshUser = Object.assign(createTestflightUser(), {
       clientReadOnlyMetadata: { cmuxVmPlan: "founders" },
       primaryEmail: "founder@example.com",
     });
 
     const html = await renderTestflightPage();
 
-    expect(getUser).toHaveBeenCalledTimes(2);
-    expect(isTestflightEligible).toHaveBeenLastCalledWith(currentUser);
+    expect(getUser).toHaveBeenLastCalledWith("user-pro");
+    expect(isTestflightEligible).toHaveBeenLastCalledWith(freshUser);
     expect(html).toContain("Apple will send a TestFlight invite to founder@example.com");
     expect(ascFetch).toHaveBeenCalledWith(
       "/v1/betaTesters?filter[email]=founder%40example.com&limit=1",
@@ -198,12 +220,12 @@ describe("dashboard TestFlight page", () => {
     expect(await renderTestflightPage()).toContain('name="action" value="join"');
     expect(ascFetch).toHaveBeenCalled();
     ascFetch.mockClear();
-    currentUser = createTestflightUser({ eligible: false });
+    freshUser = createTestflightUser({ eligible: false });
 
     const html = await renderTestflightPage();
 
-    expect(getUser).toHaveBeenCalledTimes(2);
-    expect(isTestflightEligible).toHaveBeenLastCalledWith(currentUser);
+    expect(getUser).toHaveBeenLastCalledWith("user-pro");
+    expect(isTestflightEligible).toHaveBeenLastCalledWith(freshUser);
     expect(html).toContain("Subscription required");
     expect(ascFetch).not.toHaveBeenCalled();
   });
