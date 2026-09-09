@@ -652,9 +652,11 @@ final class MachinesPanelModelTests: XCTestCase {
             SurfaceRemoteView(tabID: "tab_b", workspace: workspace, index: 1),
         ]
         let catalog = SurfaceCatalog()
+        // The catalog drops writes for a cloud machine with no registered provider.
         let provider = GroupFakeProvider(machine: machine)
+        provider.info = machineInfo(machine, hasDesktop: false, remoteWorkspaces: [workspace])
         catalog.register(provider)
-        XCTAssertTrue(catalog.replaceResources([terminalResource], on: machine, from: provider))
+        XCTAssertTrue(catalog.replaceResources([terminalResource], on: machine, info: provider.info, from: provider))
 
         let group = try catalog.remoteWorkspaceGroup(machine: machine, workspaceID: workspace.id)
         XCTAssertEqual(group.title, "main")
@@ -672,9 +674,11 @@ final class MachinesPanelModelTests: XCTestCase {
         resource.remoteWorkspace = workspace
         resource.remoteViews = []
         let catalog = SurfaceCatalog()
+        // The catalog drops writes for a cloud machine with no registered provider.
         let provider = GroupFakeProvider(machine: machine)
+        provider.info = machineInfo(machine, hasDesktop: false, remoteWorkspaces: [workspace])
         catalog.register(provider)
-        XCTAssertTrue(catalog.replaceResources([resource], on: machine, from: provider))
+        XCTAssertTrue(catalog.replaceResources([resource], on: machine, info: provider.info, from: provider))
 
         let group = try catalog.remoteWorkspaceGroup(machine: machine, workspaceID: workspace.id)
         XCTAssertEqual(group.resources, [resource.id])
@@ -705,11 +709,14 @@ final class MachinesPanelModelTests: XCTestCase {
             snapshot: SurfaceCatalogSnapshot(machines: [machineInfo(.cloud("quiet-owl"), linkState: .asleep, hasDesktop: false)], resources: [], projections: []),
             localWorkspaces: []
         )
-        XCTAssertEqual(CloudTreeNodeBuilder.flattened(asleep).map(\.id), [
-            "machine:quiet-owl", "machine:quiet-owl/placeholder",
-            "machine:quiet-owl/ports", "machine:quiet-owl/ports/status",
-        ])
+        // The link placeholder leads; the Ports group stays reachable so a sleeping
+        // machine can still explain how to discover its ports (see emptyPorts(info:)).
+        XCTAssertEqual(
+            CloudTreeNodeBuilder.flattened(asleep).map(\.id),
+            ["machine:quiet-owl", "machine:quiet-owl/placeholder", "machine:quiet-owl/ports", "machine:quiet-owl/ports/status"]
+        )
         if case .placeholder(_, let placeholder) = asleep[0].children[0].kind { XCTAssertEqual(placeholder.style, .dimmed) } else { XCTFail() }
+        if case .placeholder(_, let ports) = asleep[0].children[1].children[0].kind { XCTAssertEqual(ports.style, .dimmed) } else { XCTFail() }
 
         let broken = CloudTreeNodeBuilder.nodes(
             machines: [machineSnapshot(id: "broken-elk")],
@@ -720,8 +727,10 @@ final class MachinesPanelModelTests: XCTestCase {
             XCTAssertEqual(placeholder.style, .error)
             XCTAssertEqual(placeholder.text, "timed out")
         } else { XCTFail() }
-        // A machine awaiting catalog registration has an explicit status row.
-        XCTAssertEqual(CloudTreeNodeBuilder.nodes(machines: [machineSnapshot(id: "new")], snapshot: .empty, localWorkspaces: [])[0].children.map(\.id), ["machine:new/placeholder"])
+        // A machine the catalog has not registered yet only shows that it is connecting.
+        let unregistered = CloudTreeNodeBuilder.nodes(machines: [machineSnapshot(id: "new")], snapshot: .empty, localWorkspaces: [])
+        XCTAssertEqual(unregistered[0].children.map(\.id), ["machine:new/placeholder"])
+        if case .placeholder(_, let placeholder) = unregistered[0].children[0].kind { XCTAssertEqual(placeholder.style, .connecting) } else { XCTFail() }
         // A machine only the catalog knows still gets a row.
         let catalogOnly = CloudTreeNodeBuilder.nodes(
             machines: [],
