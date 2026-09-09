@@ -162,11 +162,11 @@ export async function handleRelayTokenRequest(
     const { bindingProof, clientNamespace, endpointId } = parsed;
     const key = deps.signingKey();
     const nowSeconds = deps.nowSeconds();
-    // Namespaced requests always require a proof. Charge their credential
-    // partition before database/crypto work, including rejected signatures.
-    if (clientNamespace !== "legacy") {
-      await checkTokenQuota(request, deps, user.id, clientNamespace, endpointId, "credential", requestId);
-    }
+    // Every request consumes quota before database/crypto work, even when
+    // the binding lookup fails. Legacy admission cannot depend on the binding
+    // result; its bootstrap and credential budgets remain separate below.
+    await checkTokenQuota(request, deps, user.id, clientNamespace, endpointId,
+      clientNamespace === "legacy" ? "admission" : "credential", requestId);
     const isEndpointAuthorized = await deps.isEndpointAuthorized({
       accountId: user.id,
       endpointId,
@@ -240,7 +240,7 @@ async function checkTokenQuota(
   accountId: string,
   namespace: string,
   endpointId: string,
-  phase: "credential" | "bootstrap",
+  phase: "credential" | "bootstrap" | "admission",
   requestId: string,
 ): Promise<void> {
   await runRelayEffect(enforceRelayRateLimit({

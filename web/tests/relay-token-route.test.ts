@@ -527,6 +527,7 @@ describe("POST /api/relay/token", () => {
     expect(response.status).toBe(200);
     expect(authCalls).toBe(1);
     expect(observedKeys).toEqual([
+      `test:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:admission`,
       `test:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:credential`,
     ]);
   });
@@ -555,7 +556,7 @@ describe("POST /api/relay/token", () => {
     // starves only its duplicate work, never bootstrap, renewal, or another
     // phone, simulator, or tagged build.
     expect(key).toBe(
-      `test:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:credential`,
+      `test:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:admission`,
     );
     expect(limited.headers.get("retry-after")).toBe("600");
 
@@ -621,6 +622,9 @@ describe("POST /api/relay/token", () => {
           limiterBucket = currentBucket;
         }
         observedPartitions.push(partition);
+        // This test isolates the phase budgets. Admission enforcement during
+        // an outage is covered independently above.
+        if (partition.endsWith(":admission")) return { rateLimited: false };
         const rateLimited = consumedPartitions.has(partition);
         consumedPartitions.add(partition);
         return { rateLimited };
@@ -657,7 +661,7 @@ describe("POST /api/relay/token", () => {
       protocolDeps,
     );
     expect(renewal.status).toBe(200);
-    expect(new Set(observedPartitions).size).toBe(2);
+    expect(new Set(observedPartitions).size).toBe(3);
   });
 
   test("skips rate limiting when no rule is configured", async () => {
