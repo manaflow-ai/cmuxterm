@@ -445,7 +445,7 @@ struct AgentPromptSubmissionServiceTests {
         #expect(first.result == .queued(
             workspaceID: workspaceID,
             surfaceID: firstSurfaceID,
-            reason: "agent_busy"
+            reason: "agent_turn_active"
         ))
         #expect(second.result == .queued(
             workspaceID: workspaceID,
@@ -510,7 +510,7 @@ struct AgentPromptSubmissionServiceTests {
         #expect(first.result == .queued(
             workspaceID: workspaceID,
             surfaceID: nil,
-            reason: "agent_busy"
+            reason: "agent_turn_active"
         ))
         #expect(second.result == .queued(
             workspaceID: workspaceID,
