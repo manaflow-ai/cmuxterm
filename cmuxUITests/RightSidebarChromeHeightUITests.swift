@@ -45,8 +45,22 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         XCTAssertTrue(picker.waitForExistence(timeout: 10), app.debugDescription)
         for grouping in ["Workspace", "Window", "Agent", "Type", "Date"] {
             picker.click()
-            let item = app.menuItems[grouping].firstMatch
-            XCTAssertTrue(item.waitForExistence(timeout: 5), "Missing History grouping: \(grouping)")
+            // The app's File menu also contains a hidden "Workspace" item.
+            // Choose from the open popup, never let XCTest traverse a hidden
+            // menu-bar item that happens to have the same title.
+            let options = app.menuItems.matching(identifier: grouping)
+            let visibleOption = XCTNSPredicateExpectation(
+                predicate: NSPredicate { _, _ in
+                    options.allElementsBoundByIndex.contains { $0.isHittable }
+                },
+                object: nil
+            )
+            XCTAssertEqual(
+                XCTWaiter.wait(for: [visibleOption], timeout: 5),
+                .completed,
+                "Missing visible History grouping: \(grouping)"
+            )
+            let item = try XCTUnwrap(options.allElementsBoundByIndex.first { $0.isHittable })
             item.click()
             let selected = XCTNSPredicateExpectation(
                 predicate: NSPredicate { _, _ in
