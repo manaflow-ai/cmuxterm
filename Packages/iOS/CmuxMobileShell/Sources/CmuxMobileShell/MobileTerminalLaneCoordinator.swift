@@ -110,6 +110,16 @@ actor MobileTerminalLaneCoordinator {
         self.inputOnlyProvider = inputOnlyProvider
     }
 
+    /// Output lanes must never fall back to the input-only transport.
+    func resolvedProvider(for mode: LaneMode) -> MobileTerminalLaneProvider? {
+        switch mode {
+        case .output:
+            return provider
+        case .inputOnly:
+            return inputOnlyProvider ?? provider
+        }
+    }
+
     func ensure(_ configuration: Configuration) async {
         guard let key = LaneKey(configuration: configuration) else { return }
         focusedKeyBySurfaceID[configuration.surfaceID] = key
@@ -232,14 +242,7 @@ actor MobileTerminalLaneCoordinator {
                 ? nil
                 : await configuration.cursor()
             do {
-                let laneProvider: MobileTerminalLaneProvider?
-                switch configuration.mode {
-                case .output:
-                    laneProvider = provider
-                case .inputOnly:
-                    laneProvider = inputOnlyProvider ?? provider
-                }
-                guard let laneProvider else {
+                guard let laneProvider = resolvedProvider(for: configuration.mode) else {
                     await markFailed(key: key, id: id)
                     return
                 }

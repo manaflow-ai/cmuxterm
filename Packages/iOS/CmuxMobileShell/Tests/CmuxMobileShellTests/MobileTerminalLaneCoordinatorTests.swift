@@ -140,17 +140,15 @@ struct MobileTerminalLaneCoordinatorTests {
             }
         )
 
-        await coordinator.ensure(Self.configuration(
-            providerRequest: try Self.request(),
-            cursor: { nil },
-            consume: { _ in .accepted(outputReady: true) },
-            readinessChanged: { _ in }
-        ))
-        try await Task.sleep(for: .milliseconds(10))
-
+        // Test the policy used by run() directly: waiting for an absent call
+        // races the background launch and cannot prove a forbidden fallback.
+        #expect(await coordinator.resolvedProvider(for: .output) == nil)
         #expect(await inputProvider.requestCount() == 0)
-        #expect(await coordinator.isOutputReady(surfaceID: Self.surfaceID) == false)
-        await coordinator.deactivateAll()
+
+        let selectedInputProvider = try #require(await coordinator.resolvedProvider(for: .inputOnly))
+        let lane = try await selectedInputProvider(try Self.request(), Self.surfaceID, nil)
+        #expect(await inputProvider.requestCount() == 1)
+        await lane.close()
     }
 
     @Test

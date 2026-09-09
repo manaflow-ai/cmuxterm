@@ -69,13 +69,19 @@ private struct VaultHistoryContentView: View {
     }
 
     private var controlBar: some View {
-        HStack(spacing: RightSidebarChromeMetrics.headerControlSpacing) {
+        let selectedGroup = model.groupKey
+        let selectGroup: (VaultHistoryGroupKey) -> Void = { model.groupKey = $0 }
+        let groupPickerLabel = String(
+            localized: "vaultHistory.groupPicker.tooltip",
+            defaultValue: "Group history by"
+        )
+        return HStack(spacing: RightSidebarChromeMetrics.headerControlSpacing) {
             Menu {
                 ForEach(VaultHistoryGroupKey.allCases) { key in
                     Button {
-                        model.groupKey = key
+                        selectGroup(key)
                     } label: {
-                        if model.groupKey == key {
+                        if selectedGroup == key {
                             Label(key.label, systemImage: "checkmark")
                         } else {
                             Text(key.label)
@@ -85,7 +91,7 @@ private struct VaultHistoryContentView: View {
             } label: {
                 HStack(spacing: 3) {
                     CmuxSystemSymbolImage(
-                        magnified: model.groupKey.symbolName,
+                        magnified: selectedGroup.symbolName,
                         pointSize: RightSidebarChromeControlStyle.secondaryIconSize,
                         weight: RightSidebarChromeControlStyle.iconWeight,
                         tint: RightSidebarChromeControlStyle.pillForegroundColor(
@@ -93,7 +99,7 @@ private struct VaultHistoryContentView: View {
                             isHovered: isGroupPickerHovered
                         )
                     )
-                    Text(model.groupKey.label)
+                    Text(selectedGroup.label)
                         .cmuxFont(
                             size: RightSidebarChromeControlStyle.labelSize,
                             weight: RightSidebarChromeControlStyle.labelWeight
@@ -107,10 +113,9 @@ private struct VaultHistoryContentView: View {
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-            .help(String(
-                localized: "vaultHistory.groupPicker.tooltip",
-                defaultValue: "Group history by"
-            ))
+            .help(groupPickerLabel)
+            .accessibilityLabel(groupPickerLabel)
+            .accessibilityValue(selectedGroup.label)
             .accessibilityIdentifier("VaultHistoryGroupPicker")
             .titlebarInteractiveControl()
             .onHover { isGroupPickerHovered = $0 }

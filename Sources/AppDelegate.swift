@@ -17818,6 +17818,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     direction: .right,
                     tabManager: context.tabManager
                 ) {
+                    onCompleted?(false)
                     return true
                 }
                 let didSplit = performSplitShortcut(
@@ -17836,6 +17837,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     direction: .down,
                     tabManager: context.tabManager
                 ) {
+                    onCompleted?(false)
                     return true
                 }
                 let didSplit = performSplitShortcut(
