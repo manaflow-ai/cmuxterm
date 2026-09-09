@@ -13,7 +13,7 @@ if [ "${CMUX_MOCK_XCODEBUILD_PROCESS:-0}" = "1" ]; then
     "${CFFIXED_USER_HOME:-<unset>}" \
     "${XDG_CONFIG_HOME:-<unset>}" \
     >> "$CMUX_CAPTURE_XCODEBUILD_PARENT_ENV"
-  printf '%s|%s|%s|%s|%s|%s|%s|%s|%s\n' \
+  printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' \
     "${TEST_RUNNER_HOME:-<unset>}" \
     "${TEST_RUNNER_CFFIXED_USER_HOME:-<unset>}" \
     "${TEST_RUNNER_XDG_CONFIG_HOME:-<unset>}" \
