@@ -6896,6 +6896,15 @@ struct CMUXCLI {
                 windowOverride: windowId
             )
 
+        case "workspace-font-size":
+            try runWorkspaceFontSizeCommand(
+                commandArgs: commandArgs,
+                client: client,
+                jsonOutput: jsonOutput,
+                idFormat: idFormat,
+                windowOverride: windowId
+            )
+
         case "todo":
             try runTodoNamespace(
                 commandArgs: commandArgs,
@@ -19218,6 +19227,8 @@ struct CMUXCLI {
             """
         case "workspace":
             return Self.workspaceCommandUsage
+        case "workspace-font-size":
+            return Self.workspaceFontSizeCommandUsage
         case "layout":
             return Self.layoutHelpText()
         case "workspace-group":
@@ -41010,6 +41021,7 @@ export default CMUXSessionRestore;
           reorder-workspace --workspace <id|ref|index> (--index <n> | --before <id|ref|index> | --after <id|ref|index>) [--window <id|ref|index>] [--dry-run]
           reorder-workspaces --order <id|ref|index>,<id|ref|index>,... [--window <id|ref|index>] [--dry-run]
           workspace-action --action <name> [--workspace <id|ref|index>] [--window <id|ref|index>] [--title <text>] [--color <name|#hex>] [--description <text>]
+          workspace-font-size <increase|decrease|reset> [--workspace <id|ref|index>] [--window <id|ref|index>]
           workspace status [set <lane|auto>] [--workspace <id|ref|index>] [--window <id|ref|index>]
           todo <add|list|check|uncheck|start|rm|clear> [args] [--workspace <id|ref|index>] [--window <id|ref|index>]
           comments list [--repo <path>] [--all] [--json]
