@@ -245,7 +245,9 @@ private func isCmuxCodexHookCommand(_ command: String, subcommand: String) -> Bo
            CodexHookScriptName(filename: scriptFilename)?.subcommand == candidate {
             return true
         }
-        if command.contains("cmux-codex-hook") && command.contains("hooks codex \(candidate)") {
+        if command.contains("cmux-codex-hook"),
+           command.contains("hooks codex \(candidate)")
+            || command.contains("hooks enqueue codex \(candidate)") {
             return true
         }
     }

@@ -20,13 +20,15 @@ async function sendHook(
     event: eventName(subcommand),
     ...extra,
   };
-  const result = await dispatcher.run(
-    ["hooks", "pi", subcommand, ...target],
-    cwd,
-    JSON.stringify(payload),
-    context,
-  );
-  if (result.ok) rememberSurfaceTarget(dispatcher, sessionId, result);
+  const result = runCmux(["hooks", "enqueue", "pi", subcommand], cwd, JSON.stringify(payload));
+  if (!result.ok) {
+    warn(context, "cmux hook command failed", {
+      subcommand,
+      status: result.status,
+      stderr_available: result.stderr.trim().length > 0,
+      error_available: result.error !== undefined,
+    });
+  }
   return result.ok;
 }
 
@@ -174,6 +176,7 @@ async function ensureResumeBinding(
   sessionId: string,
 ): Promise<void> {
   if (process.env.CMUX_PI_HOOKS_DISABLED === "1") return;
+  if (!detectedPiVersion()) return;
   const target = surfaceTargetArgs(dispatcher, sessionId);
   if (!target) return;
 
@@ -218,26 +221,28 @@ async function ensureResumeBinding(
   }
 }
 
-async function clearResumeBinding(
-  dispatcher: PiCmuxCommandDispatcher,
-  context: PiExtensionContextSnapshot,
-  sessionId: string,
-): Promise<void> {
-  if (process.env.CMUX_PI_HOOKS_DISABLED === "1") return;
-  const target = surfaceTargetArgs(dispatcher, sessionId);
-  if (!target) return;
-  const cwd = context.cwd;
-  await dispatcher.run([
-    "--json",
-    "surface",
-    "resume",
-    "clear",
-    ...target,
-    "--checkpoint-id",
-    sessionId,
-    "--source",
-    "agent-hook",
-  ], cwd, undefined, context);
+function sendDirectSessionFinalize(ctx: ExtensionContext, sessionId: string, cwd: string): void {
+  const payload: HookExtra = {
+    session_id: sessionId,
+    cwd,
+    hook_event_name: eventName("session-finalize"),
+    event: eventName("session-finalize"),
+  };
+  try {
+    const child = spawn(cmuxExecutable(), ["hooks", "pi", "session-finalize"], {
+      env: hookEnvironment(cwd, true),
+      stdio: ["pipe", "ignore", "ignore"],
+      detached: true,
+    });
+    child.on("error", () => {
+      warn(ctx, "failed to launch direct Pi finalization fallback", { session_id: sessionId });
+    });
+    child.stdin.on("error", () => {});
+    child.stdin.end(JSON.stringify(payload));
+    child.unref();
+  } catch (_) {
+    warn(ctx, "failed to launch direct Pi finalization fallback", { session_id: sessionId });
+  }
 }
 
 type PiFeedEventName =
@@ -551,11 +556,9 @@ export default function cmuxPiSessionExtension(pi: ExtensionAPI) {
       state.feedDeliveryFailed = false;
       if (!feedDelivered) await warnFeedDeliveryDropped(context, sessionId);
       if (stopPayload) await sendHook(dispatcher, "stop", context, stopPayload);
-      try {
-        await clearResumeBinding(dispatcher, context, sessionId);
-      } finally {
-        releaseSessionRuntime(dispatcher, sessionStates, sessionId);
-      }
+      const finalized = await sendHook(dispatcher, "session-finalize", context);
+      if (!finalized) sendDirectSessionFinalize(ctx, sessionId, context.cwd);
+      releaseSessionRuntime(dispatcher, sessionStates, sessionId);
     });
   });
 }

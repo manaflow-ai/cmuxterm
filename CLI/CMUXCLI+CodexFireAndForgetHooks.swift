@@ -318,10 +318,14 @@ extension CMUXCLI {
         for def: AgentHookDef
     ) -> String {
         let command = "cmux hooks codex \(event.cmuxSubcommand)"
-        if event.isSynchronous {
-            return codexSynchronousAgentHookShellCommand(command, for: def)
+        if event.delivery == .queued {
+            return queuedAgentHookShellCommand(
+                agent: def.name,
+                subcommand: event.cmuxSubcommand,
+                disableEnvironmentVariable: def.disableEnvVar
+            )
         }
-        return codexFireAndForgetAgentHookShellCommand(command, for: def)
+        return codexSynchronousAgentHookShellCommand(command, for: def)
     }
 
     /// Cmux-generated script names referenced by the active persistent config.
