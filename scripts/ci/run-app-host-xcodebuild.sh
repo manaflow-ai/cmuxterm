@@ -89,7 +89,12 @@ if [ -n "$app_host_home_input" ]; then
   )
 fi
 
-app_host_xcodebuild_arguments=("$@")
+# Swift Testing defaults to running suites concurrently inside one test host.
+# cmuxTests intentionally share process-global AppDelegate, notification, and
+# socket state, so cross-suite in-process parallelism can make one suite tear
+# down another and leave xcodebuild waiting for a dead host. Keep the shard
+# matrix parallel across machines, but serialize the suites within each host.
+app_host_xcodebuild_arguments=("-parallel-testing-enabled" "NO" "$@")
 if [ "${CMUX_CI_APP_HOST_ISOLATION_REQUIRED:-0}" = "1" ]; then
   # This compiled condition reaches the test bundle through Xcode build
   # settings, independently of the TEST_RUNNER_ runtime environment channel.
