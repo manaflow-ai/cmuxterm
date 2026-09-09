@@ -84,7 +84,8 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         clock: any Clock<Duration> = ContinuousClock(),
         timing: CloudTunnelTiming = CloudTunnelTiming(),
         admission: CloudTunnelAdmission = .open,
-        isDisabledByManagedPolicy: (@Sendable () -> Bool)? = nil
+        isDisabledByManagedPolicy: (@Sendable () -> Bool)? = nil,
+        isDisabledByPolicy: (@Sendable () -> Bool)? = nil
     ) {
         self.backend = backend
         self.controller = controller
@@ -92,7 +93,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         self.consumers = consumers
         self.clock = clock
         self.timing = timing
-        if let isDisabledByManagedPolicy {
+        if let isDisabledByManagedPolicy = isDisabledByManagedPolicy ?? isDisabledByPolicy {
             self.admission = CloudTunnelAdmission(
                 knownRefusal: { isDisabledByManagedPolicy() ? .managedPolicyDisabled : nil },
                 resolvedRefusal: { isDisabledByManagedPolicy() ? .managedPolicyDisabled : nil }
