@@ -16,14 +16,16 @@ struct OnboardingSceneCopy: View {
                 reservesMaximumLines: true
             )
 
-            // The body reserves its full two-line cap so pages with one-line
-            // and two-line copy hand the visual an identical remaining height
-            // (the device frames then render the same size on every page).
+            // The connect choices have different body copy. Tailscale can
+            // require a third line at phone width, so reserve that line for
+            // every choice and keep the label's line limit in sync. This
+            // makes switching methods preserve the visual's vertical anchor
+            // instead of remeasuring the page around the longer copy.
             OnboardingBalancedText(
                 message,
                 role: .body,
                 alignment: alignment,
-                maximumNumberOfLines: 2,
+                maximumNumberOfLines: 3,
                 reservesMaximumLines: true
             )
         }
