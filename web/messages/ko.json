@@ -172,7 +172,7 @@
       "accountGroup": "계정",
       "billing": "청구",
       "team": "팀",
-      "testflight": "iOS 테스트플라이트"
+      "testflight": "iOS TestFlight"
     },
     "home": {
       "title": "대시보드",
@@ -389,7 +389,7 @@
     },
     "testflight": {
       "eyebrow": "계정",
-      "title": "iOS 테스트플라이트",
+      "title": "iOS TestFlight",
       "description": "활성 구독에서 cmux iOS 베타에 참여하세요.",
       "banners": {
         "joined": "Apple은 곧 귀하의 TestFlight 초대를 이메일로 보내드릴 것입니다.",
@@ -450,7 +450,7 @@
       "eyebrow": "cmux 볼트",
       "title": "CLI 액세스 승인",
       "description": "이 장치를 로그인된 cmux 계정에 연결하려면 cmux-vault에 표시된 코드를 확인하세요.",
-      "coderouterEyebrow": "코드라우터",
+      "coderouterEyebrow": "CodeRouter",
       "coderouterTitle": "CodeRouter 액세스 승인",
       "coderouterDescription": "이 장치를 로그인한 cmux 팀에 연결하려면 cr에 표시된 코드를 확인하세요.",
       "codeLabel": "사용자 코드",
@@ -542,7 +542,7 @@
     "terms": "이용약관",
     "eula": "EULA",
     "github": "GitHub",
-    "twitter": "엑스 / 트위터",
+    "twitter": "X / Twitter",
     "discord": "Discord",
     "contact": "문의",
     "nightly": "나이틀리",
@@ -1183,14 +1183,14 @@
       "metaDescription": "cmux와 Codex 및 Claude Code를 병렬로 실행한 다음 Cmd+Shift+U를 통해 각 완료를 검토하여 30일 동안 3,670억 개의 토큰을 사용했습니다.",
       "metaKeywords": [
         "3,670억 개의 토큰",
-        "GPT 5.6솔",
+        "GPT 5.6 Sol",
         "코덱스 CLI",
         "Claude Code",
         "cmux",
         "AI 코딩 에이전트",
         "병렬 코딩 에이전트",
         "Cmd+Shift+U",
-        "코덱스바"
+        "CodexBar"
       ]
     },
     "passkeyAuth": {
@@ -1238,10 +1238,10 @@
         "Claude Code",
         "Codex",
         "OpenCode",
-        "오픈코드",
+        "opencode",
         "제미니 CLI",
         "반중력 CLI",
-        "Grok 빌드 CLI",
+        "Grok Build CLI",
         "AI 코딩 에이전트"
       ]
     },
@@ -1262,7 +1262,7 @@
         "cmux 슈퍼 repo",
         "AI 코딩 에이전트",
         "Codex",
-        "cmux 사용자 지정 명령",
+        "Codex",
         "cmux skills",
         "터미널 워크플로",
         "에이전트 개발"
@@ -2466,7 +2466,7 @@
       "copilotCliRepoHooks": "저장소 수준 hooks의 경우, 같은 구조로 .github/hooks/notify.json 파일을 생성하세요:",
       "integrationExamples": "통합 예시",
       "notifyAfterLong": "긴 명령 후 알림",
-      "python": "파이썬",
+      "python": "Python",
       "nodejs": "Node.js",
       "tmuxPassthrough": "tmux 패스스루",
       "tmuxDesc": "cmux 내에서 tmux를 사용하는 경우 패스스루를 활성화하세요:",
@@ -2712,7 +2712,7 @@
     },
     "claudeCodeTeams": {
       "title": "클로드 코드 팀",
-      "metaTitle": "클로드 코드 팀 - cmux",
+      "metaTitle": "Claude Code Teams - cmux",
       "metaDescription": "cmux 내부의 에이전트 팀과 함께 Claude Code를 실행하세요. Teammate 에이전트는 tmux 창 대신 기본 cmux 분할로 생성됩니다.",
       "nightlyWarning": "<nightly>nightly 빌드</nightly>에서만 사용할 수 있습니다.",
       "intro": "cmux clude-teams는 에이전트 팀이 활성화된 Claude Code를 시작합니다. Claude가 팀원 에이전트를 생성하면 전체 사이드바 메타데이터 및 알림과 함께 tmux 창 대신 기본 cmux 분할로 표시됩니다.",
@@ -3264,7 +3264,7 @@
       "ghosttyBody": "Ghostty는 빠른 네이티브 터미널이며, 그 엔진인 libghostty가 cmux를 구동합니다. 오래된 CPU 렌더링 터미널이나 무거운 Electron 스타일 터미널과 비교하면 Ghostty의 장점은 낮은 지연의 GPU 렌더링, 선명한 글꼴과 색상 처리, 강한 터미널 호환성, 단순한 파일 기반 설정, 클라우드 계정이 필요 없는 구조입니다. 이런 렌더링 장점을 갖춘 깔끔한 단일 터미널 창만 원하고 워크스페이스나 자동화 계층이 필요 없다면 Ghostty만으로도 훌륭합니다. 같은 Ghostty 렌더링 장점에 워크스페이스, 알림, 스크립팅, 에이전트 오케스트레이션까지 원한다면 cmux를 사용하세요.",
       "iterm2Title": "iTerm2",
       "iterm2Body": "성숙하고 끝없이 설정 가능한 macOS 터미널입니다. 깊이 있는 프로필, 트리거, tmux 통합을 제공합니다. 최대한의 기능을 원하고 한 번에 여러 작업을 오케스트레이션하지 않는다면 안전한 기본 선택입니다.",
-      "warpTitle": "워프",
+      "warpTitle": "Warp",
       "warpBody": "내장 AI 어시스턴트와 블록형 명령 UI를 갖춘 Rust 터미널로, 계정이 필요하고 macOS 외 플랫폼에서도 사용할 수 있습니다. AI가 터미널 자체에 내장되기를 원하거나 Linux와 Windows도 필요하다면 잘 맞습니다.",
       "terminalAppTitle": "Terminal.app",
       "terminalAppBody": "macOS 내장 터미널입니다. 늘 그 자리에 있고 설정이 필요 없습니다. 가벼운 사용에는 괜찮지만, 대부분의 파워 유저는 결국 더 많은 것을 원하게 됩니다.",
@@ -3426,7 +3426,7 @@
                 "소스 공개 Electron 앱이며 더 의견이 강한 워크플로"
               ],
               [
-                "무리",
+                "Herdr",
                 "터미널 네이티브 에이전트 멀티플렉싱",
                 "여러 CLI 에이전트",
                 "Mac 앱이 아니라 다른 터미널 안에서 실행"
@@ -3438,7 +3438,7 @@
                 "터미널 제어면이 아니라 에이전트"
               ],
               [
-                "커서",
+                "Cursor",
                 "AI 편집 및 hosted agent workflows",
                 "Cursor 중심 에이전트 워크플로와 통합",
                 "에디터와 계정 중심 워크플로"
@@ -3456,13 +3456,13 @@
                 "터미널 에이전트 감독이 에디터 화면 안에 머묾"
               ],
               [
-                "제드",
+                "Zed",
                 "빠른 협업 편집",
                 "에디터 통합 AI 워크플로",
                 "터미널 에이전트 감독이 에디터에 묶임"
               ],
               [
-                "워프",
+                "Warp",
                 "에이전트형 터미널과 클라우드 오케스트레이션",
                 "Warp Agent, Oz, 가져온 CLI 에이전트",
                 "오픈 소스 클라이언트가 관리형 Warp/Oz 서비스에 묶임"
@@ -3480,13 +3480,13 @@
                 "에이전트 상태 추적이 수동"
               ],
               [
-                "키티",
+                "Kitty",
                 "빠르고 기능 많은 GPU 터미널",
                 "모든 CLI 에이전트",
                 "내장 에이전트 리뷰 큐 없음"
               ],
               [
-                "기민함",
+                "Alacritty",
                 "빠르고 단순한 OpenGL 터미널",
                 "모든 CLI 에이전트",
                 "앱 수준 워크플로 기능이 최소"
@@ -3546,7 +3546,7 @@
             "headers": [
               "차원",
               "cmux",
-              "기민함"
+              "Alacritty"
             ],
             "rows": [
               [
@@ -3867,7 +3867,7 @@
             "headers": [
               "차원",
               "cmux",
-              "커서"
+              "Cursor"
             ],
             "rows": [
               [
@@ -3944,7 +3944,7 @@
             "headers": [
               "차원",
               "cmux",
-              "데빈"
+              "Devin"
             ],
             "rows": [
               [
@@ -4106,7 +4106,7 @@
             "headers": [
               "차원",
               "cmux",
-              "키티"
+              "Kitty"
             ],
             "rows": [
               [
@@ -4187,7 +4187,7 @@
             "headers": [
               "차원",
               "cmux",
-              "무리"
+              "Herdr"
             ],
             "rows": [
               [
@@ -4576,7 +4576,7 @@
             "headers": [
               "차원",
               "cmux",
-              "제드"
+              "Zed"
             ],
             "rows": [
               [
@@ -4653,7 +4653,7 @@
             "headers": [
               "차원",
               "cmux",
-              "워프"
+              "Warp"
             ],
             "rows": [
               [
