@@ -1,4 +1,5 @@
 import AppKit
+import CmuxSettings
 import Foundation
 import Testing
 
@@ -354,6 +355,22 @@ struct CmuxAgentChatConfigTests {
         #expect(payload.blur == 18)
         #expect(payload.isLight == false)
         #expect(payload.source == "cmux")
+    }
+
+    @Test func agentChatThemePayloadSchemeMatchesTerminalColorsWhenChromeDiffers() throws {
+        var config = GhosttyConfig()
+        config.backgroundColor = try #require(NSColor(hex: "#101010"))
+        config.foregroundColor = try #require(NSColor(hex: "#F0F0F0"))
+        let lightChromePalette = ChromePalette.builtIn(theme: .default, colorScheme: .light)
+
+        let payload = AgentChatThemePayload(
+            config: config,
+            chromePalette: lightChromePalette
+        )
+
+        #expect(payload.background == "#101010")
+        #expect(payload.foreground == "#F0F0F0")
+        #expect(payload.isLight == false)
     }
 
     @Test func agentChatThemeEndpointIsRootAnchoredLikeHealthURL() throws {
