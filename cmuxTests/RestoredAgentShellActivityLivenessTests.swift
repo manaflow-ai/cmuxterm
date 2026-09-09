@@ -232,7 +232,7 @@ struct RestoredAgentShellActivityLivenessTests {
     // MARK: - Foreground process evidence
 
     @Test
-    func foregroundProcessMatchesAgentBeforeHookRegistersPID() {
+    func foregroundProcessRequiresSessionIdentityBeforeHookRegistersPID() {
         let agent = SessionRestorableAgentSnapshot(
             kind: .pi,
             sessionId: Self.sessionID,
@@ -248,7 +248,7 @@ struct RestoredAgentShellActivityLivenessTests {
         )
         let shellProcess = CmuxTopProcessArguments(arguments: ["zsh", "-l"], environment: [:])
 
-        #expect(RestoredAgentForegroundProcess.matches(
+        #expect(!RestoredAgentForegroundProcess.matches(
             agent,
             foregroundProcessID: 4242,
             processArguments: { _ in piProcess }
@@ -291,7 +291,7 @@ struct RestoredAgentShellActivityLivenessTests {
             environment: [:]
         )
 
-        #expect(RestoredAgentForegroundProcess.matches(
+        #expect(!RestoredAgentForegroundProcess.matches(
             agent,
             foregroundProcessID: 4242,
             recordedProcessID: 4242,
@@ -377,11 +377,10 @@ struct RestoredAgentShellActivityLivenessTests {
         ))
     }
 
-    /// A recorded process bounds bare foreground vouching only while it still
-    /// exists; once it is gone, the bare Pi in the pane is the session resumed
-    /// in place (hibernation resume, manual `cmux restore`) and must vouch.
+    /// A replacement Pi must identify the recorded session, even after its
+    /// former process exits. A matching current hook PID remains sufficient.
     @Test
-    func deadRecordedProcessDoesNotBlockForegroundVouching() {
+    func deadRecordedProcessRequiresIdentifiedForegroundSession() {
         let agent = SessionRestorableAgentSnapshot(
             kind: .pi,
             sessionId: Self.sessionID,
@@ -394,8 +393,8 @@ struct RestoredAgentShellActivityLivenessTests {
         let workspaceId = UUID()
         let panelId = UUID()
 
-        // The recorded process exited; a bare replacement Pi in the foreground vouches.
-        #expect(RestoredAgentLiveness().hasLiveProcess(
+        // The recorded process exited; a bare replacement Pi cannot identify its session.
+        #expect(!RestoredAgentLiveness().hasLiveProcess(
             agent,
             workspaceId: workspaceId,
             panelId: panelId,
@@ -404,6 +403,35 @@ struct RestoredAgentShellActivityLivenessTests {
             foregroundProcessID: 9999,
             currentProcessIdentity: { _ in nil },
             processIsPresent: { _ in false },
+            foregroundProcessArguments: { _ in barePi }
+        ))
+        // An explicit matching session still supports resumes of resumes.
+        #expect(RestoredAgentLiveness().hasLiveProcess(
+            agent,
+            workspaceId: workspaceId,
+            panelId: panelId,
+            recordedProcess: recorded,
+            liveIndex: nil,
+            foregroundProcessID: 9999,
+            currentProcessIdentity: { _ in nil },
+            foregroundProcessArguments: { _ in
+                CmuxTopProcessArguments(
+                    arguments: ["pi", "--session", Self.sessionID],
+                    environment: [:]
+                )
+            }
+        ))
+        // PID reuse cannot bypass session validation through the foreground fallback.
+        #expect(!RestoredAgentLiveness().hasLiveProcess(
+            agent,
+            workspaceId: workspaceId,
+            panelId: panelId,
+            recordedProcess: recorded,
+            liveIndex: nil,
+            foregroundProcessID: 4242,
+            currentProcessIdentity: { _ in
+                AgentPIDProcessIdentity(pid: 4242, startSeconds: 200, startMicroseconds: 0)
+            },
             foregroundProcessArguments: { _ in barePi }
         ))
         // The recorded PID still exists under another generation; a different
