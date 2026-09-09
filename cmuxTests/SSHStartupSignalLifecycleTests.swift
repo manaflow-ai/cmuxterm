@@ -1489,20 +1489,9 @@ extension CLINotifyProcessIntegrationRegressionTests {
             return startupCommand.replacingOccurrences(of: systemSSHPath, with: fakeSSH.path)
         }
 
-        let encodedRange = try XCTUnwrap(
-            SSHStartupCommandTestSupport.payloadRange(in: startupCommand)
-        )
-        let encodedScript = String(startupCommand[encodedRange])
-        let scriptData = try XCTUnwrap(Data(base64Encoded: encodedScript))
-        let script = try XCTUnwrap(String(data: scriptData, encoding: .utf8))
-        XCTAssertTrue(script.contains(systemSSHPath), script)
-        let rewrittenScript = script.replacingOccurrences(of: systemSSHPath, with: fakeSSH.path)
-        var rewrittenCommand = startupCommand
-        rewrittenCommand.replaceSubrange(
-            encodedRange,
-            with: Data(rewrittenScript.utf8).base64EncodedString()
-        )
-        return rewrittenCommand
+        return try XCTUnwrap(SSHStartupCommandTestSupport.replacingPinnedSSH(
+            in: startupCommand, with: fakeSSH.path
+        ))
     }
 
     private func writeShellFile(at url: URL, lines: [String]) throws {

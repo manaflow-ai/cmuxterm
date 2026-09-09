@@ -296,7 +296,7 @@ struct SSHStartupManualReconnectTests {
             try? standardInput.fileHandleForWriting.close()
         }
 
-        try Self.startProcess(process)
+        try SSHStartupCommandTestSupport.startProcess(process)
         let authReady = Self.waitForFile(at: authReadyMarker, containing: "ready", timeout: 3)
         #expect(authReady, "Timed out waiting for foreground authentication to enter its nested PTY")
         if authReady {
@@ -382,7 +382,7 @@ struct SSHStartupManualReconnectTests {
             }
         }
 
-        try Self.startProcess(process)
+        try SSHStartupCommandTestSupport.startProcess(process)
         try #require(
             Self.waitForFile(at: backoffReadyMarker, containing: "ready", timeout: 3),
             "Timed out waiting for initial authentication retry backoff"
@@ -988,18 +988,9 @@ struct SSHStartupManualReconnectTests {
             return startupCommand.replacingOccurrences(of: systemSSHPath, with: fakeSSH.path)
         }
 
-        let encodedRange = try #require(SSHStartupCommandTestSupport.payloadRange(in: startupCommand))
-        let encodedScript = String(startupCommand[encodedRange])
-        let scriptData = try #require(Data(base64Encoded: encodedScript))
-        let script = try #require(String(data: scriptData, encoding: .utf8))
-        try #require(script.contains(systemSSHPath))
-        let rewrittenScript = script.replacingOccurrences(of: systemSSHPath, with: fakeSSH.path)
-        var rewrittenCommand = startupCommand
-        rewrittenCommand.replaceSubrange(
-            encodedRange,
-            with: Data(rewrittenScript.utf8).base64EncodedString()
-        )
-        return rewrittenCommand
+        return try #require(SSHStartupCommandTestSupport.replacingPinnedSSH(
+            in: startupCommand, with: fakeSSH.path
+        ))
     }
 
     private static func makeTerminalExitPromptFixture() throws -> TerminalExitPromptFixture {
@@ -1061,7 +1052,7 @@ struct SSHStartupManualReconnectTests {
         process.standardOutput = transcriptHandle
         process.standardError = FileHandle.nullDevice
         do {
-            try Self.startProcess(process)
+            try SSHStartupCommandTestSupport.startProcess(process)
         } catch {
             try? transcriptHandle.close()
             try? FileManager.default.removeItem(at: fixture.temporaryDirectory)
@@ -1121,50 +1112,26 @@ struct SSHStartupManualReconnectTests {
         return handled
     }
 
-    private static func startProcess(_ process: Process) throws {
-        do {
-            try process.run()
-        } catch {
-            let failure = error as NSError
-            let arguments = [process.executableURL?.path ?? ""] + (process.arguments ?? [])
-            let environment = process.environment ?? ProcessInfo.processInfo.environment
-            var details = failure.userInfo
-            details["argvBytes"] = arguments.reduce(0) { $0 + $1.utf8.count + 1 }
-            details["largestArgumentBytes"] = arguments.map { $0.utf8.count }.max() ?? 0
-            details["environmentBytes"] = environment.reduce(0) {
-                $0 + $1.key.utf8.count + $1.value.utf8.count + 2
-            }
-            throw NSError(domain: failure.domain, code: failure.code, userInfo: details)
-        }
-    }
-
     static func runProcess(
         executablePath: String,
         arguments: [String],
         environment: [String: String],
-        standardInput: String? = nil,
         timeout: TimeInterval
     ) -> ProcessRunResult {
         let process = Process()
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
-        let stdinPipe = standardInput == nil ? nil : Pipe()
         process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = arguments
         process.environment = environment
-        process.standardInput = stdinPipe ?? FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
         do {
-            try Self.startProcess(process)
+            try SSHStartupCommandTestSupport.startProcess(process)
         } catch {
             return ProcessRunResult(status: -1, stdout: "", stderr: String(describing: error), timedOut: false)
-        }
-
-        if let standardInput, let stdinPipe {
-            try? stdinPipe.fileHandleForWriting.write(contentsOf: Data(standardInput.utf8))
-            try? stdinPipe.fileHandleForWriting.close()
         }
 
         let exitSignal = DispatchSemaphore(value: 0)

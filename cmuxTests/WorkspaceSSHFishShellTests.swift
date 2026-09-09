@@ -305,20 +305,10 @@ final class WorkspaceSSHFishShellTests: XCTestCase {
             return startupCommand.replacingOccurrences(of: systemSSHPath, with: fakeSSHPath)
         }
 
-        // Reusable startup commands carry the script as one base64 literal.
-        if let encodedRange = SSHStartupCommandTestSupport.payloadRange(in: startupCommand) {
-            let encodedScript = String(startupCommand[encodedRange])
-            if let scriptData = Data(base64Encoded: encodedScript),
-               let script = String(data: scriptData, encoding: .utf8),
-               script.contains(systemSSHPath) {
-                var rewrittenCommand = startupCommand
-                rewrittenCommand.replaceSubrange(
-                    encodedRange,
-                    with: Data(script.replacingOccurrences(of: systemSSHPath, with: fakeSSHPath).utf8)
-                        .base64EncodedString()
-                )
-                return rewrittenCommand
-            }
+        if let rewritten = SSHStartupCommandTestSupport.replacingPinnedSSH(
+            in: startupCommand, with: fakeSSHPath
+        ) {
+            return rewritten
         }
 
         throw NSError(

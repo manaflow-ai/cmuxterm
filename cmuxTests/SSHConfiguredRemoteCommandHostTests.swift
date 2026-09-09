@@ -517,27 +517,6 @@ struct SSHConfiguredRemoteCommandHostTests {
         func startupCommandUsingFakeSSH(_ startupCommand: String) throws -> String {
             let systemSSHPath = "/usr/bin/ssh"
             let fakeSSHPath = binDirectory.appendingPathComponent("ssh").path
-            func replacingSystemSSH(
-                in command: String,
-                encodedRange: Range<String.Index>
-            ) -> String? {
-                let encodedScript = String(command[encodedRange])
-                guard let scriptData = Data(base64Encoded: encodedScript),
-                      let script = String(data: scriptData, encoding: .utf8),
-                      script.contains(systemSSHPath) else {
-                    return nil
-                }
-                let rewrittenScript = script.replacingOccurrences(
-                    of: systemSSHPath,
-                    with: fakeSSHPath
-                )
-                var rewrittenCommand = command
-                rewrittenCommand.replaceSubrange(
-                    encodedRange,
-                    with: Data(rewrittenScript.utf8).base64EncodedString()
-                )
-                return rewrittenCommand
-            }
             let trimmedCommand = startupCommand.trimmingCharacters(in: .whitespacesAndNewlines)
             let commandURL = URL(fileURLWithPath: trimmedCommand)
                 .standardizedFileURL
@@ -566,13 +545,10 @@ struct SSHConfiguredRemoteCommandHostTests {
             }
 
             guard startupCommand.contains(systemSSHPath) else {
-                if let encodedRange = SSHStartupCommandTestSupport.payloadRange(in: startupCommand) {
-                    if let rewrittenCommand = replacingSystemSSH(
-                        in: startupCommand,
-                        encodedRange: encodedRange
-                    ) {
-                        return rewrittenCommand
-                    }
+                if let rewritten = SSHStartupCommandTestSupport.replacingPinnedSSH(
+                    in: startupCommand, with: fakeSSHPath
+                ) {
+                    return rewritten
                 }
                 throw NSError(
                     domain: "SSHConfiguredRemoteCommandHostTests",
