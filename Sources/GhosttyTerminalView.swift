@@ -3135,6 +3135,24 @@ class GhosttyApp {
         }
     }
 
+    /// Enqueues a pointer-state transition without blocking Ghostty's callback
+    /// thread, then drops it if the originating runtime has already been
+    /// replaced or torn down by the time the main actor consumes it.
+    private func enqueueTerminalPointerStyleEvent(
+        _ event: GhosttyPointerStyleIngressEvent,
+        runtimeLifetimeId: UUID,
+        runtimeGeneration: UInt64,
+        surfaceView: GhosttyNSView,
+        surfaceId: UUID
+    ) {
+        surfaceView.pointerStyleIngress?.submit(.init(
+            event: event,
+            surfaceId: surfaceId,
+            runtimeLifetimeId: runtimeLifetimeId,
+            runtimeGeneration: runtimeGeneration
+        ))
+    }
+
     private func splitDirection(from direction: ghostty_action_split_direction_e) -> SplitDirection? {
         switch direction {
         case GHOSTTY_SPLIT_DIRECTION_RIGHT: return .right
@@ -3272,8 +3290,20 @@ class GhosttyApp {
         let callbackSurfaceId = callbackContext?.surfaceId
 
         if action.tag == GHOSTTY_ACTION_SHOW_CHILD_EXITED {
+            let actionSurface = callbackContext?.terminalSurface
+            if let surfaceView = callbackContext?.surfaceView,
+               let actionSurfaceId = callbackSurfaceId,
+               let callbackContext {
+                enqueueTerminalPointerStyleEvent(
+                    .runtimeReset,
+                    runtimeLifetimeId: callbackContext.runtimeLifetimeId,
+                    runtimeGeneration: callbackContext.runtimeGeneration,
+                    surfaceView: surfaceView,
+                    surfaceId: actionSurfaceId
+                )
+            }
             return handleChildExitedAction(
-                runtimeSurface: callbackContext?.terminalSurface,
+                runtimeSurface: actionSurface,
                 tabId: callbackTabId,
                 surfaceId: callbackSurfaceId,
                 message: action.action.child_exited
@@ -3387,14 +3417,38 @@ class GhosttyApp {
             return false
         case GHOSTTY_ACTION_MOUSE_SHAPE:
             let shape = action.action.mouse_shape
-            DispatchQueue.main.async {
-                surfaceView.updateGhosttyMouseShape(shape)
-            }
+            guard let actionSurfaceId = callbackSurfaceId,
+                  let callbackContext else { return false }
+            enqueueTerminalPointerStyleEvent(
+                .shape(shape),
+                runtimeLifetimeId: callbackContext.runtimeLifetimeId,
+                runtimeGeneration: callbackContext.runtimeGeneration,
+                surfaceView: surfaceView,
+                surfaceId: actionSurfaceId
+            )
             return true
         case GHOSTTY_ACTION_MOUSE_OVER_LINK:
             let url = GhosttySurfaceScrollView.linkHoverURL(from: action.action.mouse_over_link)
             let terminalSurface = surfaceView.terminalSurface
-            DispatchQueue.main.async { guard surfaceView.terminalSurface === terminalSurface, surfaceView.isVisibleInUI else { return }; terminalSurface?.hostedView.setLinkHoverURL(url) }
+            if let actionSurfaceId = callbackSurfaceId,
+               let callbackContext {
+                let runtimeLifetimeId = callbackContext.runtimeLifetimeId
+                DispatchQueue.main.async {
+                    guard surfaceView.terminalSurface === terminalSurface,
+                          surfaceView.isVisibleInUI,
+                          terminalSurface?.isActiveRuntimeLifetime(runtimeLifetimeId) == true else {
+                        return
+                    }
+                    terminalSurface?.hostedView.setLinkHoverURL(url)
+                }
+                enqueueTerminalPointerStyleEvent(
+                    .linkHover(action.action.mouse_over_link.len > 0),
+                    runtimeLifetimeId: runtimeLifetimeId,
+                    runtimeGeneration: callbackContext.runtimeGeneration,
+                    surfaceView: surfaceView,
+                    surfaceId: actionSurfaceId
+                )
+            }
             return true
         case GHOSTTY_ACTION_SCROLLBAR:
             let scrollbar = GhosttyScrollbar(c: action.action.scrollbar)
@@ -3850,52 +3904,75 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
     private let commandClickReleaseRouter = TerminalCommandClickReleaseRouter()
     private var commandClickReleaseRoutingActive = false
     private var commandClickReleaseRuntimeOutcome: TerminalCommandClickReleaseRouter.RuntimeOutcome?
-    private var ghosttyMouseShape: ghostty_action_mouse_shape_e = GHOSTTY_MOUSE_SHAPE_TEXT
-    private static func ghosttyMouseCursor(for shape: ghostty_action_mouse_shape_e) -> NSCursor {
-        switch shape {
-        case GHOSTTY_MOUSE_SHAPE_DEFAULT:
-            return .arrow
-        case GHOSTTY_MOUSE_SHAPE_TEXT:
-            return .iBeam
-        case GHOSTTY_MOUSE_SHAPE_VERTICAL_TEXT:
-            return .iBeamCursorForVerticalLayout
-        case GHOSTTY_MOUSE_SHAPE_POINTER:
-            return .pointingHand
-        case GHOSTTY_MOUSE_SHAPE_CROSSHAIR,
-             GHOSTTY_MOUSE_SHAPE_CELL:
-            return .crosshair
-        case GHOSTTY_MOUSE_SHAPE_GRAB:
-            return .openHand
-        case GHOSTTY_MOUSE_SHAPE_GRABBING,
-             GHOSTTY_MOUSE_SHAPE_MOVE:
-            return .closedHand
-        case GHOSTTY_MOUSE_SHAPE_NOT_ALLOWED,
-             GHOSTTY_MOUSE_SHAPE_NO_DROP:
-            return .operationNotAllowed
-        case GHOSTTY_MOUSE_SHAPE_CONTEXT_MENU:
-            return .contextualMenu
-        case GHOSTTY_MOUSE_SHAPE_COPY:
-            return .dragCopy
-        case GHOSTTY_MOUSE_SHAPE_ALIAS:
-            return .dragLink
-        case GHOSTTY_MOUSE_SHAPE_W_RESIZE,
-             GHOSTTY_MOUSE_SHAPE_E_RESIZE,
-             GHOSTTY_MOUSE_SHAPE_EW_RESIZE,
-             GHOSTTY_MOUSE_SHAPE_COL_RESIZE:
-            return .resizeLeftRight
-        case GHOSTTY_MOUSE_SHAPE_N_RESIZE,
-             GHOSTTY_MOUSE_SHAPE_S_RESIZE,
-             GHOSTTY_MOUSE_SHAPE_NS_RESIZE,
-             GHOSTTY_MOUSE_SHAPE_ROW_RESIZE:
-            return .resizeUpDown
-        default:
-            return .arrow
+    private var terminalPointerStyle = TerminalPointerStyleState()
+    var pointerStyleIngress: GhosttyPointerStyleIngress?
+    weak var pointerStyleHostedView: GhosttySurfaceScrollView?
+    private var pointerStyleRuntimeLifetimeId: UUID?
+    private var pointerStyleRevision: UInt64 = 0
+    private var pointerStyleFocusGeneration: UInt64 = 0
+    private var pointerStyleRefreshFocusGeneration: UInt64?
+
+    /// Replays the current pointer position once after focus returns so a
+    /// stationary OSC 8 link can restore its hover cursor without waiting for
+    /// another mouse-move event.
+    private func reconcileGhosttyPointerStyleAfterFocus() -> Bool {
+        guard terminalPointerStyle.focused,
+              pointerStyleRefreshFocusGeneration != pointerStyleFocusGeneration,
+              let surface else {
+            return false
         }
+        pointerStyleRefreshFocusGeneration = pointerStyleFocusGeneration
+        let modifierFlags = NSEvent.modifierFlags
+        let hoverMods = hoverModsFromFlags(
+            modifierFlags,
+            suppressCommandPathHover: shouldSuppressCommandPathHover(
+                for: modifierFlags
+            )
+        )
+        // Force Ghostty to leave its cached cell before replaying the actual
+        // pointer position. A stationary pointer otherwise may be treated as
+        // a duplicate and produce no fresh shape/link callback.
+        ghostty_surface_mouse_pos(surface, -1, -1, hoverMods)
+        guard let point = currentMousePointInView(),
+              pointIsUsableForWordResolution(point) else {
+            return true
+        }
+        ghostty_surface_mouse_pos(
+            surface,
+            point.x,
+            bounds.height - point.y,
+            hoverMods
+        )
+        return true
     }
-    fileprivate func updateGhosttyMouseShape(_ shape: ghostty_action_mouse_shape_e) {
-        guard ghosttyMouseShape != shape else { return }
-        ghosttyMouseShape = shape
+
+    @discardableResult
+    func applyTerminalPointerStyle(
+        _ event: TerminalPointerStyleEvent,
+        focusGeneration: UInt64? = nil
+    ) -> Bool {
+        guard let snapshot = pointerStyleIngress?.mailbox.apply(
+            event, focusGeneration: focusGeneration
+        ) else { return false }
+        return applyTerminalPointerStyleSnapshot(snapshot)
+    }
+
+    @discardableResult
+    func applyTerminalPointerStyleSnapshot(_ snapshot: TerminalPointerStyleSnapshot) -> Bool {
+        guard snapshot.revision > pointerStyleRevision else { return false }
+        let didGainFocus = snapshot.intent.focused && !terminalPointerStyle.focused
+        let didChangeFocus = snapshot.intent.focused != terminalPointerStyle.focused
+        pointerStyleRevision = snapshot.revision
+        pointerStyleFocusGeneration = snapshot.focusGeneration
+        let changed = terminalPointerStyle.replaceIntent(snapshot.intent)
+        let reconciled = didGainFocus && reconcileGhosttyPointerStyleAfterFocus()
+        guard changed || didChangeFocus || reconciled else { return false }
         window?.invalidateCursorRects(for: self)
+        return true
+    }
+
+    var effectiveTerminalPointerCursor: NSCursor {
+        terminalPointerStyle.effectiveCursor
     }
 
     /// Coalesce high-frequency scrollbar updates into a single main-thread
@@ -4049,7 +4126,7 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
     private var keySequence: [ghostty_input_trigger_s] = []
     private var keyTables: [String] = []
     fileprivate private(set) var keyboardCopyModeActive = false
-    private var wordPathHoverActive = false
+    private var wordPathHoverActive: Bool { terminalPointerStyle.cmuxLinkHoverActive }
     private var keyboardCopyModeConsumedKeyUps: Set<UInt16> = []
     private var imeConsumedKeyUps: Set<UInt16> = []
     private var manualNamedKeyConsumedKeyUps: Set<UInt16> = []
@@ -4252,6 +4329,7 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
 
     private func setup() {
         selectionAccessibilityNotifier = TerminalSelectionAccessibilityNotifier(element: self, events: selectionAccessibilitySignal.events)
+        pointerStyleIngress = GhosttyPointerStyleIngress(surfaceView: self)
         // GhosttyMetalLayer provides render stats and opt-in frame notifications for
         // input sequencing that needs to wait for terminal redraws.
         wantsLayer = true
@@ -4629,7 +4707,7 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
             releaseAllGhosttyMouseButtonsSynchronously(reason: "attachSurface")
             resetGhosttyMouseButtonTracking()
             // Reset any OSC 22 mouse shape carried over from the previous surface.
-            updateGhosttyMouseShape(GHOSTTY_MOUSE_SHAPE_TEXT)
+            runtimeSurfaceDidEnd(runtimeLifetimeId: nil)
         } else if currentMouseSurfaceIdentity != nextMouseSurfaceIdentity {
             // A TerminalSurface can rebuild its native pointer without being
             // replaced. Never send an old session to the replacement pointer.
@@ -4637,9 +4715,8 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         }
         terminalSurface = surface
         tabId = surface.tabId
-        if !isAlreadyAttached {
-            surface.attachToView(self)
-        } else {
+        surface.attachToView(self)
+        if isAlreadyAttached {
             surface.reconcileAttachedWindowIfNeeded(for: self)
         }
         surface.setKeyboardCopyModeActive(keyboardCopyModeActive)
@@ -5010,10 +5087,10 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         }
         windowKeyObservers.forEach { NotificationCenter.default.removeObserver($0) }
         windowKeyObservers.removeAll()
-        // Balance the cursor stack if the view is removed while hover is active
-        if wordPathHoverActive {
-            wordPathHoverActive = false
-            NSCursor.pop()
+        // Clear the view-owned link override when the view leaves its window.
+        applyTerminalPointerStyle(.cmuxLinkHoverChanged(false))
+        if window == nil {
+            applyTerminalPointerStyle(.focusChanged(false))
         }
 #if DEBUG
         cmuxDebugLog(
@@ -5158,7 +5235,7 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
 
     override func resetCursorRects() {
         super.resetCursorRects()
-        addCursorRect(bounds, cursor: Self.ghosttyMouseCursor(for: ghosttyMouseShape))
+        addCursorRect(bounds, cursor: effectiveTerminalPointerCursor)
     }
 
     override var isOpaque: Bool { false }
@@ -5448,6 +5525,9 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
     private func ensureSurfaceReadyForInput(reassertInputFocus: Bool = true) -> ghostty_surface_t? {
         if let surface = surface {
             if reassertInputFocus { _ = reassertTerminalFocusForInputIfFirstResponder() }
+            if reconcileGhosttyPointerStyleAfterFocus() {
+                window?.invalidateCursorRects(for: self)
+            }
             return surface
         }
         guard window != nil else { return nil }
@@ -5455,12 +5535,16 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         updateSurfaceSize(size: bounds.size)
         applySurfaceColorScheme(force: true)
         if reassertInputFocus { _ = reassertTerminalFocusForInputIfFirstResponder() }
+        if reconcileGhosttyPointerStyleAfterFocus() {
+            window?.invalidateCursorRects(for: self)
+        }
         return surface
     }
     private func reassertTerminalFocusForInputIfFirstResponder(forceNative: Bool = false) -> Bool {
         guard let terminalSurface, window?.firstResponder === self, !suppressingReparentFocus,
               isVisibleInUI, hasUsableFocusGeometry, !isHiddenOrHasHiddenAncestor,
               AppDelegate.shared?.allowsTerminalKeyboardFocus(workspaceId: terminalSurface.tabId, panelId: terminalSurface.id, in: window) != false else { return false }
+        applyTerminalPointerStyle(.focusChanged(true))
         terminalSurface.setFocus(true); if forceNative, let surface { terminalSurface.recordExternalFocusState(true); ghostty_surface_set_focus(surface, true) }
         return true
     }
@@ -5596,6 +5680,42 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
             column: Int(column)
         )
         return true
+    }
+
+    @discardableResult
+    func prepareForRuntimeSurfaceCreation(
+        runtimeLifetimeId: UUID,
+        surfaceId: UUID
+    ) -> UInt64 {
+        if pointerStyleRuntimeLifetimeId == runtimeLifetimeId,
+           let snapshot = pointerStyleIngress?.mailbox.snapshot,
+           snapshot.surfaceId == surfaceId,
+           snapshot.intent.activeRuntimeLifetimeId == runtimeLifetimeId {
+            return snapshot.runtimeGeneration
+        }
+        pointerStyleRuntimeLifetimeId = runtimeLifetimeId
+        pointerStyleRefreshFocusGeneration = nil
+        let runtimeGeneration = pointerStyleIngress?.activate(
+            runtimeLifetimeId: runtimeLifetimeId,
+            surfaceId: surfaceId
+        ) ?? 0
+        if let snapshot = pointerStyleIngress?.mailbox.snapshot {
+            applyTerminalPointerStyleSnapshot(snapshot)
+        }
+        return runtimeGeneration
+    }
+
+    func runtimeSurfaceDidEnd(runtimeLifetimeId: UUID?) {
+        let retiredRuntimeLifetimeId = runtimeLifetimeId ?? pointerStyleRuntimeLifetimeId
+        let endsCurrentRuntime = runtimeLifetimeId == nil ||
+            pointerStyleRuntimeLifetimeId == runtimeLifetimeId
+        if pointerStyleRuntimeLifetimeId == retiredRuntimeLifetimeId {
+            pointerStyleRuntimeLifetimeId = nil
+        }
+        if endsCurrentRuntime {
+            pointerStyleHostedView?.setLinkHoverURL(nil)
+        }
+        applyTerminalPointerStyle(.runtimeEnded(runtimeLifetimeId))
     }
 
     func runtimeSurfaceDidBecomeReady() {
@@ -6257,6 +6377,7 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
                    in: window
                ) == false {
                 desiredFocus = false
+                applyTerminalPointerStyle(.focusChanged(false))
                 terminalSurface.recordExternalFocusState(false)
                 terminalSurface.hostedView.cancelSuppressedFirstResponderFocusReapply()
 #if DEBUG
@@ -6273,6 +6394,7 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
             // becomeFirstResponder. Suppress onFocus + ghostty_surface_set_focus to prevent
             // the old view from stealing focus and creating model/surface divergence.
             if suppressingReparentFocus {
+                applyTerminalPointerStyle(.focusChanged(false))
                 let hiddenInHierarchy = isHiddenOrHasHiddenAncestor
                 if isVisibleInUI && (!hasUsableFocusGeometry || hiddenInHierarchy) {
                     terminalSurface?.hostedView.scheduleSuppressedFirstResponderFocusReapply(
@@ -6304,6 +6426,9 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
                     reason: "becomeFirstResponder.hiddenOrTiny"
                 )
             }
+        }
+        if result, shouldApplySurfaceFocus {
+            applyTerminalPointerStyle(.focusChanged(true))
         }
         if result, shouldApplySurfaceFocus, let surface = ensureSurfaceReadyForInput(reassertInputFocus: false) {
             let now = CACurrentMediaTime()
@@ -6359,6 +6484,7 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
                 reason: "resignFirstResponder"
             )
             cancelKeyboardCopyMode()
+            applyTerminalPointerStyle(.focusChanged(false))
             terminalSurface?.hostedView.cancelSuppressedFirstResponderFocusReapply()
             terminalSurface?.recordExternalFocusState(false)
         }
@@ -8021,10 +8147,7 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
     ) {
         let hoverWasActive = wordPathHoverActive
         guard cmdHeld, !suppressPathHover else {
-            if wordPathHoverActive {
-                wordPathHoverActive = false
-                NSCursor.pop()
-            }
+            applyTerminalPointerStyle(.cmuxLinkHoverChanged(false))
 #if DEBUG
             if cmdHeld || suppressPathHover || hoverWasActive {
                 runtimeDebugLog(
@@ -8045,15 +8168,7 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         }
 
         let resolution = resolveWordUnderCursorPath(at: point)
-        if resolution != nil {
-            if !wordPathHoverActive {
-                wordPathHoverActive = true
-                NSCursor.pointingHand.push()
-            }
-        } else if wordPathHoverActive {
-            wordPathHoverActive = false
-            NSCursor.pop()
-        }
+        applyTerminalPointerStyle(.cmuxLinkHoverChanged(resolution != nil))
 #if DEBUG
         if cmdHeld || hoverWasActive || wordPathHoverActive || resolution != nil {
             var payload: [String: Any] = [
@@ -8974,10 +9089,7 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
     override func mouseExited(with event: NSEvent) {
         if routeInputDuringClipboardRead(event) { return }
         reconcileGhosttyMouseButtons(reason: "mouseExited")
-        if wordPathHoverActive {
-            wordPathHoverActive = false
-            NSCursor.pop()
-        }
+        applyTerminalPointerStyle(.cmuxLinkHoverChanged(false))
         guard let surface = surface else { return }
         if !ghosttyMouseSessionLedger.activeButtons.isEmpty {
             return
@@ -10124,6 +10236,7 @@ final class GhosttySurfaceScrollView: NSView {
         documentView.addSubview(surfaceView)
 
         super.init(frame: .zero)
+        surfaceView.pointerStyleHostedView = self
         wantsLayer = true
         layer?.masksToBounds = true
 
@@ -11645,6 +11758,9 @@ final class GhosttySurfaceScrollView: NSView {
         // cannot draw into a released swap chain during this short transition.
         surfaceView.setVisibleInUI(visible)
         isHidden = !visible
+        if !visible {
+            surfaceView.applyTerminalPointerStyle(.focusChanged(false))
+        }
         surfaceView.terminalSurface?.setRendererPortalVisible(visible)
         if wasVisible != visible, lastRequestedPortalOcclusionVisible != visible {
             lastRequestedPortalOcclusionVisible = visible
@@ -11729,6 +11845,11 @@ final class GhosttySurfaceScrollView: NSView {
             surfaceView.cancelKeyboardCopyMode()
         }
         isActive = active
+        if active, surfaceView.window?.firstResponder === surfaceView {
+            surfaceView.applyTerminalPointerStyle(.focusChanged(true))
+        } else if !active {
+            surfaceView.applyTerminalPointerStyle(.focusChanged(false))
+        }
 #if DEBUG
         if wasActive != active {
             let transition = "\(wasActive ? 1 : 0)->\(active ? 1 : 0)"
