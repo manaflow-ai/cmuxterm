@@ -64,6 +64,7 @@ struct MarkdownWebRenderer: NSViewRepresentable {
 
         let config = WKWebViewConfiguration()
         config.suppressesIncrementalRendering = false
+        WebSurfaceSelectionReader.installTracking(in: config.userContentController)
         // Bridge: JS posts to `cmuxLib` to request lazy-loaded libraries
         // (mermaid / vega-lite). Swift fetches the bundled source from the
         // app bundle and injects it via evaluateJavaScript.
@@ -162,6 +163,7 @@ struct MarkdownWebRenderer: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, WKURLSchemeHandler {
         var webView: MarkdownWebView?
+        private let surfaceSelectionReader = WebSurfaceSelectionReader()
         /// Fired after each successful markdown render push (initial shell
         /// load included). Re-rendering replaces the content DOM, so an active
         /// find-in-page search must re-run to restore its highlights.
@@ -373,6 +375,18 @@ struct MarkdownWebRenderer: NSViewRepresentable {
         func renderedText() async -> String? {
             guard isLoaded else { return nil }
             return await evaluateString("window.__cmuxRenderedText && window.__cmuxRenderedText()")
+        }
+
+        func readSurfaceSelection(filePath: String) async -> SurfaceSelectionReadResult {
+            let normalizedPath = URL(fileURLWithPath: filePath).standardizedFileURL.path
+            guard isLoaded, let webView else {
+                return .snapshot(.none(kind: .markdown, filePath: normalizedPath))
+            }
+            return await surfaceSelectionReader.read(
+                webView: webView,
+                kind: .markdown,
+                filePath: normalizedPath
+            )
         }
 
         private func evaluateString(_ script: String) async -> String? {

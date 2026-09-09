@@ -14,6 +14,12 @@ public enum ArtifactStoreError: Error, Equatable, Sendable {
     ///   - actual: Source byte count, or zero when the batch budget is already exhausted.
     ///   - limit: Aggregate byte budget reported by the rejecting capture layer.
     case batchByteLimitReached(actual: Int64, limit: Int64)
+    /// A manual selection exceeded the maximum number of files accepted in one request.
+    ///
+    /// - Parameters:
+    ///   - actual: Number of files supplied in the selection.
+    ///   - limit: Maximum number of files accepted by the capture service.
+    case fileCountLimitReached(actual: Int64, limit: Int64)
     /// A requested artifact name was missing.
     case artifactNotFound(String)
     /// A name matched more than one artifact and requires a more specific path.

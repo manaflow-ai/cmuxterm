@@ -9,7 +9,7 @@ extension AgentChatTranscriptReader {
         func makeIterator() -> AgentChatTranscriptBoundedLineIterator {
             AgentChatTranscriptBoundedLineIterator(
                 data: data,
-                maximumLineCount: max(0, maximumLineCount),
+                maximumLineCount: Swift.max(0, maximumLineCount),
                 cursor: data.startIndex
             )
         }

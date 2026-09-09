@@ -1,11 +1,15 @@
-/// Bounded min-heap used to evict the least-recently referenced artifact path.
+/// Bounded min-heap used to evict weak-provenance, least-recently referenced paths.
 struct ChatArtifactRecencyHeap {
     private var entries: [ChatArtifactRecencyHeapEntry] = []
 
     var count: Int { entries.count }
 
-    mutating func insert(path: String, seq: Int) {
-        entries.append(ChatArtifactRecencyHeapEntry(path: path, seq: seq))
+    mutating func insert(path: String, seq: Int, evictionPriority: Int) {
+        entries.append(ChatArtifactRecencyHeapEntry(
+            path: path,
+            evictionPriority: evictionPriority,
+            seq: seq
+        ))
         siftUp(from: entries.count - 1)
     }
 
@@ -18,9 +22,16 @@ struct ChatArtifactRecencyHeap {
         return result
     }
 
-    mutating func compact(currentSequences: [String: Int]) {
+    mutating func compact(
+        currentSequences: [String: Int],
+        currentEvictionPriorities: [String: Int]
+    ) {
         entries = currentSequences.map {
-            ChatArtifactRecencyHeapEntry(path: $0.key, seq: $0.value)
+            ChatArtifactRecencyHeapEntry(
+                path: $0.key,
+                evictionPriority: currentEvictionPriorities[$0.key] ?? 0,
+                seq: $0.value
+            )
         }
         guard entries.count > 1 else { return }
         for index in stride(from: entries.count / 2 - 1, through: 0, by: -1) {
@@ -32,6 +43,9 @@ struct ChatArtifactRecencyHeap {
         _ lhs: ChatArtifactRecencyHeapEntry,
         _ rhs: ChatArtifactRecencyHeapEntry
     ) -> Bool {
+        if lhs.evictionPriority != rhs.evictionPriority {
+            return lhs.evictionPriority < rhs.evictionPriority
+        }
         if lhs.seq != rhs.seq { return lhs.seq < rhs.seq }
         return lhs.path < rhs.path
     }

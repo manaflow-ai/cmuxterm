@@ -127,6 +127,29 @@ struct ArtifactMutationAuthorizationTests {
         #expect(artifact.captureAuthorization != nil)
     }
 
+    @Test("Successful main-chain Claude Bash redirections receive created provenance")
+    func successfulClaudeBashRedirectionIsCreated() throws {
+        let invocation = claudeLine(type: "assistant", content: [[
+            "type": "tool_use", "id": "bash-render", "name": "Bash",
+            "input": ["command": "python render.py > /tmp/claude-report.html"],
+        ]])
+        let result = claudeLine(type: "user", content: [[
+            "type": "tool_result", "tool_use_id": "bash-render",
+            "content": "rendered", "is_error": false,
+        ]])
+
+        let parsed = ClaudeTranscriptParser().parse(
+            lines: [invocation, result],
+            startingSeq: 0
+        )
+        let artifact = try #require(
+            indexedArtifacts(parsed).first { $0.path.hasSuffix("/tmp/claude-report.html") }
+        )
+
+        #expect(artifact.provenance == .created)
+        #expect(artifact.captureAuthorization == .created(sequence: 1))
+    }
+
     @Test("Claude success without a content field remains read-only")
     func missingClaudeToolContentIsReference() throws {
         let invocation = claudeLine(type: "assistant", content: [[

@@ -166,8 +166,8 @@ public actor ArtifactCaptureService: ArtifactCapturing {
         }
         if rejectedCount > 0 {
             attempts.append(contentsOf: repeatElement(
-                .rejected(.batchByteLimitReached(
-                    actual: 0,
+                .rejected(.fileCountLimitReached(
+                    actual: Int64(sourceURLs.count),
                     limit: Int64(Self.maximumManualSelectionFiles)
                 )),
                 count: rejectedCount
@@ -277,6 +277,8 @@ private extension ArtifactStoreError {
         case .fileTooLarge:
             return .exceedsSizeLimit
         case .batchByteLimitReached:
+            return .candidateLimitReached
+        case .fileCountLimitReached:
             return .candidateLimitReached
         case .artifactNotFound, .ambiguousArtifactName:
             return .notARegularFile

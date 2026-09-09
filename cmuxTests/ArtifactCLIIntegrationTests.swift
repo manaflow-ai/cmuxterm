@@ -63,6 +63,41 @@ struct ArtifactCLIIntegrationTests {
         #expect(results.compactMap { $0["relative_path"] as? String } == [relativePath])
         #expect(results.first?["matched_content"] as? Bool == true)
 
+        let noteWrite = try runCLI(
+            cliPath,
+            [
+                "note", "write", "release-note", "--text", "note body",
+                "--project", projectRoot.path, "--json", "--id-format", "refs",
+            ]
+        )
+        #expect(noteWrite.status == 0, Comment(rawValue: noteWrite.stderr))
+        let noteWritePayload = try jsonObject(noteWrite.stdout)
+        #expect((noteWritePayload["relative_path"] as? String)?.hasSuffix("/release-note.md") == true)
+
+        let noteRead = try runCLI(
+            cliPath,
+            ["note", "read", "release-note", "--project", projectRoot.path, "--json"]
+        )
+        #expect(noteRead.status == 0, Comment(rawValue: noteRead.stderr))
+        let noteReadPayload = try jsonObject(noteRead.stdout)
+        #expect(noteReadPayload["text"] as? String == "note body")
+
+        let emptySource = projectRoot.appendingPathComponent("source/empty.txt", isDirectory: false)
+        #expect(fileManager.createFile(atPath: emptySource.path, contents: Data()))
+        let emptyAdded = try runCLI(
+            cliPath,
+            ["artifact", "add", emptySource.path, "--project", projectRoot.path, "--json"]
+        )
+        #expect(emptyAdded.status == 0, Comment(rawValue: emptyAdded.stderr))
+        let emptyRelativePath = try #require(
+            jsonObject(emptyAdded.stdout)["relative_path"] as? String
+        )
+        let emptyOpened = try runCLI(
+            cliPath,
+            ["artifact", "open", emptyRelativePath, "--project", projectRoot.path]
+        )
+        #expect(emptyOpened.status == 0, Comment(rawValue: emptyOpened.stderr))
+
         let missing = try runCLI(
             cliPath,
             ["artifact", "open", "missing.md", "--project", projectRoot.path]

@@ -263,12 +263,41 @@ extension ArtifactByteReader {
         path: String,
         expectedCanonicalPath: String
     ) throws -> Int32 {
-        let descriptor = Darwin.open(
+        let flags = O_RDONLY | O_DIRECTORY | O_NONBLOCK | O_CLOEXEC
+        let noFollowDescriptor = Darwin.open(
             path,
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC
+            flags | O_NOFOLLOW
         )
-        guard descriptor >= 0 else {
-            throw filesystemError(errno: errno)
+        let descriptor: Int32
+        let descriptorCanonicalPath: String
+        if noFollowDescriptor >= 0 {
+            descriptor = noFollowDescriptor
+            descriptorCanonicalPath = expectedCanonicalPath
+        } else {
+            let errorCode = Darwin.errno
+            guard errorCode == ELOOP || errorCode == ENOTDIR else {
+                throw filesystemError(errno: errorCode)
+            }
+
+            if let aliasTarget = systemAliasTarget(for: path),
+               expectedCanonicalPath == path || expectedCanonicalPath == aliasTarget {
+                // System aliases such as `/tmp`, `/var`, and `/etc` are symlinks in the
+                // lexical path's final component. Retry only with the known
+                // canonical target; retaining O_NOFOLLOW avoids following a
+                // swapped or otherwise untrusted alias.
+                descriptor = Darwin.open(aliasTarget, flags | O_NOFOLLOW)
+                guard descriptor >= 0 else {
+                    throw filesystemError(errno: Darwin.errno)
+                }
+                descriptorCanonicalPath = aliasTarget
+            } else if canonicalPath(path) != expectedCanonicalPath {
+                // A non-system alias changed since authorization. Preserve
+                // the existing fail-closed error instead of misreporting the
+                // symlink as an ordinary non-directory.
+                throw Error.fileNotFound
+            } else {
+                throw filesystemError(errno: errorCode)
+            }
         }
         var metadata = Darwin.stat()
         guard Darwin.fstat(descriptor, &metadata) == 0 else {
@@ -280,7 +309,7 @@ extension ArtifactByteReader {
             Darwin.close(descriptor)
             throw Error.notDirectory
         }
-        guard descriptorMatchesPath(descriptor, expectedCanonicalPath: expectedCanonicalPath) else {
+        guard descriptorMatchesPath(descriptor, expectedCanonicalPath: descriptorCanonicalPath) else {
             Darwin.close(descriptor)
             throw Error.fileNotFound
         }
@@ -321,12 +350,41 @@ extension ArtifactByteReader {
         expectedIdentity: ChatArtifactFileIdentity? = nil
     ) throws -> Int32 {
         let expectedCanonicalPath = expectedCanonicalPath ?? canonicalPath(path)
-        let descriptor = Darwin.open(
+        let flags = O_RDONLY | O_DIRECTORY | O_NONBLOCK | O_CLOEXEC
+        let noFollowDescriptor = Darwin.open(
             path,
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC
+            flags | O_NOFOLLOW
         )
-        guard descriptor >= 0 else {
-            throw filesystemError(errno: Darwin.errno)
+        let descriptor: Int32
+        let descriptorCanonicalPath: String
+        if noFollowDescriptor >= 0 {
+            descriptor = noFollowDescriptor
+            descriptorCanonicalPath = expectedCanonicalPath
+        } else {
+            let errorCode = Darwin.errno
+            guard errorCode == ELOOP || errorCode == ENOTDIR else {
+                throw filesystemError(errno: errorCode)
+            }
+
+            if let aliasTarget = systemAliasTarget(for: path),
+               expectedCanonicalPath == path || expectedCanonicalPath == aliasTarget {
+                // System aliases such as `/tmp`, `/var`, and `/etc` are symlinks in
+                // the lexical path's final component. Retry only with the known
+                // canonical target; retaining O_NOFOLLOW avoids following a
+                // swapped or otherwise untrusted alias.
+                descriptor = Darwin.open(aliasTarget, flags | O_NOFOLLOW)
+                guard descriptor >= 0 else {
+                    throw filesystemError(errno: Darwin.errno)
+                }
+                descriptorCanonicalPath = aliasTarget
+            } else if canonicalPath(path) != expectedCanonicalPath {
+                // A non-system alias changed since authorization. Preserve the
+                // existing fail-closed error instead of misreporting the
+                // symlink as an ordinary non-directory.
+                throw Error.fileNotFound
+            } else {
+                throw filesystemError(errno: errorCode)
+            }
         }
         var metadata = Darwin.stat()
         guard Darwin.fstat(descriptor, &metadata) == 0 else {
@@ -346,7 +404,7 @@ extension ArtifactByteReader {
             Darwin.close(descriptor)
             throw Error.fileNotFound
         }
-        guard descriptorMatchesPath(descriptor, expectedCanonicalPath: expectedCanonicalPath) else {
+        guard descriptorMatchesPath(descriptor, expectedCanonicalPath: descriptorCanonicalPath) else {
             Darwin.close(descriptor)
             throw Error.fileNotFound
         }
@@ -449,7 +507,8 @@ extension ArtifactByteReader {
             .resolvingSymlinksInPath()
             .standardizedFileURL
             .path
-        return canonicalOpenedPath == expectedCanonicalPath
+        return systemAliasCanonicalPath(canonicalOpenedPath)
+            == systemAliasCanonicalPath(expectedCanonicalPath)
     }
 
     func canonicalPath(_ path: String) -> String {
@@ -457,6 +516,36 @@ extension ArtifactByteReader {
             .resolvingSymlinksInPath()
             .standardizedFileURL
             .path
+    }
+
+    func systemAliasTarget(for path: String) -> String? {
+        switch path {
+        case "/tmp":
+            return "/private/tmp"
+        case "/var":
+            return "/private/var"
+        case "/etc":
+            return "/private/etc"
+        default:
+            return nil
+        }
+    }
+
+    func systemAliasCanonicalPath(_ path: String) -> String {
+        for (alias, target) in [
+            ("/tmp", "/private/tmp"),
+            ("/var", "/private/var"),
+            ("/etc", "/private/etc"),
+        ] {
+            if path == alias {
+                return target
+            }
+            let aliasPrefix = "\(alias)/"
+            if path.hasPrefix(aliasPrefix) {
+                return target + String(path.dropFirst(alias.count))
+            }
+        }
+        return path
     }
 
     func kindForDescriptor(

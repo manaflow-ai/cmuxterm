@@ -154,6 +154,44 @@ struct ArtifactByteReaderTests {
         }
     }
 
+    @Test("identity capture and reads support a system alias parent")
+    func systemAliasParent() throws {
+        let aliasPath = "/tmp/cmux-artifact-alias-\(UUID().uuidString).txt"
+        try Data("alias content".utf8).write(to: URL(fileURLWithPath: aliasPath))
+        defer { try? FileManager.default.removeItem(atPath: aliasPath) }
+
+        let canonicalPath = URL(fileURLWithPath: aliasPath)
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+            .path
+        let reader = ArtifactByteReader()
+        let identity = try reader.identity(
+            path: aliasPath,
+            authorizedCanonicalPath: canonicalPath
+        )
+        let chunk = try reader.fetch(
+            path: aliasPath,
+            offset: 0,
+            length: 64,
+            authorizedCanonicalPath: canonicalPath,
+            authorizedIdentity: identity
+        )
+
+        #expect(String(data: chunk.data, encoding: .utf8) == "alias content")
+    }
+
+    @Test("directory listings support a system alias root")
+    func systemAliasDirectory() throws {
+        let fixtureName = "000000-cmux-artifact-alias-\(UUID().uuidString).txt"
+        let fixtureURL = URL(fileURLWithPath: "/tmp").appendingPathComponent(fixtureName)
+        try Data("alias directory entry".utf8).write(to: fixtureURL)
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let listing = try ArtifactByteReader().list(path: "/tmp")
+
+        #expect(listing.entries.contains { $0.name == fixtureName })
+    }
+
     @Test("a path removed from the Mac is reported as missing")
     func missingPath() throws {
         try withTemporaryDirectory { directory in

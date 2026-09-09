@@ -55,6 +55,16 @@ public struct ProjectFileTemporaryCopyCleaner {
         var reclaimable: [(url: URL, size: Int64, modifiedAt: Date)] = []
         var protectedCount = 0
         var protectedBytes: Int64 = 0
+        var unreclaimedCount = 0
+        var unreclaimedBytes: Int64 = 0
+
+        func recordUnreclaimed(_ size: Int64) {
+            unreclaimedCount += 1
+            unreclaimedBytes = unreclaimedBytes > Self.maximumByteCount - size
+                ? Self.maximumByteCount
+                : unreclaimedBytes + size
+        }
+
         for case let entry as URL in enumerator {
             guard entry.deletingLastPathComponent().standardizedFileURL.path == directoryPath,
                   entry.lastPathComponent.hasPrefix("cmux-project-file-") else {
@@ -99,12 +109,27 @@ public struct ProjectFileTemporaryCopyCleaner {
                 || (candidate.modifiedAt == oldest.modifiedAt
                     && candidate.url.path > oldest.url.path)
             if candidateIsNewer {
-                _ = unlink(oldest.url.path)
-                reclaimable[oldestIndex] = candidate
-            } else {
-                _ = unlink(candidate.url.path)
+                if removeExpiredCopy(at: oldest.url) {
+                    reclaimable[oldestIndex] = candidate
+                } else {
+                    // The failed eviction still occupies capacity even when
+                    // the newer candidate can be discarded successfully.
+                    recordUnreclaimed(oldest.size)
+                    if !removeExpiredCopy(at: candidate.url) {
+                        recordUnreclaimed(candidate.size)
+                    }
+                }
+            } else if !removeExpiredCopy(at: candidate.url) {
+                recordUnreclaimed(candidate.size)
             }
         }
+        guard protectedCount <= Self.maximumFileCount - reservingFileCount,
+              protectedBytes <= Self.maximumByteCount,
+              protectedBytes <= Self.maximumByteCount - reservingBytes else {
+            return false
+        }
+        let availableCount = Self.maximumFileCount - protectedCount - reservingFileCount
+        let availableBytes = Self.maximumByteCount - protectedBytes - reservingBytes
         reclaimable.sort {
             if $0.modifiedAt != $1.modifiedAt {
                 return $0.modifiedAt > $1.modifiedAt
@@ -114,24 +139,26 @@ public struct ProjectFileTemporaryCopyCleaner {
         var retainedBytes: Int64 = 0
         var retainedCount = 0
         for entry in reclaimable {
-            guard entry.size <= Self.maximumByteCount,
-                  retainedBytes <= Self.maximumByteCount - entry.size else {
-                _ = unlink(entry.url.path)
+            guard retainedCount < availableCount,
+                  entry.size <= availableBytes,
+                  retainedBytes <= availableBytes - entry.size else {
+                if !removeExpiredCopy(at: entry.url) {
+                    recordUnreclaimed(entry.size)
+                }
                 continue
             }
             retainedBytes += entry.size
             retainedCount += 1
         }
         // A zero-byte note/artifact still creates a leased temporary file, so
-        // reserve its slot independently of the byte reservation.
-        let requestedCount = reservingFileCount
-        guard protectedCount <= Self.maximumFileCount - requestedCount,
-              retainedCount <= Self.maximumFileCount - requestedCount - protectedCount,
-              protectedBytes <= Self.maximumByteCount,
-              retainedBytes <= Self.maximumByteCount - protectedBytes,
-              reservingBytes <= Self.maximumByteCount - protectedBytes - retainedBytes else {
-            return false
-        }
-        return true
+        // reserve its slot independently of the byte reservation. Failed
+        // unlinks remain counted because the next open will still observe them.
+        return unreclaimedCount <= availableCount - retainedCount
+            && unreclaimedBytes <= availableBytes - retainedBytes
+    }
+
+    private func removeExpiredCopy(at url: URL) -> Bool {
+        let result = unlink(url.path)
+        return result == 0 || errno == ENOENT
     }
 }

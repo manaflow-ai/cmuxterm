@@ -97,6 +97,10 @@ final class MobileHostIrxRuntime {
     /// Durable home of the lease (Keychain in Release, dev file store in
     /// DEBUG), loaded at activation so admission works offline.
     private var deviceListStore: IrxDeviceListStore?
+    /// Authenticated Bonjour publisher for the IRX endpoint. Iroh's native
+    /// candidate discovery handles public paths, while this publisher makes
+    /// same-account LAN candidates available to the client-side fallback.
+    private let lanPublisher = CmxIrohLANHostPublisher()
 
     func configure(auth: AuthCoordinator) {
         self.auth = auth
@@ -295,7 +299,11 @@ final class MobileHostIrxRuntime {
                             appVersion: IrxCtlClientInfo.appVersionString(
                                 infoDictionary: Bundle.main.infoDictionary),
                             releaseTrack: Self.hostReleaseTrack(),
-                            capabilities: ["cmux.irx.v2", "list-auth"]
+                            capabilities: [
+                                "cmux.irx.v2",
+                                "list-auth",
+                                "iroh.private_paths.v1",
+                            ]
                         ),
                         clientNamespace: namespace.rawValue
                     ),
@@ -346,7 +354,7 @@ final class MobileHostIrxRuntime {
             )
             localBinding = binding
             let credentials = try await pilot.usableCredentials()
-            _ = try await broker.discover()
+            let initialDiscovery = try await broker.discover()
             noteLiveDiscoverySucceeded()
 
             guard generationToken == token else { return }
@@ -354,9 +362,40 @@ final class MobileHostIrxRuntime {
             // Advertise the relay the endpoint ACTUALLY homes on, then
             // refresh the binding so registry consumers see it too.
             let homeRelay = await supervisor.homeRelayURL() ?? credentials.first?.relayURL
-            _ = try? await broker.register(pairingEnabled: true, relayURLHint: homeRelay)
+            let directAddresses = await supervisor.localDirectAddresses()
+            let directPorts = CmxIrohDirectPorts(localDirectAddresses: directAddresses)
+            _ = try? await broker.register(
+                pairingEnabled: true,
+                relayURLHint: homeRelay,
+                directAddresses: directAddresses,
+                directPorts: directPorts
+            )
             if let control, let homeRelay {
                 await control.publishHint(homeRelayURL: homeRelay)
+            }
+            let liveDiscovery = (try? await broker.discover(maximumAge: 0)) ?? initialDiscovery
+            if !Self.forceRelayOnly,
+               MobileHostService.isListeningEnabled,
+               let discoveredBinding = liveDiscovery.bindings.first(where: {
+                   $0.endpointID.endpointID == identity.endpointIDHex
+               }),
+               let bindingMetadata = try? CmxIrohBrokerBindingMetadata(
+                   bindingID: discoveredBinding.bindingID,
+                   deviceID: discoveredBinding.deviceID,
+                   appInstanceID: discoveredBinding.appInstanceID,
+                   clientNamespace: discoveredBinding.clientNamespace,
+                   tag: discoveredBinding.tag,
+                   platform: discoveredBinding.platform,
+                   endpointID: discoveredBinding.endpointID,
+                   identityGeneration: discoveredBinding.identityGeneration,
+                   pathHints: discoveredBinding.pathHints
+               )
+            {
+                await lanPublisher.activate(
+                    rendezvous: liveDiscovery.lanRendezvous,
+                    binding: bindingMetadata,
+                    directAddresses: { await supervisor.localDirectAddresses() }
+                )
             }
             // Relay hints are server-capped at 1h; refresh the registration on
             // every credential rotation so the advertised hint never expires,
@@ -365,11 +404,23 @@ final class MobileHostIrxRuntime {
             await pilot.setOnRotation { [weak self, weak broker, weak supervisor] in
                 guard let broker, let supervisor else { return }
                 let relay = await supervisor.homeRelayURL()
+                let directAddresses = await supervisor.localDirectAddresses()
+                let directPorts = CmxIrohDirectPorts(localDirectAddresses: directAddresses)
                 try? await broker.registerHintIfNeeded(
-                    pairingEnabled: true, relayURLHint: relay)
+                    pairingEnabled: true,
+                    relayURLHint: relay,
+                    directAddresses: directAddresses,
+                    directPorts: directPorts
+                )
                 if let relay, let control {
                     await control.publishHint(homeRelayURL: relay)
                 }
+                await self?.lanPublisher.refresh()
+                await self?.publishRoute(
+                    identity: identity,
+                    relayURL: relay,
+                    directAddresses: directAddresses
+                )
                 // Credential rotation (and any home-relay move it reveals)
                 // changes the Settings snapshot's policy expiry and relay
                 // selection; push it to live subscribers.
@@ -377,7 +428,11 @@ final class MobileHostIrxRuntime {
             }
             await pilot.start()
 
-            publishRoute(identity: identity, relayURL: homeRelay)
+            publishRoute(
+                identity: identity,
+                relayURL: homeRelay,
+                directAddresses: directAddresses
+            )
             startAcceptLoop(token: token)
             Self.journal.record(
                 "host-runtime", "active",
@@ -418,6 +473,7 @@ final class MobileHostIrxRuntime {
             await autopilot.stop()
         }
         autopilot = nil
+        await lanPublisher.stop()
         if let registry {
             await registry.closeAll(code: .hostShutdown)
         }
@@ -532,10 +588,15 @@ final class MobileHostIrxRuntime {
     }
 
     /// Publishes the irx endpoint as THE iroh route: attach tickets, host
-    /// status, and presence all advertise it, so phones dial irx. v1 hints
-    /// carry the relay URL only (relay-first; private hints require network
-    /// profiles the irx runtime deliberately does not synthesize yet).
-    private func publishRoute(identity: IrxIdentity, relayURL: String?) {
+    /// status, and presence all advertise it, so phones dial irx. Relay and
+    /// validated public direct hints are published here. Private LAN
+    /// candidates stay on the authenticated Bonjour path and are never copied
+    /// into the public status route.
+    private func publishRoute(
+        identity: IrxIdentity,
+        relayURL: String?,
+        directAddresses: [String] = []
+    ) {
         guard let peerIdentity = try? CmxIrohPeerIdentity(endpointID: identity.endpointIDHex)
         else { return }
         var hints: [CmxIrohPathHint] = []
@@ -552,10 +613,28 @@ final class MobileHostIrxRuntime {
         {
             hints.append(hint)
         }
+        if !Self.forceRelayOnly {
+            for address in directAddresses {
+                guard hints.count < 16,
+                      let hint = try? CmxIrohPathHint(
+                          kind: .directAddress,
+                          value: address,
+                          source: .native,
+                          privacyScope: .publicInternet,
+                          observedAt: now,
+                          expiresAt: now.addingTimeInterval(30 * 60)
+                      ) else { continue }
+                if !hints.contains(hint) { hints.append(hint) }
+            }
+        }
         MobileHostPublicStatusCache.update(irohIdentity: peerIdentity, pathHints: hints)
         Self.journal.record(
             "host-runtime", "route-published",
-            ["hints": String(hints.count), "relay": relayURL ?? "-"]
+            [
+                "hints": String(hints.count),
+                "direct": String(hints.count { $0.kind == .directAddress }),
+                "relay": relayURL ?? "-",
+            ]
         )
     }
 
@@ -703,6 +782,10 @@ final class MobileHostIrxRuntime {
             authorization: .irohAdmission(admittedPeer),
             artifactTransfers: artifactRegistry,
             independentEventWriter: eventWriter,
+            // The bounded Iroh peer pool stays alive via transport keepalives.
+            // Control-idle timeout is for unowned legacy TCP connections and
+            // must not tear down a healthy multi-lane QUIC session.
+            idleTimeoutNanoseconds: 0,
             isCurrent: { [weak self] in
                 let runtime = self
                 return await MainActor.run { runtime?.generationToken == token }
@@ -730,7 +813,7 @@ final class MobileHostIrxRuntime {
         artifactRegistry: MobileHostIrohArtifactTransferRegistry,
         journal: IrxJournal
     ) async {
-        var terminalLaneCount = 0
+        let terminalLaneQuota = MobileHostIrxTerminalLaneQuota()
         while !Task.isCancelled {
             guard let lane = await irx.acceptLane() else { return }
             journal.record(
@@ -744,12 +827,11 @@ final class MobileHostIrxRuntime {
             case .keepalive:
                 _ = irx.respondKeepalive(on: lane)
             case .terminal:
-                guard terminalLaneCount < 4 else {
+                guard await terminalLaneQuota.reserve() else {
                     await lane.writer.reset(errorCode: 3)
                     await lane.reader.stop(errorCode: 3)
                     continue
                 }
-                terminalLaneCount += 1
                 let resource = lane.descriptor.resource ?? ""
                 let cursor = lane.descriptor.cursor
                 Task {
@@ -759,6 +841,22 @@ final class MobileHostIrxRuntime {
                         stream: lane.bidirectional(),
                         journal: journal
                     )
+                    await terminalLaneQuota.release()
+                }
+            case .terminalInput:
+                guard await terminalLaneQuota.reserve() else {
+                    await lane.writer.reset(errorCode: 3)
+                    await lane.reader.stop(errorCode: 3)
+                    continue
+                }
+                let resource = lane.descriptor.resource ?? ""
+                Task {
+                    await MobileHostIrxTerminalLaneServer.serveInputOnly(
+                        resourceID: resource,
+                        stream: lane.bidirectional(),
+                        journal: journal
+                    )
+                    await terminalLaneQuota.release()
                 }
             case .artifact:
                 guard let resource = try? CmxIrohResourceID(lane.descriptor.resource ?? "")
@@ -806,6 +904,25 @@ final class MobileHostIrxRuntime {
                 await lane.reader.stop(errorCode: 2)
             }
         }
+    }
+}
+
+/// Tracks active IRX terminal lanes rather than cumulative opens. Replay
+/// barriers intentionally close and reopen lanes, so a connection must return
+/// its credit when a serving task finishes or the fast input lane eventually
+/// becomes permanently unavailable after four reopen cycles.
+private actor MobileHostIrxTerminalLaneQuota {
+    private static let maximum = 4
+    private var activeCount = 0
+
+    func reserve() -> Bool {
+        guard activeCount < Self.maximum else { return false }
+        activeCount += 1
+        return true
+    }
+
+    func release() {
+        activeCount = max(0, activeCount - 1)
     }
 }
 

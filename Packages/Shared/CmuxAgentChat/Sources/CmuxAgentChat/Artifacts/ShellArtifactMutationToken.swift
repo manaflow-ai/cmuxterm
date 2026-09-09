@@ -4,5 +4,6 @@ enum ShellArtifactMutationToken: Equatable {
     case outputRedirect
     case appendRedirect
     case readWriteRedirect
+    case duplicateRedirect
     case boundary
 }

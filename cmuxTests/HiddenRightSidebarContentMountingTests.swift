@@ -77,6 +77,7 @@ struct HiddenRightSidebarContentMountingTests {
             artifactStore: artifactRepository,
             artifactCaptureService: ArtifactCaptureService(store: artifactRepository),
             onResumeSession: nil,
+            onOpenSession: nil,
             onOpenFilePreview: { _ in },
             onOpenArtifact: { _ in },
             onOpenAsPane: { _ in },

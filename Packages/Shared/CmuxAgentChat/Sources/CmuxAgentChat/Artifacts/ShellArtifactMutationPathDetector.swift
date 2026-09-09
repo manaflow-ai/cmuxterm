@@ -40,6 +40,12 @@ public struct ShellArtifactMutationPathDetector: Sendable {
             switch tokens[index] {
             case .outputRedirect:
                 append(nextWord(after: index, in: tokens))
+            case .duplicateRedirect:
+                guard let target = nextWord(after: index, in: tokens),
+                      !target.allSatisfy(\.isNumber) else {
+                    continue
+                }
+                append(target)
             case .word, .appendRedirect, .readWriteRedirect, .boundary:
                 break
             }
@@ -152,7 +158,10 @@ public struct ShellArtifactMutationPathDetector: Sendable {
             }
             if character == ">" {
                 flushWord()
-                if characters[safe: index + 1] == ">" {
+                if characters[safe: index + 1] == "&" {
+                    tokens.append(.duplicateRedirect)
+                    index += 2
+                } else if characters[safe: index + 1] == ">" {
                     tokens.append(.appendRedirect)
                     index += 2
                 } else {
@@ -195,7 +204,7 @@ public struct ShellArtifactMutationPathDetector: Sendable {
             switch token {
             case .word(let word): return word
             case .outputRedirect: continue
-            case .appendRedirect, .readWriteRedirect: return nil
+            case .appendRedirect, .readWriteRedirect, .duplicateRedirect: return nil
             case .boundary: return nil
             }
         }

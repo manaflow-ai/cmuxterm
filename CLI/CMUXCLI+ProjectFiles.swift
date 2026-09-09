@@ -187,11 +187,17 @@ extension CMUXCLI {
             if duplicate >= 0 { _ = Darwin.close(duplicate) }
             throw CLIError(message: ArtifactTerminalTextSanitizer().sanitize(failureMessage))
         }
-        let handle = FileHandle(fileDescriptor: duplicate, closeOnDealloc: false)
-        guard let data = try? handle.read(upToCount: Int(status.st_size) + 1),
-              data.count <= 64 * 1024 * 1024 else {
-            _ = Darwin.close(duplicate)
-            throw CLIError(message: ArtifactTerminalTextSanitizer().sanitize(failureMessage))
+        let data: Data
+        if status.st_size == 0 {
+            data = Data()
+        } else {
+            let handle = FileHandle(fileDescriptor: duplicate, closeOnDealloc: false)
+            guard let readData = try? handle.read(upToCount: Int(status.st_size) + 1),
+                  readData.count <= 64 * 1024 * 1024 else {
+                _ = Darwin.close(duplicate)
+                throw CLIError(message: ArtifactTerminalTextSanitizer().sanitize(failureMessage))
+            }
+            data = readData
         }
         _ = Darwin.close(duplicate)
         let systemTemporaryDirectory = FileManager.default.temporaryDirectory

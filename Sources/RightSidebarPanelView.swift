@@ -11,6 +11,7 @@ import CmuxSidebarRemoteRender
 import CmuxSwiftRender
 import CmuxSwiftRenderUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum RightSidebarContentMountPolicy {
     static func shouldMountContent(isRightSidebarVisible: Bool, hasMountedContent: Bool) -> Bool {
@@ -42,6 +43,7 @@ struct RightSidebarPanelView: View {
     let workspaceId: UUID?
     let artifactWorkspace: ArtifactSidebarWorkspace?
     let onResumeSession: ((SessionEntry) -> Void)?
+    let onOpenSession: ((SessionEntry) -> Void)?
     let onOpenFilePreview: (String) -> Void
     let onOpenArtifact: (ArtifactSidebarRowSnapshot) -> Void
     let onOpenAsPane: (RightSidebarMode) -> Void
@@ -58,6 +60,7 @@ struct RightSidebarPanelView: View {
     @State private var closeShortcutHintMonitor = WindowScopedShortcutHintModifierMonitor(activation: .commandOnly)
     @State private var hasMountedRightSidebarContent = false
     @State private var artifactSidebarModel: ArtifactSidebarModel
+    @State private var draggingModeBarMode: RightSidebarMode?
     @State private var keyboardShortcutSettingsObserver = KeyboardShortcutSettingsObserver.shared
     private let alwaysShowShortcutHints = ShortcutHintDebugSettings().alwaysShowHints
     private let closeShortcutHintXOffset = ShortcutHintDebugSettings.defaultRightSidebarCloseHintX
@@ -79,6 +82,7 @@ struct RightSidebarPanelView: View {
     /// the remote host swaps files in place on one client, so a shared client
     /// would make the two rails fight over one worker process.
     @State private var customSidebarWorkerClient: RenderWorkerClient?
+    @State private var managedPolicyRevision = 0
 
     init(
         tabManager: TabManager,
@@ -93,10 +97,12 @@ struct RightSidebarPanelView: View {
         artifactStore: any ArtifactStoring,
         artifactCaptureService: any ArtifactCapturing,
         onResumeSession: ((SessionEntry) -> Void)?,
+        onOpenSession: ((SessionEntry) -> Void)?,
         onOpenFilePreview: @escaping (String) -> Void,
         onOpenArtifact: @escaping (ArtifactSidebarRowSnapshot) -> Void,
         onOpenAsPane: @escaping (RightSidebarMode) -> Void,
-        onClose: @escaping () -> Void
+        onClose: @escaping () -> Void,
+        customSidebarDataContext: @escaping (Date) -> [String: SwiftValue]
     ) {
         self.tabManager = tabManager
         self.fileExplorerStore = fileExplorerStore
@@ -108,10 +114,12 @@ struct RightSidebarPanelView: View {
         self.workspaceId = workspaceId
         self.artifactWorkspace = artifactWorkspace
         self.onResumeSession = onResumeSession
+        self.onOpenSession = onOpenSession
         self.onOpenFilePreview = onOpenFilePreview
         self.onOpenArtifact = onOpenArtifact
         self.onOpenAsPane = onOpenAsPane
         self.onClose = onClose
+        self.customSidebarDataContext = customSidebarDataContext
         _artifactSidebarModel = State(
             initialValue: ArtifactSidebarModel(store: artifactStore, captureService: artifactCaptureService)
         )
@@ -124,13 +132,37 @@ struct RightSidebarPanelView: View {
         FeedCoordinator.shared.store?.pending.count ?? 0
     }
 
-    private var availableModes: [RightSidebarMode] {
-        RightSidebarMode.availableModes(
+    private var featureAvailableModes: [RightSidebarMode] {
+        _ = managedPolicyRevision
+        return RightSidebarMode.availableModes(
             artifactsEnabled: artifactsEnabled && featureFlags.isArtifactsEnabled,
             feedEnabled: feedEnabled,
             dockEnabled: dockEnabled,
-            machinesEnabled: CmuxFeatureFlags.shared.isCloudVMUIEnabled || cloudMachinesBetaEnabled
+            machinesEnabled: CloudMachinesFeature.isEnabled
         )
+    }
+
+    /// Feature-available tabs in the user's order, for the customization
+    /// context menu: hidden tabs stay listed so they can be re-shown.
+    private var customizableModes: [RightSidebarMode] {
+        let featureAvailable = featureAvailableModes
+        return RightSidebarTabPreferences.orderedModes().filter(featureAvailable.contains)
+    }
+
+    private var availableModes: [RightSidebarMode] {
+        // Tab-preference mutations post the shortcuts didChange notification,
+        // which bumps this revision; reading it keeps the bar live when tabs
+        // are hidden, shown, or reordered.
+        _ = keyboardShortcutSettingsObserver.revision
+        let featureAvailable = featureAvailableModes
+        let hidden = RightSidebarTabPreferences.hiddenModes()
+        // An explicitly selected hidden tab (CLI, palette, notification
+        // routing) stays revealed in its own slot while it is active.
+        let active = fileExplorerState.mode
+        let modes = RightSidebarTabPreferences.orderedModes().filter { mode in
+            featureAvailable.contains(mode) && (!hidden.contains(mode) || mode == active)
+        }
+        return modes.isEmpty ? featureAvailable : modes
     }
 
     private var modeBarItems: [RightSidebarModeBarItem] {
@@ -206,6 +238,13 @@ struct RightSidebarPanelView: View {
             refreshModeAvailabilityAndFocusIfNeeded()
         }
         .onChange(of: cloudMachinesBetaEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
+        .onReceive(NotificationCenter.default.publisher(for: RightSidebarTabPreferences.didChangeNotification)) { _ in
+            refreshModeAvailabilityAndFocusIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ManagedDevicePolicy.didChangeNotification)) { _ in
+            managedPolicyRevision &+= 1
+            refreshModeAvailabilityAndFocusIfNeeded()
+        }
     }
 
     private var modeBar: some View {
@@ -214,6 +253,7 @@ struct RightSidebarPanelView: View {
             WindowDragHandleView()
 
             HStack(spacing: RightSidebarChromeMetrics.headerControlSpacing) {
+                let displayedModes = availableModes
                 ForEach(modeBarItems) { item in
                     let shortcut = item.shortcutAction.map { KeyboardShortcutSettings.shortcut(for: $0) } ?? .unbound
                     ModeBarButton(
@@ -239,6 +279,18 @@ struct RightSidebarPanelView: View {
                             selectMode(mode)
                         }
                     }
+                    .onDrag {
+                        draggingModeBarMode = item.mode
+                        return RightSidebarModeDragPayload.provider(for: item.mode)
+                    }
+                    .onDrop(
+                        of: [RightSidebarModeDragPayload.dropContentType],
+                        delegate: RightSidebarModeBarDropDelegate(
+                            targetMode: item.mode,
+                            displayedModes: displayedModes,
+                            draggingMode: $draggingModeBarMode
+                        )
+                    )
                 }
                 Spacer(minLength: 0)
                 if fileExplorerState.mode.canOpenAsPane {
@@ -247,7 +299,12 @@ struct RightSidebarPanelView: View {
                 closeButton
             }
         }
-        .rightSidebarChromeBar(leadingPadding: 4, trailingPadding: 6, height: titlebarHeight)
+        .rightSidebarChromeBar(
+            leadingPadding: RightSidebarChromeMetrics.headerLeadingPadding,
+            trailingPadding: RightSidebarChromeMetrics.headerTrailingPadding,
+            height: titlebarHeight
+        )
+        .contextMenu { tabCustomizationMenu }
         .overlay(alignment: .topLeading) {
             focusShortcutHintOverlay
         }
@@ -258,6 +315,27 @@ struct RightSidebarPanelView: View {
             isVisible: true,
             titlebarHeight: titlebarHeight
         )
+    }
+
+    /// Right-click menu on the mode bar: show/hide each tab in place, plus a
+    /// jump to the Settings card that also reorders them.
+    @ViewBuilder
+    private var tabCustomizationMenu: some View {
+        let visibleCount = RightSidebarMode.visibleModes().count
+        ForEach(customizableModes, id: \.self) { mode in
+            let isShown = !RightSidebarTabPreferences.isHidden(mode)
+            Toggle(isOn: Binding(
+                get: { isShown },
+                set: { RightSidebarTabPreferences.setHidden(!$0, mode: mode) }
+            )) {
+                Text(mode.label)
+            }
+            .disabled(isShown && visibleCount == 1)
+        }
+        Divider()
+        Button(String(localized: "rightSidebar.tabs.customize", defaultValue: "Customize Tabs…")) {
+            SettingsWindowPresenter.show(navigationTarget: .sidebarAppearance)
+        }
     }
 
     private func openAsPaneButton(mode: RightSidebarMode) -> some View {
@@ -390,8 +468,12 @@ struct RightSidebarPanelView: View {
             case .sessions:
                 SessionIndexView(
                     store: sessionIndexStore,
-                    chromeBackgroundColor: windowAppearance.resolvedChromeBackgroundColor,
-                    onResume: onResumeSession
+                    onResume: onResumeSession,
+                    onOpen: onOpenSession,
+                    activeSessionKeys: SessionEntryResumeCoordinator.inPaneSessionKeys(tabManager: tabManager),
+                    onFocus: { entry in
+                        _ = SessionEntryResumeCoordinator.focusIfActive(entry, tabManager: tabManager)
+                    }
                 )
                     .onAppear {
                         sessionIndexStore.setCurrentDirectoryIfChanged(sessionIndexDirectory)
@@ -535,9 +617,11 @@ extension RightSidebarPanelView {
         windowAppearance: WindowAppearanceSnapshot,
         workspaceId: UUID?,
         onResumeSession: ((SessionEntry) -> Void)?,
+        onOpenSession: ((SessionEntry) -> Void)? = nil,
         onOpenFilePreview: @escaping (String) -> Void,
         onOpenAsPane: @escaping (RightSidebarMode) -> Void,
-        onClose: @escaping () -> Void
+        onClose: @escaping () -> Void,
+        customSidebarDataContext: @escaping (Date) -> [String: SwiftValue] = { _ in [:] }
     ) {
         let artifactRepository = LocalArtifactRepository()
         self.init(
@@ -553,10 +637,91 @@ extension RightSidebarPanelView {
             artifactStore: artifactRepository,
             artifactCaptureService: ArtifactCaptureService(store: artifactRepository),
             onResumeSession: onResumeSession,
+            onOpenSession: onOpenSession,
             onOpenFilePreview: onOpenFilePreview,
             onOpenArtifact: { _ in },
             onOpenAsPane: onOpenAsPane,
-            onClose: onClose
+            onClose: onClose,
+            customSidebarDataContext: customSidebarDataContext
         )
+    }
+}
+
+/// Drag payload for reordering the mode bar's tabs in place. Same shape as
+/// `SidebarTabDragPayload`: an in-process custom UTI (declared in
+/// `Resources/Info.plist` under `UTExportedTypeDeclarations`) carrying the
+/// dragged mode's raw value.
+enum RightSidebarModeDragPayload {
+    static let typeIdentifier = "com.cmux.right-sidebar-mode-reorder"
+    static let dropContentType = UTType(exportedAs: typeIdentifier)
+
+    static func provider(for mode: RightSidebarMode) -> NSItemProvider {
+        let provider = NSItemProvider()
+        let data = Data(mode.rawValue.utf8)
+        provider.registerDataRepresentation(
+            forTypeIdentifier: typeIdentifier,
+            visibility: .ownProcess
+        ) { completion in
+            completion(data, nil)
+            return nil
+        }
+        return provider
+    }
+}
+
+/// Pure hover-reorder math for the mode bar, kept UI-free so unit tests cover
+/// the move without a drag session.
+enum RightSidebarModeBarReorderPolicy {
+    /// The displayed order after dragging `dragged` over `target`, or nil when
+    /// the hover changes nothing (same pill, or either mode absent).
+    static func displayedOrder(
+        moving dragged: RightSidebarMode,
+        over target: RightSidebarMode,
+        in displayed: [RightSidebarMode]
+    ) -> [RightSidebarMode]? {
+        guard dragged != target,
+              let from = displayed.firstIndex(of: dragged),
+              let to = displayed.firstIndex(of: target),
+              from != to else {
+            return nil
+        }
+        var next = displayed
+        next.remove(at: from)
+        next.insert(dragged, at: to)
+        return next
+    }
+}
+
+/// Reorders the mode bar while a pill drags across its siblings. Like the
+/// workspace-tab reorder, the order commits live on every hover step
+/// (`RightSidebarTabPreferences` is the single mutation path and its change
+/// notification re-renders the bar), so there is no separate cancel state to
+/// reconcile.
+struct RightSidebarModeBarDropDelegate: DropDelegate {
+    let targetMode: RightSidebarMode
+    let displayedModes: [RightSidebarMode]
+    @Binding var draggingMode: RightSidebarMode?
+
+    func dropEntered(info: DropInfo) {
+        guard let dragging = draggingMode,
+              let next = RightSidebarModeBarReorderPolicy.displayedOrder(
+                moving: dragging,
+                over: targetMode,
+                in: displayedModes
+              ) else {
+            return
+        }
+        withAnimation(.easeInOut(duration: 0.15)) {
+            RightSidebarTabPreferences.setDisplayedOrder(next)
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingMode = nil
+        return true
     }
 }

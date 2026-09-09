@@ -204,7 +204,9 @@ struct ArtifactCaptureServiceTests {
         #expect(attempts.count == sources.count)
         #expect(await store.importCount == 1_024)
         #expect(attempts.suffix(76).allSatisfy {
-            if case .rejected(.batchByteLimitReached) = $0 { return true }
+            if case .rejected(.fileCountLimitReached(actual: 1_100, limit: 1_024)) = $0 {
+                return true
+            }
             return false
         })
     }

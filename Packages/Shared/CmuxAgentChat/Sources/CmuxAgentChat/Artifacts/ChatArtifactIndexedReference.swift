@@ -200,28 +200,42 @@ public struct ChatArtifactIndexedReference: Sendable, Equatable, Codable, Identi
         } else {
             captureAuthorization = previous?.captureAuthorization ?? candidateAuthorization
         }
-        byPath[canonicalPath] = ChatArtifactIndexedReference(
+        let updated = ChatArtifactIndexedReference(
             path: canonicalPath,
             provenance: previous?.provenance.preferred(over: provenance) ?? provenance,
             lastReferencedSeq: max(previous?.lastReferencedSeq ?? Int.min, seq),
             captureAuthorization: captureAuthorization
         )
+        byPath[canonicalPath] = updated
         recencyHeap.insert(
             path: canonicalPath,
-            seq: byPath[canonicalPath]?.lastReferencedSeq ?? seq
+            seq: updated.lastReferencedSeq,
+            evictionPriority: Self.evictionPriority(for: updated.provenance)
         )
         while byPath.count > maximumPathCount {
             guard let oldest = recencyHeap.pop() else { break }
             guard let current = byPath[oldest.path],
-                  current.lastReferencedSeq == oldest.seq else {
+                  current.lastReferencedSeq == oldest.seq,
+                  Self.evictionPriority(for: current.provenance) == oldest.evictionPriority else {
                 continue
             }
             byPath.removeValue(forKey: oldest.path)
         }
         if recencyHeap.count > maximumPathCount * 4 {
             recencyHeap.compact(
-                currentSequences: byPath.mapValues(\.lastReferencedSeq)
+                currentSequences: byPath.mapValues(\.lastReferencedSeq),
+                currentEvictionPriorities: byPath.mapValues {
+                    Self.evictionPriority(for: $0.provenance)
+                }
             )
+        }
+    }
+
+    private static func evictionPriority(for provenance: ChatArtifactProvenance) -> Int {
+        switch provenance {
+        case .referenced: 0
+        case .attached: 1
+        case .created: 2
         }
     }
 }

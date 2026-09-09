@@ -1189,27 +1189,35 @@ enum FilePreviewTextLoader {
     @concurrent
     static func load(
         url: URL,
-        maximumBytes: UInt64 = maximumLoadedTextBytes
+        maximumBytes: UInt64? = maximumLoadedTextBytes,
+        decodeUTF16: Bool = true
     ) async -> Result {
-        loadSynchronously(url: url, maximumBytes: maximumBytes)
+        loadSynchronously(
+            url: url,
+            maximumBytes: maximumBytes,
+            decodeUTF16: decodeUTF16
+        )
     }
 
     static func loadSynchronously(
         url: URL,
-        maximumBytes: UInt64 = maximumLoadedTextBytes
+        maximumBytes: UInt64? = maximumLoadedTextBytes,
+        decodeUTF16: Bool = true
     ) -> Result {
         guard FileManager.default.fileExists(atPath: url.path) else {
             return .unavailable
         }
         guard let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
-              fileSize >= 0,
-              UInt64(fileSize) <= maximumBytes else {
+              fileSize >= 0 else {
+            return .unavailable
+        }
+        if let maximumBytes, UInt64(fileSize) > maximumBytes {
             return .unavailable
         }
 
         do {
             let data = try Data(contentsOf: url)
-            guard let decoded = decodeText(data) else {
+            guard let decoded = decodeText(data, decodeUTF16: decodeUTF16) else {
                 return .unavailable
             }
             return .loaded(content: decoded.content, encoding: decoded.encoding)
@@ -1218,11 +1226,14 @@ enum FilePreviewTextLoader {
         }
     }
 
-    private static func decodeText(_ data: Data) -> (content: String, encoding: String.Encoding)? {
+    private static func decodeText(
+        _ data: Data,
+        decodeUTF16: Bool
+    ) -> (content: String, encoding: String.Encoding)? {
         if let decoded = String(data: data, encoding: .utf8) {
             return (decoded, .utf8)
         }
-        if let decoded = String(data: data, encoding: .utf16) {
+        if decodeUTF16, let decoded = String(data: data, encoding: .utf16) {
             return (decoded, .utf16)
         }
         if let decoded = String(data: data, encoding: .isoLatin1) {
@@ -1273,6 +1284,7 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
     @Published private(set) var focusFlashToken = 0
     @Published private(set) var previewMode: FilePreviewMode
     let previewRevisionState = FilePreviewRevision()
+    private let textContentRevisionState = FilePreviewRevision()
 
     let nativeViewSessions = FilePreviewNativeViewSessions()
 
@@ -1280,8 +1292,9 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
     private var textEncoding: String.Encoding = .utf8
     private var saveGeneration = 0
     private var activeSaveGeneration: Int?
-    var fileChangeWatcher: FileWatcher?
-    var fileChangeTask: Task<Void, Never>?
+    var fileContentChangeCoordinator: FileContentChangeCoordinator
+    var fileContentObservationID: UUID?
+    var fileContentObservationLifetime: FileContentObservationLifetime?
     var fileChangeReloadTask: Task<Void, Never>?
     /// The one container currently projecting this panel's tab metadata.
     weak var tabMetadataHost: (any FilePreviewTabMetadataHost)?
@@ -1289,6 +1302,7 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
     var isClosed = false
     weak var textView: NSTextView?
     let focusCoordinator: FilePreviewFocusCoordinator
+    private let selectionReader = NativeTextSurfaceSelectionReader()
     private let textLoader: @Sendable (URL) async -> FilePreviewTextLoader.Result
     private let textSaver: @Sendable (String, URL, String.Encoding) async -> FilePreviewTextSaver.Result
     private let modeResolver: @Sendable (URL) async -> FilePreviewMode
@@ -1301,7 +1315,17 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
 
     /// Descriptor-backed URL used for reads of an artifact sidebar file.
     var readURL: URL {
-        artifactReadCopyURL ?? fileURL
+        if let artifactReadCopyURL {
+            return artifactReadCopyURL
+        }
+        // A refresh removes the materialized copy before asynchronously
+        // revalidating the pathname. Keep in-process readers on the original
+        // descriptor during that interval; falling back to `fileURL` would
+        // reopen a path that may have been replaced or symlinked elsewhere.
+        if let artifactFile {
+            return artifactFile.readURL
+        }
+        return fileURL
     }
 
     /// Artifact sidebar previews are read-only so a replaced pathname cannot
@@ -1314,11 +1338,16 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
         previewRevisionState.value
     }
 
+    var textContentRevision: Int {
+        textContentRevisionState.value
+    }
+
     init(
         workspaceId: UUID,
         filePath: String,
         startFileWatcher: Bool = true,
         artifactFile: ArtifactSidebarFileAccess.OpenedFile? = nil,
+        fileContentChangeCoordinator: FileContentChangeCoordinator? = nil,
         textLoader: @escaping @Sendable (URL) async -> FilePreviewTextLoader.Result = { url in
             await FilePreviewTextLoader.load(url: url)
         },
@@ -1336,6 +1365,8 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
         self.artifactFile = artifactFile
         self.artifactReadCopyURL = nil
         self.artifactPreviewTask = nil
+        self.fileContentChangeCoordinator =
+            fileContentChangeCoordinator ?? FileContentChangeCoordinator()
         self.displayTitle = URL(fileURLWithPath: filePath).lastPathComponent
         self.textLoader = textLoader
         self.textSaver = textSaver
@@ -1373,6 +1404,10 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
                 try? FileManager.default.removeItem(at: artifactReadCopyURL)
                 self.artifactReadCopyURL = nil
             }
+            // Native preview sessions may receive an unrelated SwiftUI update
+            // while the replacement copy is being staged. Hide them until the
+            // newly validated copy is ready so they cannot consume a stale URL.
+            isFileUnavailable = true
             guard artifactRoot != nil else {
                 isFileUnavailable = true
                 return nil
@@ -1470,6 +1505,7 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
         stopWatchingForFileChanges()
         textLoadCoordinator.cancel()
         modeLoadCoordinator.cancel()
+        selectionReader.close()
         nativeViewSessions.closeAll()
         textView = nil
         if let artifactReadCopyURL {
@@ -1479,9 +1515,39 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
         focusCoordinator.unregisterAll()
     }
 
+    func readSurfaceSelection() async -> SurfaceSelectionReadResult {
+        guard previewMode == .text else { return .unsupported }
+        return .snapshot(await selectionReader.read(
+            textView: textView,
+            kind: .filePreview,
+            filePath: filePath
+        ))
+    }
+
     /// Retargets container-scoped identity after a live panel transfer.
-    func updateWorkspaceId(_ workspaceId: UUID) {
+    func updateWorkspaceId(
+        _ workspaceId: UUID,
+        fileContentChangeCoordinator: FileContentChangeCoordinator? = nil
+    ) {
         self.workspaceId = workspaceId
+        guard let fileContentChangeCoordinator else {
+            if fileContentObservationID == nil, !isClosed {
+                startWatchingForFileChanges()
+            }
+            return
+        }
+        guard self.fileContentChangeCoordinator !== fileContentChangeCoordinator else {
+            if fileContentObservationID == nil, !isClosed {
+                startWatchingForFileChanges()
+            }
+            return
+        }
+        let wasWatching = fileContentObservationID != nil
+        stopWatchingForFileChanges()
+        self.fileContentChangeCoordinator = fileContentChangeCoordinator
+        if wasWatching, !isClosed {
+            startWatchingForFileChanges()
+        }
     }
 
     func triggerFlash(reason: WorkspaceAttentionFlashReason) {
@@ -1576,9 +1642,16 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
     }
 
     func updateTextContent(_ nextContent: String) {
-        guard textContent != nextContent else { return }
-        textContent = nextContent
+        guard replaceTextContentIfChanged(nextContent) else { return }
         setTabMetadataDirtyState(nextContent != originalTextContent)
+    }
+
+    @discardableResult
+    private func replaceTextContentIfChanged(_ nextContent: String) -> Bool {
+        guard textContent != nextContent else { return false }
+        textContent = nextContent
+        textContentRevisionState.increment()
+        return true
     }
 
     /// Re-resolves and reloads the current path. Toolbar actions and filesystem
@@ -1690,7 +1763,7 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
                 isFileUnavailable = true
                 return
             }
-            textContent = ""
+            _ = replaceTextContentIfChanged("")
             originalTextContent = ""
             setTabMetadataDirtyState(false)
             isFileUnavailable = true
@@ -1703,7 +1776,7 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
                 isFileUnavailable = false
                 return
             }
-            textContent = content
+            _ = replaceTextContentIfChanged(content)
             originalTextContent = content
             textEncoding = encoding
             setTabMetadataDirtyState(false)
@@ -1718,7 +1791,7 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
         guard !isSaving else { return nil }
         let currentContent = textView?.string ?? textContent
         guard currentContent != originalTextContent else {
-            textContent = currentContent
+            _ = replaceTextContentIfChanged(currentContent)
             setTabMetadataDirtyState(false)
             return nil
         }
@@ -1726,14 +1799,32 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
         textLoadCoordinator.cancel()
         saveGeneration += 1
         let generation = saveGeneration
-        textContent = currentContent
+        _ = replaceTextContentIfChanged(currentContent)
         isSaving = true
         activeSaveGeneration = generation
         let fileURL = readURL
         let encoding = textEncoding
         let textSaver = textSaver
-        return Task { [weak self, currentContent, fileURL, encoding, generation, textSaver] in
-            let result = await textSaver(currentContent, fileURL, encoding)
+        let fileContentChangeCoordinator = fileContentChangeCoordinator
+        let fileContentObservationID = fileContentObservationID
+        return Task {
+            [weak self, currentContent, fileURL, encoding, generation,
+             textSaver, fileContentChangeCoordinator, fileContentObservationID] in
+            let result = await fileContentChangeCoordinator.saveTextContent(
+                currentContent,
+                to: fileURL,
+                encoding: encoding,
+                using: textSaver,
+                excluding: fileContentObservationID
+            )
+            if let self {
+                fileContentChangeCoordinator.republishSuccessfulSaveIfNeeded(
+                    result,
+                    to: self.fileContentChangeCoordinator,
+                    at: fileURL.path,
+                    excluding: self.fileContentObservationID
+                )
+            }
             guard let self, self.activeSaveGeneration == generation else { return }
             self.activeSaveGeneration = nil
             self.isSaving = false
@@ -1781,6 +1872,8 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
         }
     }
 }
+
+extension FilePreviewPanel: FileContentChangeObservingPanel {}
 
 struct FilePreviewPanelView: View {
     @ObservedObject var panel: FilePreviewPanel
@@ -1873,7 +1966,9 @@ struct FilePreviewPanelView: View {
                     themeBackgroundColor: contentBackgroundColor,
                     themeForegroundColor: themeForegroundColor,
                     drawsBackground: appearance.drawsContentBackground,
-                    wordWrap: fileEditorWordWrap
+                    gutterBackgroundColor: appearance.backgroundColor,
+                    wordWrap: fileEditorWordWrap,
+                    filePath: panel.filePath
                 )
             case .pdf:
                 FilePreviewPDFView(
@@ -1922,7 +2017,7 @@ struct FilePreviewPanelView: View {
                 .cmuxFont(size: 12, design: .monospaced)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .textSelection(.enabled)
+                .copyOnlyTextSelection(for: panel.filePath)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 24)
             Text(String(localized: "filePreview.fileUnavailable.message", defaultValue: "The file may have been moved or deleted."))

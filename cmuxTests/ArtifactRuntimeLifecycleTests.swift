@@ -14,6 +14,32 @@ import Testing
 @Suite("Artifact runtime lifecycle")
 @MainActor
 struct ArtifactRuntimeLifecycleTests {
+    @Test("Shell mutation detection preserves fd-duplication redirects")
+    func shellMutationDetectionPreservesFileTargetsAroundFdDuplication() {
+        let detector = ShellArtifactMutationPathDetector()
+
+        #expect(
+            detector.pathsAttributedToSuccessfulCommand(
+                in: "python3 render.py > /tmp/out.html 2>&1"
+            ) == ["/tmp/out.html"]
+        )
+        #expect(
+            detector.pathsAttributedToSuccessfulCommand(
+                in: "python3 render.py >> /tmp/out.html 2>&1"
+            ) == ["/tmp/out.html"]
+        )
+        #expect(
+            detector.pathsAttributedToSuccessfulCommand(
+                in: "python3 render.py >& /tmp/out.html"
+            ) == ["/tmp/out.html"]
+        )
+        #expect(
+            detector.pathsAttributedToSuccessfulCommand(
+                in: "python3 render.py 2>&1"
+            ).isEmpty
+        )
+    }
+
     @Test("Workspace grouping uses the restart-stable workspace identity")
     func workspaceGroupingUsesStableIdentity() throws {
         let root = try temporaryDirectory()
