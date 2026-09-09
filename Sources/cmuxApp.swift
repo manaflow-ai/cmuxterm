@@ -5032,6 +5032,7 @@ private struct AboutVisualEffectBackground: NSViewRepresentable {
 }
 
 enum AppIconMode: String, CaseIterable, Identifiable {
+    case system
     case automatic
     case light
     case dark
@@ -5040,6 +5041,7 @@ enum AppIconMode: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
+        case .system: return String(localized: "appIcon.system", defaultValue: "System")
         case .automatic: return String(localized: "appIcon.automatic", defaultValue: "Automatic")
         case .light: return String(localized: "appIcon.light", defaultValue: "Light")
         case .dark: return String(localized: "appIcon.dark", defaultValue: "Dark")
@@ -5048,6 +5050,7 @@ enum AppIconMode: String, CaseIterable, Identifiable {
 
     var imageName: String? {
         switch self {
+        case .system: return nil
         case .automatic: return nil
         case .light: return "AppIconLight"
         case .dark: return "AppIconDark"
@@ -5075,7 +5078,7 @@ enum AppIconLaunchState {
 
 enum AppIconSettings {
     static let modeKey = "appIconMode"
-    static let defaultMode: AppIconMode = .automatic
+    static let defaultMode: AppIconMode = .system
     private static let dockTileIconDidChangeNotification = Notification.Name("com.cmuxterm.appIconDidChange")
     private static var liveEnvironmentProvider: () -> Environment = { .live() }
 
@@ -5095,6 +5098,7 @@ enum AppIconSettings {
         let isApplicationFinishedLaunching: () -> Bool
         let imageForMode: (AppIconMode) -> NSImage?
         let setApplicationIconImage: (NSImage) -> Void
+        let restoreBundleIconImage: () -> Void
         let startAppearanceObservation: () -> Void
         let stopAppearanceObservation: () -> Void
         let notifyDockTilePlugin: () -> Void
@@ -5110,6 +5114,11 @@ enum AppIconSettings {
                 },
                 setApplicationIconImage: { icon in
                     NSApplication.shared.applicationIconImage = icon
+                },
+                restoreBundleIconImage: {
+                    // nil restores the bundle's own icon, which is the layered
+                    // one macOS applies its appearance treatment to.
+                    NSApplication.shared.applicationIconImage = nil
                 },
                 startAppearanceObservation: {
                     AppIconAppearanceObserver.shared.startObserving()
@@ -5146,6 +5155,13 @@ enum AppIconSettings {
         guard environment.isApplicationFinishedLaunching() else { return }
 
         switch mode {
+        case .system:
+            // macOS applies Dark, Tinted and Clear treatment to the bundle's
+            // layered icon only, never to an NSImage assigned at runtime.
+            // A previous light/dark/automatic selection may have left one
+            // installed, so drop it rather than merely stopping observation.
+            environment.stopAppearanceObservation()
+            environment.restoreBundleIconImage()
         case .automatic:
             environment.startAppearanceObservation()
         case .light:
