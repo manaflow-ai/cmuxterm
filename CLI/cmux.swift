@@ -427,11 +427,17 @@ final class ClaudeHookSessionStore {
 
     enum PromptStopResult: Equatable {
         case applied(nested: Bool)
+        case alreadySettled
         case rejectedByLifecycleFence
 
         var nested: Bool {
             guard case .applied(let nested) = self else { return false }
             return nested
+        }
+
+        var wasAlreadySettled: Bool {
+            if case .alreadySettled = self { return true }
+            return false
         }
 
         var wasRejectedByLifecycleFence: Bool {
@@ -1318,6 +1324,7 @@ final class ClaudeHookSessionStore {
         runtimeStatus: AgentHookRuntimeStatus? = nil,
         updateRuntimeStatus: Bool = false,
         settleOnlyIfPromptActive: Bool = false,
+        enforcePromptLifecycleRevision: Bool = false,
         expectedPromptLifecycleRevision: Int64? = nil,
         autoNameMessages: [AutoNamingTranscriptMessage] = []
     ) throws -> PromptStopResult {
@@ -1348,11 +1355,17 @@ final class ClaudeHookSessionStore {
             // is still authoritative when the prompt is already idle: Stop
             // and completion Notification are allowed to project their final
             // status, notification summary, and resume binding in that case.
-            guard !settleOnlyIfPromptActive || promptRevisionMatches else {
+            guard !enforcePromptLifecycleRevision || promptRevisionMatches else {
                 return .rejectedByLifecycleFence
             }
+            // SessionEnd is the only caller that requires an active prompt at
+            // commit time. Its unlocked routing snapshot can race a Stop that
+            // has already settled the depth-zero state; preserve that accepted
+            // state instead of replaying the stale idle projection.
+            guard !settleOnlyIfPromptActive || depthBeforeStop > 0 else {
+                return .alreadySettled
+            }
             let shouldSettleAuthoritativeBoundary = promptDepthPolicy.closesActivePrompt
-                && (!settleOnlyIfPromptActive || promptRevisionMatches)
             let depthAfterStop = promptDepthPolicy.closesActivePrompt
                 ? 0
                 : max(0, depthBeforeStop - 1)
@@ -36029,7 +36042,8 @@ export default CMUXSessionRestore;
                     lastBody: nil,
                     runtimeStatus: runtimeStatusAfterStop,
                     updateRuntimeStatus: true,
-                    settleOnlyIfPromptActive: def.promptDepthPolicy.closesActivePrompt,
+                    settleOnlyIfPromptActive: false,
+                    enforcePromptLifecycleRevision: def.promptDepthPolicy.closesActivePrompt,
                     expectedPromptLifecycleRevision: def.promptDepthPolicy.closesActivePrompt
                         ? mapped?.promptLifecycleRevision
                         : nil,
@@ -36753,7 +36767,8 @@ export default CMUXSessionRestore;
                         updateLastNotificationStatus: true,
                         runtimeStatus: storedRuntimeStatus,
                         updateRuntimeStatus: true,
-                        settleOnlyIfPromptActive: def.promptDepthPolicy.closesActivePrompt,
+                        settleOnlyIfPromptActive: false,
+                        enforcePromptLifecycleRevision: def.promptDepthPolicy.closesActivePrompt,
                         expectedPromptLifecycleRevision: def.promptDepthPolicy.closesActivePrompt
                             ? mapped?.promptLifecycleRevision
                             : nil,
@@ -37001,6 +37016,7 @@ export default CMUXSessionRestore;
                         // the newer durable running/needs-input/error state
                         // instead of replaying the stale idle decision.
                         settleOnlyIfPromptActive: true,
+                        enforcePromptLifecycleRevision: true,
                         expectedPromptLifecycleRevision: mapped.promptLifecycleRevision,
                         autoNameMessages: autoNamingMessages(
                             for: def,
