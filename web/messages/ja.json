@@ -2319,7 +2319,7 @@
       "currentWorkspaceDesc": "現在アクティブなワークスペースを取得。",
       "closeWorkspaceDesc": "ワークスペースを閉じる。",
       "splitCommands": "分割コマンド",
-      "newSplitDesc": "新しい分割ペインを作成。方向：left、right、up、down。",
+      "newSplitDesc": "新しい分割ペインを作成。方向：left、right、up、down。--command <text> を渡すと新しいターミナルのシェルでそのコマンドを実行し、終了後もシェルは開いたままになります。",
       "listSurfacesDesc": "現在のワークスペースのすべてのサーフェスを一覧表示。",
       "focusSurfaceDesc": "特定のサーフェスにフォーカス。",
       "inputCommands": "入力コマンド",
