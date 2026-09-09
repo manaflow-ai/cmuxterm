@@ -125,7 +125,7 @@ struct MobileTerminalLaneCoordinatorTests {
         await coordinator.deactivateAll()
     }
 
-    @Test
+    @Test(.timeLimit(.minutes(1)))
     func outputLaneDoesNotFallBackToInputOnlyProvider() async throws {
         let inputProvider = TerminalLaneTestProvider(lanes: [
             TerminalLaneTestConnection(
@@ -139,18 +139,28 @@ struct MobileTerminalLaneCoordinatorTests {
                 try await inputProvider.callAsFunction(request, surfaceID, cursor: cursor)
             }
         )
+        let cursorRequests = AsyncStream.makeStream(of: Void.self)
+        defer { cursorRequests.continuation.finish() }
+        var cursorIterator = cursorRequests.stream.makeAsyncIterator()
+        let readiness = TerminalLaneReadinessRecorder()
 
         await coordinator.ensure(Self.configuration(
             providerRequest: try Self.request(),
-            cursor: { nil },
+            cursor: {
+                cursorRequests.continuation.yield(())
+                return nil
+            },
             consume: { _ in .accepted(outputReady: true) },
-            readinessChanged: { _ in }
+            readinessChanged: { await readiness.append($0) }
         ))
-        try await Task.sleep(for: .milliseconds(10))
+        // Observe the lane task entering its open attempt before joining it.
+        // Teardown alone could cancel the task before it ever selects a provider.
+        #expect(await cursorIterator.next() != nil)
+        await coordinator.deactivateAll()
 
         #expect(await inputProvider.requestCount() == 0)
+        #expect(await readiness.values().isEmpty)
         #expect(await coordinator.isOutputReady(surfaceID: Self.surfaceID) == false)
-        await coordinator.deactivateAll()
     }
 
     @Test
