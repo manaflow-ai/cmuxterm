@@ -324,6 +324,14 @@ struct CloudPortOpenRegressionTests {
         )
         #expect(retained.map(\.id) == [previous[0].id])
         #expect(retained.first?.url == "http://10.0.0.7:8000")
+        let staleSSH = discoveredPort(22)
+        let retainedWithStaleSSH = CmuxTuiSurfaceProvider.portResources(
+            machine: machine,
+            scannedPorts: nil,
+            previousResources: [staleSSH, previous[0]],
+            privateAddress: "10.0.0.7"
+        )
+        #expect(retainedWithStaleSSH.map(\.id) == [previous[0].id], "an unavailable refresh must not resurrect a cached SSH listener")
         #expect(CmuxTuiSurfaceProvider.portResources(
             machine: machine,
             scannedPorts: [],
