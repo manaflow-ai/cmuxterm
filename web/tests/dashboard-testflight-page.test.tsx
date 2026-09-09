@@ -1,21 +1,7 @@
-import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import enMessages from "../messages/en.json";
-import {
-  TEST_STACK_PROJECT_ID,
-  nextHeadersMock,
-} from "./helpers/dashboard-session-mock";
-
-const previousStackProjectId = process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
-process.env.NEXT_PUBLIC_STACK_PROJECT_ID = TEST_STACK_PROJECT_ID;
-afterAll(() => {
-  if (previousStackProjectId === undefined) {
-    delete process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
-  } else {
-    process.env.NEXT_PUBLIC_STACK_PROJECT_ID = previousStackProjectId;
-  }
-});
 import {
   createTestflightUser,
   testflightUserEligibility,
@@ -29,12 +15,8 @@ let status = { enrolled: false } as { enrolled: boolean; state?: string };
 
 const pendingUser = new Promise<never>(() => {});
 const getUser = mock(async () => userPending ? pendingUser : currentUser);
-// The section receives the narrow session user, so eligibility is looked up
-// on the Stack user the test configured rather than on the argument.
 const isTestflightEligible = mock(async (user: unknown) =>
-  (user as { id?: string }).id === currentUser?.id
-    ? (testflightUserEligibility(currentUser) ?? false)
-    : false,
+  testflightUserEligibility(user) ?? false,
 );
 const billingProModule = await import("../services/billing/pro");
 const ascFetch = mock(async (path: unknown) => {
@@ -71,9 +53,9 @@ mock.module("next-intl/server", () => ({
   setRequestLocale: () => undefined,
 }));
 
-mock.module("next/headers", () =>
-  nextHeadersMock({ refreshToken: () => "refresh-1" }),
-);
+mock.module("next/headers", () => ({
+  headers: async () => new Headers(),
+}));
 
 mock.module("next/cache", () => ({
   cacheLife: () => undefined,
@@ -142,7 +124,7 @@ describe("dashboard TestFlight page", () => {
     captureAscError.mockClear();
   });
 
-  test("paints the page header and a section skeleton before the private content", () => {
+  test("keeps the page header hidden until the private page content is ready", () => {
     userPending = true;
 
     const html = renderToStaticMarkup(
@@ -152,9 +134,7 @@ describe("dashboard TestFlight page", () => {
       />,
     );
 
-    expect(html).toContain('data-testid="testflight-page-header"');
-    expect(html).toContain('data-testid="dashboard-section-skeleton"');
-    expect(html).not.toContain("/api/testflight");
+    expect(html).not.toContain('data-testid="testflight-page-header"');
   });
 
   test("renders not eligible state with pricing link", async () => {
@@ -163,6 +143,7 @@ describe("dashboard TestFlight page", () => {
     const html = await renderTestflightPage();
 
     expect(html).toContain("Subscription required");
+    expect(html).toContain('data-testid="testflight-page-header"');
     expect(html).toContain("active personal Pro subscribers");
     expect(html).toContain('href="/pricing"');
     expect(html).not.toContain("/api/testflight");
