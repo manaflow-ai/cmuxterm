@@ -218,13 +218,15 @@ public final class MobileMacListAuthState {
             entriesByEndpointID,
             stableMinimum: stable,
             nightlyMinimum: nightly,
-            shouldOverride: true
+            overrideStable: true,
+            overrideNightly: true
         )
         entriesByDeviceID = entriesWithMinimumSupportedVersions(
             entriesByDeviceID,
             stableMinimum: stable,
             nightlyMinimum: nightly,
-            shouldOverride: true
+            overrideStable: true,
+            overrideNightly: true
         )
         minimumSupportedMacVersion = stable
         minimumSupportedNightlyMacVersion = nightly
