@@ -66,18 +66,22 @@ import Testing
     }
 
     @Test func oversizedSleepUsesSafeChunksWithoutShorteningTheWait() async throws {
+        let firstSleep = RetryAfterTestTime()
         do {
             try await CmxRetryAfterPolicy.sleep(seconds: 18_446_744_074) { chunk in
-                #expect(chunk == 86_400)
+                firstSleep.record(chunk)
                 throw CancellationError()
             }
             Issue.record("Expected cancellation to stop the long sleep")
         } catch is CancellationError {}
+        #expect(firstSleep.recordedChunks == [86_400])
+
         let time = RetryAfterTestTime()
         try await CmxRetryAfterPolicy.sleep(seconds: 172_801) { chunk in
-            #expect(chunk > 0 && chunk <= 86_400)
+            time.record(chunk)
             time.advance(by: chunk)
         }
+        #expect(time.recordedChunks == [86_400, 86_400, 1])
         #expect(time.now == 172_801)
     }
 }
@@ -85,6 +89,7 @@ import Testing
 private final class RetryAfterTestTime: @unchecked Sendable {
     private let lock = NSLock()
     private var value: TimeInterval = 0
+    private var chunks: [TimeInterval] = []
 
     var now: TimeInterval {
         lock.withLock { value }
@@ -92,5 +97,13 @@ private final class RetryAfterTestTime: @unchecked Sendable {
 
     func advance(by delay: TimeInterval) {
         lock.withLock { value += delay }
+    }
+
+    var recordedChunks: [TimeInterval] {
+        lock.withLock { chunks }
+    }
+
+    func record(_ chunk: TimeInterval) {
+        lock.withLock { chunks.append(chunk) }
     }
 }

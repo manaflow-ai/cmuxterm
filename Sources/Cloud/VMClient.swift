@@ -2443,16 +2443,15 @@ actor MachineUsageClient {
         return nil
     }
 
+    // ISO8601FormatStyle is Sendable, so decoding stays nonisolated without mutable formatters.
+    private nonisolated static let iso8601WithFractions = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+    private nonisolated static let iso8601 = Date.ISO8601FormatStyle()
+
     /// `null`/absent is nil; an unparseable string is nil too, since the date
     /// only labels the readout and must never fail the whole payload.
     private nonisolated static func dateValue(_ raw: Any?) -> Date? {
         guard let text = raw as? String, !text.isEmpty else { return nil }
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: text) { return date }
-        let wholeSeconds = ISO8601DateFormatter()
-        wholeSeconds.formatOptions = [.withInternetDateTime]
-        return wholeSeconds.date(from: text)
+        return (try? iso8601WithFractions.parse(text)) ?? (try? iso8601.parse(text))
     }
 
     private func request(
