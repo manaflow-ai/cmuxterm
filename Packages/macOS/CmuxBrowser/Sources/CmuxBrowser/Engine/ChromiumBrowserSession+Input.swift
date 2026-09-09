@@ -209,9 +209,11 @@ extension ChromiumBrowserSession {
         guard !trimmed.isEmpty else { return "return undefined;" }
 
         var candidateEnd = trimmed.endIndex
+        var hadTrailingSemicolon = false
         while candidateEnd > trimmed.startIndex {
             let previous = trimmed.index(before: candidateEnd)
             guard trimmed[previous] == ";" else { break }
+            hadTrailingSemicolon = true
             candidateEnd = previous
             while candidateEnd > trimmed.startIndex,
                   trimmed[trimmed.index(before: candidateEnd)].isWhitespace {
@@ -220,7 +222,9 @@ extension ChromiumBrowserSession {
         }
         let candidate = String(trimmed[..<candidateEnd])
         guard let semicolon = owlTopLevelSemicolon(in: candidate) else {
-            return candidate
+            return hadTrailingSemicolon && !owlStartsWithStatementKeyword(candidate)
+                ? "return await (\(candidate));"
+                : candidate
         }
         let suffixStart = candidate.index(after: semicolon)
         let suffix = candidate[suffixStart...].trimmingCharacters(in: .whitespacesAndNewlines)
@@ -386,6 +390,15 @@ extension ChromiumBrowserSession {
     /// - Parameter text: Text to insert at the current page selection.
     /// - Throws: A CDP transport or command error.
     public func insertText(_ text: String) async throws {
+        if let owlRuntime {
+            // OWL exposes routed keyboard events rather than a CDP
+            // Input.insertText command. A text-bearing key pair follows the
+            // same native path as dispatchKey and produces a char event for
+            // IME/paste text without requiring a CDP connection.
+            try owlRuntime.key(down: true, keyCode: 0, text: text, modifiers: 0)
+            try owlRuntime.key(down: false, keyCode: 0, text: nil, modifiers: 0)
+            return
+        }
         _ = try await send(
             method: "Input.insertText",
             parameters: .object(["text": .string(text)])
