@@ -662,7 +662,7 @@
       ]
     },
     "pro": {
-      "name": "专业版",
+      "name": "Pro",
       "cta": "获取专业版",
       "featuresLead": "一切都是免费的，另外：",
       "features": [
@@ -707,24 +707,24 @@
       "rows": [
         {
           "label": "原生 macOS 终端，开源",
-          "free": "真实",
-          "pro": "真实",
-          "team": "真实",
-          "enterprise": "真实"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "使用您自己的密钥的本地 CLI 代理",
-          "free": "真实",
-          "pro": "真实",
-          "team": "真实",
-          "enterprise": "真实"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "垂直选项卡、拆分、通知、套接字 API",
-          "free": "真实",
-          "pro": "真实",
-          "team": "真实",
-          "enterprise": "真实"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "会话历史记录",
@@ -736,37 +736,37 @@
         },
         {
           "label": "cmux Vault：云会话备份",
-          "free": "假的",
-          "pro": "真实",
-          "team": "真实",
-          "enterprise": "真实",
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true",
           "vault": true
         },
         {
           "label": "搜索您的所有会话",
-          "free": "假的",
-          "pro": "真实",
-          "team": "真实",
-          "enterprise": "真实",
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true",
           "vault": true
         },
         {
           "label": "云虚拟机上的云代理",
-          "free": "假的",
-          "pro": "真实",
-          "team": "真实",
-          "enterprise": "真实"
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "并发云虚拟机",
-          "free": "假的",
+          "free": "false",
           "pro": "50",
           "team": "每个用户 50 个",
           "enterprise": "定制"
         },
         {
           "label": "每个云虚拟机的资源",
-          "free": "假的",
+          "free": "false",
           "pro": "默认 8 GB RAM 和 32 GB 磁盘； 4 至 64 GB RAM，磁盘高达 256 GB",
           "team": "默认 8 GB RAM 和 32 GB 磁盘； 4 至 64 GB RAM，磁盘高达 256 GB",
           "enterprise": "定制"
@@ -780,10 +780,10 @@
         },
         {
           "label": "iOS应用程序",
-          "free": "假的",
-          "pro": "真实",
-          "team": "真实",
-          "enterprise": "真实"
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "通过网络连接到您的 Mac",
@@ -795,38 +795,38 @@
         },
         {
           "label": "SSO 和 SAML 登录",
-          "free": "假的",
-          "pro": "假的",
-          "team": "假的",
-          "enterprise": "真实"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "自托管和气隙执行",
-          "free": "假的",
-          "pro": "假的",
-          "team": "假的",
-          "enterprise": "真实"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "审核日志：会话、网络、浏览器",
-          "free": "假的",
-          "pro": "假的",
-          "team": "假的",
-          "enterprise": "真实"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "批量定价",
-          "free": "假的",
-          "pro": "假的",
-          "team": "假的",
-          "enterprise": "真实"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "SOC 2 和 SLA",
-          "free": "假的",
-          "pro": "假的",
-          "team": "假的",
-          "enterprise": "真实"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "支持",
