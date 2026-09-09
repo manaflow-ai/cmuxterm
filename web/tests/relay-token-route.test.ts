@@ -90,6 +90,24 @@ function request(
 }
 
 describe("POST /api/relay/token", () => {
+  test("rate limits invalid binding proofs before database and signature work", async () => {
+    let authorizations = 0;
+    let policyReads = 0;
+    const response = await handleRelayTokenRequest(
+      request({ endpointId: ENDPOINT_ID }, "dev.cmux.app.beta", true),
+      deps({
+        isVercel: () => true,
+        rateLimitRuleId: () => "relay-token",
+        checkRateLimit: async () => ({ rateLimited: true }),
+        isEndpointAuthorized: async () => { authorizations += 1; return false; },
+        signedPolicy: async () => { policyReads += 1; throw new Error("unexpected policy read"); },
+      }),
+    );
+    expect(response.status).toBe(429);
+    expect(authorizations).toBe(0);
+    expect(policyReads).toBe(0);
+  });
+
   test("keeps legacy token fields and adds policy plus separate preference metadata", async () => {
     const response = await handleRelayTokenRequest(
       request({ endpointId: ENDPOINT_ID }),
@@ -221,7 +239,7 @@ describe("POST /api/relay/token", () => {
     expect(await response.json()).toEqual({
       error: "binding_request_proof_required",
     });
-    expect(rateLimitChecks).toBe(1);
+    expect(rateLimitChecks).toBe(0);
   });
 
   test("returns signed policy without private relay credentials in local development", async () => {
@@ -446,8 +464,9 @@ describe("POST /api/relay/token", () => {
     });
   });
 
-  test("blocks a valid relay request before calling Stack Auth when ingress is limited", async () => {
+  test("never lets an IP-wide ingress bucket reject an authenticated endpoint", async () => {
     let authCalls = 0;
+    const observedKeys: Array<string | undefined> = [];
     const response = await handleRelayTokenRequest(
       request({ endpointId: ENDPOINT_ID }),
       deps({
@@ -458,19 +477,17 @@ describe("POST /api/relay/token", () => {
           return { id: "account-a" } as AuthedUser;
         },
         checkRateLimit: async (_id, options) => {
-          expect(options.rateLimitKey).toBeUndefined();
-          return { rateLimited: true };
+          observedKeys.push(options.rateLimitKey);
+          return { rateLimited: options.rateLimitKey === undefined };
         },
       }),
     );
 
-    expect(response.status).toBe(429);
-    expect(response.headers.get("retry-after")).toBe("60");
-    expect(await response.json()).toEqual({
-      error: "rate_limited",
-      source: "ingress_ip",
-    });
-    expect(authCalls).toBe(0);
+    expect(response.status).toBe(200);
+    expect(authCalls).toBe(1);
+    expect(observedKeys).toEqual([
+      `test:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:credential:28333333`,
+    ]);
   });
 
   test("rate limits per account and endpoint and fails closed", async () => {
@@ -497,7 +514,7 @@ describe("POST /api/relay/token", () => {
     // starves only its duplicate work, never bootstrap, renewal, or another
     // phone, simulator, or tagged build.
     expect(key).toBe(
-      `account-a:${ENDPOINT_ID.toLowerCase()}:credential:28333333`,
+      `test:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:credential:28333333`,
     );
     expect(limited.headers.get("retry-after")).toBe("40");
 
@@ -515,7 +532,7 @@ describe("POST /api/relay/token", () => {
       }),
     );
     expect(invalid.status).toBe(400);
-    expect(checks).toBe(2);
+    expect(checks).toBe(1);
 
     const blocked = await handleRelayTokenRequest(
       request({ endpointId: ENDPOINT_ID }),
