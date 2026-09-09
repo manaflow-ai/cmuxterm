@@ -300,7 +300,7 @@ struct DeferredAgentResumeIndexFallbackTests {
 
         #expect(store.deferredAgentResumeRestoresByPanelId[panel.id] == nil)
         #expect(store.restoredAgentLifecycle.startupInput(panelId: panel.id) == nil)
-        #expect(store.restoredAgentResumeStatesByPanelId[panel.id] == .manualResumeAvailable)
+        #expect(store.restoredAgentLifecycle.resumeStatesByPanelId[panel.id] == .manualResumeAvailable)
         #expect(store.surfaceResumeBindingsByPanelId[panel.id]?.autoResume == false)
         #expect(panel.surface.admitStartupRestoreRuntime(initialInput: "unexpected\n"))
     }
