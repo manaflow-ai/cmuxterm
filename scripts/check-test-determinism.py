@@ -301,6 +301,7 @@ _HTTPX_METHOD_PATTERN = "(?:" + "|".join(_HTTPX_METHOD_NAMES) + ")"
 _NETWORK_VERB = re.compile(
     rf"""(?x)
     \bfetch\s*\(
+  | \bProcess\.run\s*\(
   | \baxios\.create\s*\(
   | \baxios(?:\.{_AXIOS_METHOD_PATTERN})?\s*\(
   | \b(?:request|got|superagent|undici)\s*\(
@@ -321,6 +322,7 @@ _NETWORK_VERB = re.compile(
 
 _NETWORK_TARGET_LABELS = frozenset({"uri", "url"})
 _NETWORK_BASE_TARGET_LABELS = frozenset({"base_url", "baseurl"})
+_PROCESS_NETWORK_EXECUTABLES = frozenset({"curl", "wget"})
 _NETWORK_TARGET_SPECS = (
     _NetworkTargetSpec(
         verb_pattern=re.compile(
@@ -3266,6 +3268,8 @@ def _direct_network_target_ranges(
     path_suffix: str,
 ) -> list[tuple[int, int]]:
     matched_verb = match.group(0).lower()
+    if matched_verb.strip().startswith("process.run") and path_suffix != ".swift":
+        return []
     if matched_verb.strip() == "curl":
         if path_suffix == ".sh":
             command_word = _shell_command_word_bounds(line, match.start())
@@ -3312,6 +3316,34 @@ def _direct_network_target_ranges(
             return []
 
     arguments = _call_arguments(line, opening_paren, path_suffix)
+    if matched_verb.strip().startswith("process.run"):
+        if path_suffix != ".swift":
+            return []
+        executable = _select_call_argument(arguments, _NO_ARGUMENT_LABELS, 0)
+        if executable is None:
+            return []
+        executable_source = _strip_comments(
+            line[executable.value_bounds[0] : executable.value_bounds[1]],
+            ".swift",
+        ).strip()
+        executable_match = re.search(
+            r'^(?:(?:Foundation\.)?URL(?:\.init)?)\s*'
+            r'\(\s*fileURLWithPath\s*:\s*"([^"]+)"'
+            r'(?:\s*,\s*isDirectory\s*:\s*(?:true|false))?\s*\)$',
+            executable_source,
+        )
+        if executable_match is None:
+            return []
+        executable_name = executable_match.group(1).rsplit("/", 1)[-1]
+        if executable_name not in _PROCESS_NETWORK_EXECUTABLES:
+            return []
+        target = _select_call_argument(
+            arguments,
+            frozenset({"arguments"}),
+            1,
+        )
+        return [target.value_bounds] if target is not None else []
+
     axios_method = _axios_invocation_method(matched_verb)
     target_arguments = list(arguments)
     if axios_method in ("call", "request"):
@@ -3937,6 +3969,56 @@ def _self_test() -> int:
         (
             "web/tests/c2.ts",
             "await fetch('https://93.184.216.34/probe')\n",  # public IP in a real URL
+            {RULE_LIVE_NETWORK_HOST},
+        ),
+        (
+            "tests/curl_exec.py",
+            'subprocess.run("curl -fsSL https://cmux.com/install.sh", shell=True)\n',
+            {RULE_LIVE_NETWORK_HOST},
+        ),
+        (
+            "web/tests/template_exec.ts",
+            'expect(`${fetch("https://api.openai.com/v1/items")}`).toBeTruthy()\n',
+            {RULE_LIVE_NETWORK_HOST},
+        ),
+        (
+            "tests/fstring_exec.py",
+            'value = f"{requests.get(\'https://api.openai.com/v1/items\')}"\n',
+            {RULE_LIVE_NETWORK_HOST},
+        ),
+        (
+            "tests/shell_exec.sh",
+            'value="$(curl https://api.openai.com/v1/items)"\n',
+            {RULE_LIVE_NETWORK_HOST},
+        ),
+        (
+            "tests/bash_exec.sh",
+            'bash -c "curl https://api.openai.com/v1/items"\n',
+            {RULE_LIVE_NETWORK_HOST},
+        ),
+        (
+            "cmuxTests/process_exec.swift",
+            'Process.run(URL(fileURLWithPath: "/usr/bin/curl"), arguments: ["https://api.openai.com/v1/items"])\n',
+            {RULE_LIVE_NETWORK_HOST},
+        ),
+        (
+            "cmuxTests/process_foundation_url.swift",
+            'Process.run(Foundation.URL(fileURLWithPath: "/usr/bin/curl"), arguments: ["https://api.openai.com/v1/items"])\n',
+            {RULE_LIVE_NETWORK_HOST},
+        ),
+        (
+            "cmuxTests/process_url_init.swift",
+            'Process.run(URL.init(fileURLWithPath: "/usr/bin/curl"), arguments: ["https://api.openai.com/v1/items"])\n',
+            {RULE_LIVE_NETWORK_HOST},
+        ),
+        (
+            "cmuxTests/process_url_directory.swift",
+            'Process.run(URL(fileURLWithPath: "/usr/bin/curl", isDirectory: false), arguments: ["https://api.openai.com/v1/items"])\n',
+            {RULE_LIVE_NETWORK_HOST},
+        ),
+        (
+            "web/tests/exec_and_expect.ts",
+            'expect(child_process.exec("curl https://api.openai.com/v1/items")).toContain("ok")\n',
             {RULE_LIVE_NETWORK_HOST},
         ),
         (
@@ -4984,6 +5066,15 @@ def _self_test() -> int:
             "web/tests/n18.ts",
             'const llms = buildLlmsText("https://cmux.com")\n',
         ),
+        # A rendered shell command spanning multiple expectation lines is still
+        # inert text, even though it contains a network verb and public URL.
+        (
+            "web/tests/n18b_multiline.ts",
+            'expect(html).toContain("curl -fsSL https://cmux.com/install.sh | sh")\n'
+            'expect(html).toContain(\n'
+            '  "curl -fsSL https://cmux.com/coderouter/install.sh | sh",\n'
+            ')\n',
+        ),
         # A rendered shell command is output text. Merely asserting that it is
         # present does not execute curl or open a network connection.
         (
@@ -5064,6 +5155,21 @@ def _self_test() -> int:
         (
             "tests/n18h.py",
             'subprocess.run(["printf", "curl https://api.openai.com/v1/items"])\n',
+        ),
+        (
+            "cmuxTests/process_echo.swift",
+            'Process.run(URL(fileURLWithPath: "/usr/bin/echo"), arguments: ["https://api.openai.com/v1/items"])\n',
+        ),
+        (
+            "cmuxTests/process_commented_executable.swift",
+            'Process.run(/* URL(fileURLWithPath: "/usr/bin/curl") */ executableURL, arguments: ["https://api.openai.com/v1/items"])\n',
+        ),
+        (
+            "web/tests/local_exec_helper.ts",
+            (
+                'function exec(value) { return value; }\n'
+                'exec("curl https://api.openai.com/v1/items");\n'
+            ),
         ),
         (
             "web/tests/n18i.ts",
