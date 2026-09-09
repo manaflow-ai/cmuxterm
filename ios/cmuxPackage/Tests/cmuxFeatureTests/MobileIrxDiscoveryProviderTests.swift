@@ -121,6 +121,12 @@ struct MobileIrxDiscoveryProviderTests {
         ])
         let candidates = await Self.provider(discovery: tailscale, strategy: .tailscale).discoverLiveMacs()
         #expect(candidates.count == 1)
+        let route = try #require(candidates.first?.routes.first)
+        guard case let .peer(_, pathHints) = route.endpoint else {
+            Issue.record("expected an Iroh peer route")
+            return
+        }
+        #expect(pathHints.first?.source == .tailscale)
     }
 
     @Test("QR strategy leaves live discovery empty")

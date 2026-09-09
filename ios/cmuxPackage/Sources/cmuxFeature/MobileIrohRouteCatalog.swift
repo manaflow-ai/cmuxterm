@@ -163,7 +163,10 @@ public actor MobileIrohRouteCatalog {
                   let route = try? CmxAttachRoute(
                       id: "iroh-personal-\(binding.bindingID)",
                       kind: .iroh,
-                      endpoint: .peer(identity: binding.endpointID, pathHints: []),
+                      endpoint: .peer(
+                          identity: binding.endpointID,
+                          pathHints: Self.livePathHints(from: binding, now: now)
+                      ),
                       priority: preferredRoutePriority
                   ) else { return nil }
             let identity = CmxMacAppInstanceIdentity(
@@ -179,6 +182,19 @@ public actor MobileIrohRouteCatalog {
                 capabilities: binding.capabilities,
                 clientNamespace: binding.clientNamespace
             )
+        }
+    }
+
+    private static func livePathHints(
+        from binding: CmxIrohBrokerBinding,
+        now: Date
+    ) -> [CmxIrohPathHint] {
+        binding.pathHints.filter { hint in
+            guard hint.isUsable(at: now) else { return false }
+            if hint.privacyScope == .publicInternet {
+                return hint.publicDisclosure(at: now) != nil
+            }
+            return hint.source == .tailscale
         }
     }
 
