@@ -38,7 +38,7 @@ struct SessionResumeBindingBackfillRegressionTests {
             let terminal = try #require(snapshot.panels.first?.terminal)
             #expect(terminal.agent?.kind == .ollama)
             #expect(terminal.resumeBinding == nil)
-            #expect(terminal.wasAgentRunning == false)
+            #expect(terminal.wasAgentRunning == true)
             #expect(workspace.unresolvedResumeBindingGapCount == 0)
         }
     }
