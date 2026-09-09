@@ -38,9 +38,16 @@ enum VMClientError: Error, CustomStringConvertible {
     case backendUnreachable(url: String, detail: String)
     case httpStatus(Int, String)
     case malformedResponse(String)
+    /// An MDM profile forces `DisableCloud`; no request was attempted.
+    case disabledByManagedPolicy
 
     var description: String {
         switch self {
+        case .disabledByManagedPolicy:
+            return String(
+                localized: "cloud.managed.disabled",
+                defaultValue: "Cloud Machines are disabled by your administrator."
+            )
         case .notSignedIn:
             return """
                 You are not signed in to cmux.
@@ -1943,7 +1950,7 @@ actor VMClient {
         case .sessionRefreshFailed: return .sessionRefreshFailed
         case .backendUnreachable: return .backendUnreachable
         case .malformedResponse: return .malformedResponse
-        case .httpStatus: return .unknown
+        case .httpStatus, .disabledByManagedPolicy: return .unknown
         }
     }
 
@@ -1951,7 +1958,7 @@ actor VMClient {
         switch error {
         case .backendUnreachable(let url, let detail): return "\(url): \(detail)"
         case .malformedResponse(let message): return message
-        case .notSignedIn, .sessionRefreshFailed, .httpStatus: return ""
+        case .notSignedIn, .sessionRefreshFailed, .httpStatus, .disabledByManagedPolicy: return ""
         }
     }
 
