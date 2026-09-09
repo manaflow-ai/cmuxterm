@@ -14,6 +14,30 @@ private func entriesWithMinimumSupportedVersions(
     }
 }
 
+private func numericMacVersion(_ raw: String) -> [Int]? {
+    let core = raw.split(separator: "+", maxSplits: 1).first.map(String.init) ?? raw
+    let parts = core.split(separator: ".", omittingEmptySubsequences: false)
+    guard !parts.isEmpty,
+          parts.allSatisfy({ !$0.isEmpty && Int($0) != nil }) else { return nil }
+    var values = parts.map { Int($0)! }
+    while values.count < 3 { values.append(0) }
+    return values
+}
+
+private func nightlyMacVersion(_ raw: String) -> (base: [Int], build: UInt64)? {
+    let core = raw.split(separator: "+", maxSplits: 1).first.map(String.init) ?? raw
+    let marker = "-nightly."
+    guard let markerRange = core.range(of: marker),
+          let base = numericMacVersion(String(core[..<markerRange.lowerBound]))
+    else { return nil }
+    let buildText = core[markerRange.upperBound...]
+    guard !buildText.isEmpty,
+          buildText.utf8.allSatisfy({ (48 ... 57).contains($0) }),
+          let build = UInt64(buildText)
+    else { return nil }
+    return (base, build)
+}
+
 /// The phone's view of the account device list (the list-auth admission
 /// authority), projected for UI.
 ///
@@ -73,10 +97,10 @@ public final class MobileMacListAuthState {
         public var isOutdated: Bool {
             if isNightly {
                 guard let minimumSupportedNightlyVersion,
-                      let required = Self.nightlyVersion(minimumSupportedNightlyVersion)
+                      let required = nightlyMacVersion(minimumSupportedNightlyVersion)
                 else { return false }
                 guard let appVersion,
-                      let installed = Self.nightlyVersion(appVersion)
+                      let installed = nightlyMacVersion(appVersion)
                 else { return true }
                 if installed.base != required.base {
                     return installed.base.lexicographicallyPrecedes(required.base)
@@ -84,10 +108,10 @@ public final class MobileMacListAuthState {
                 return installed.build < required.build
             }
             guard let minimumSupportedVersion,
-                  let required = Self.numericVersion(minimumSupportedVersion)
+                  let required = numericMacVersion(minimumSupportedVersion)
             else { return false }
             guard let appVersion else { return true }
-            guard let installed = Self.numericVersion(appVersion) else { return true }
+            guard let installed = numericMacVersion(appVersion) else { return true }
             return installed.lexicographicallyPrecedes(required)
         }
 
@@ -104,29 +128,6 @@ public final class MobileMacListAuthState {
             return appVersion?.contains("-nightly.") == true
         }
 
-        private static func numericVersion(_ raw: String) -> [Int]? {
-            let core = raw.split(separator: "+", maxSplits: 1).first.map(String.init) ?? raw
-            let parts = core.split(separator: ".", omittingEmptySubsequences: false)
-            guard !parts.isEmpty,
-                  parts.allSatisfy({ !$0.isEmpty && Int($0) != nil }) else { return nil }
-            var values = parts.map { Int($0)! }
-            while values.count < 3 { values.append(0) }
-            return values
-        }
-
-        private static func nightlyVersion(_ raw: String) -> (base: [Int], build: UInt64)? {
-            let core = raw.split(separator: "+", maxSplits: 1).first.map(String.init) ?? raw
-            let marker = "-nightly."
-            guard let markerRange = core.range(of: marker),
-                  let base = numericVersion(String(core[..<markerRange.lowerBound]))
-            else { return nil }
-            let buildText = core[markerRange.upperBound...]
-            guard !buildText.isEmpty,
-                  buildText.utf8.allSatisfy({ (48 ... 57).contains($0) }),
-                  let build = UInt64(buildText)
-            else { return nil }
-            return (base, build)
-        }
     }
 
     public static let shared = MobileMacListAuthState()
