@@ -128,6 +128,7 @@ struct SettingsRowAnchorResolutionTests {
         "sidebar.beta.workspaceTodos.controls.enabled",
         "sidebar.beta.workspaceTodos.checklistStyle",
         "sidebarAppearance.matchTerminalBackground",
+        "shortcuts.prefix",
         "shortcuts.showModifierHoldHints",
         "terminal.agentHibernation.enabled",
         "terminal.agentHibernation.idleSeconds",

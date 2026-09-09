@@ -254,14 +254,18 @@ extension AppDelegate {
     }
 
     func matchesLegacyNextSurfaceShortcut(event: NSEvent) -> Bool {
-        matchTabShortcut(
+        guard activeResolvedPrefixChordActionID == nil,
+              !shouldBypassPrefixChordPassThrough(event) else { return false }
+        return matchTabShortcut(
             event: event,
             shortcut: StoredShortcut(key: "\t", command: false, shift: false, option: false, control: true)
         )
     }
 
     func matchesLegacyPreviousSurfaceShortcut(event: NSEvent) -> Bool {
-        matchTabShortcut(
+        guard activeResolvedPrefixChordActionID == nil,
+              !shouldBypassPrefixChordPassThrough(event) else { return false }
+        return matchTabShortcut(
             event: event,
             shortcut: StoredShortcut(key: "\t", command: false, shift: true, option: false, control: true)
         )
@@ -296,6 +300,8 @@ extension AppDelegate {
         event: NSEvent,
         route: GhosttyGotoSplitRoute
     ) -> Bool {
+        guard activeResolvedPrefixChordActionID == nil,
+              !shouldBypassPrefixChordPassThrough(event) else { return false }
         guard event.type == .keyDown,
               let shortcut = ghosttyGotoSplitShortcut(for: route),
               matchesRawGhosttyGotoSplitShortcut(event: event, shortcut: shortcut, route: route) else {

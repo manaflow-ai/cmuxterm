@@ -68,7 +68,13 @@ extension FileExplorerSearchResultsTableView {
 extension FileExplorerSearchField {
     func handleOpenSelectionShortcut(_ event: NSEvent) -> Bool {
         if (currentEditor() as? NSTextView)?.hasMarkedText() == true { return false }
-        guard !RightSidebarKeyboardNavigation.isPlainPrintableText(event) else { return false }
+        // A resolved prefix chord owns its bare suffix even while the search
+        // field is editing text. Unresolved printable input remains ordinary
+        // search text and must continue through the existing guard.
+        let isResolvedPrefixChord = AppDelegate.shared?.activeResolvedPrefixChordActionID != nil
+        guard isResolvedPrefixChord || !RightSidebarKeyboardNavigation.isPlainPrintableText(event) else {
+            return false
+        }
         guard event.isFileExplorerOpenSelectionShortcut(in: fileExplorerPanelPlacement) else { return false }
         onCommit?()
         return true
@@ -82,9 +88,13 @@ extension NSEvent {
     }
 
     func isFileExplorerOpenSelectionShortcut(in context: ShortcutContext) -> Bool {
-        KeyboardShortcutSettings.Action.fileExplorerOpenSelectionActions.contains { action in
-            KeyboardShortcutSettings.shortcut(for: action).matches(event: self) &&
-                KeyboardShortcutSettings.effectiveWhenClause(for: action).evaluate(context)
+        if AppDelegate.shared?.shouldBypassPrefixChordPassThrough(self) == true {
+            return false
+        }
+        return KeyboardShortcutSettings.Action.fileExplorerOpenSelectionActions.contains { action in
+            let matches = AppDelegate.shared?.matchConfiguredShortcut(event: self, action: action)
+                ?? KeyboardShortcutSettings.shortcut(for: action).matches(event: self)
+            return matches && KeyboardShortcutSettings.effectiveWhenClause(for: action).evaluate(context)
         }
     }
 }

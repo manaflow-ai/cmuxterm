@@ -40,8 +40,8 @@ private final class ShortcutNoopFileSearchController: FileSearchControlling {
         #expect(!finderAliasDefault.control)
         #expect(primary.allowsBareFirstStroke)
         #expect(finderAlias.allowsBareFirstStroke)
-        #expect(!primary.allowsChordShortcut)
-        #expect(!finderAlias.allowsChordShortcut)
+        #expect(primary.allowsChordShortcut)
+        #expect(finderAlias.allowsChordShortcut)
         #expect(primary.shortcutContext == .rightSidebarFocus)
         #expect(finderAlias.shortcutContext == .rightSidebarFocus)
 
@@ -391,7 +391,7 @@ private final class ShortcutNoopFileSearchController: FileSearchControlling {
         #expect(textView.hasMarkedText())
     }
 
-    @Test func openSelectionSetShortcutRejectsChords() {
+    @Test func openSelectionSetShortcutAcceptsChords() {
         withIsolatedShortcutSettings {
             let chord = StoredShortcut(
                 first: ShortcutStroke(key: "o", command: true, shift: false, option: false, control: false),
@@ -400,8 +400,181 @@ private final class ShortcutNoopFileSearchController: FileSearchControlling {
 
             KeyboardShortcutSettings.setShortcut(chord, for: .fileExplorerOpenSelection)
 
-            #expect(KeyboardShortcutSettings.shortcut(for: .fileExplorerOpenSelection) ==
-                KeyboardShortcutSettings.Action.fileExplorerOpenSelection.defaultShortcut)
+            #expect(KeyboardShortcutSettings.shortcut(for: .fileExplorerOpenSelection) == chord)
+        }
+    }
+
+    @Test func resolvedPrefixChordReachesFocusedFileExplorerAndRestoresRoutingContext() throws {
+        try withIsolatedShortcutSettings {
+            let appDelegate = try #require(AppDelegate.shared)
+            try writeSettingsFile(
+                """
+                {"shortcuts":{"prefix":"ctrl+b","when":{"fileExplorerOpenSelection":"!browserFocus"}}}
+                """
+            )
+            KeyboardShortcutSettings.settingsFileStore.reload()
+            let chord = StoredShortcut(
+                first: ShortcutStroke(key: "b", command: false, shift: false, option: false, control: true),
+                second: ShortcutStroke(key: "p", command: false, shift: false, option: false, control: false)
+            )
+            KeyboardShortcutSettings.setShortcut(chord, for: .fileExplorerOpenSelection)
+            let binding = try #require(ShortcutPrefixChordBinding(
+                actionID: KeyboardShortcutSettings.Action.fileExplorerOpenSelection.rawValue,
+                shortcut: chord.cmuxSettingsStoredShortcut
+            ))
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.identifier = NSUserInterfaceItemIdentifier("cmux.about")
+            let tableView = FileExplorerSearchResultsTableView(frame: window.contentRect(forFrameRect: window.frame))
+            tableView.fileExplorerPanelPlacement = .pane
+            tableView.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("name")))
+            var commitCount = 0
+            tableView.onCommit = { commitCount += 1 }
+            window.contentView = tableView
+            window.makeKeyAndOrderFront(nil)
+            defer { window.orderOut(nil) }
+            try #require(window.makeFirstResponder(tableView))
+            let event = try #require(makeKeyDownEvent(
+                shortcut: StoredShortcut(first: chord.secondStroke!),
+                windowNumber: window.windowNumber
+            ))
+            defer { appDelegate.clearShortcutEventFocusContextCache(for: event) }
+            let previousActionID = appDelegate.activeResolvedPrefixChordActionID
+            let previousPrefix = appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent
+
+            #expect(appDelegate.executeResolvedPrefixChordBinding(binding, event: event))
+            #expect(commitCount == 1)
+            #expect(appDelegate.activeResolvedPrefixChordActionID == previousActionID)
+            #expect(appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent == previousPrefix)
+            #expect(!appDelegate.matchConfiguredShortcut(event: event, shortcut: chord))
+        }
+    }
+
+    @Test func resolvedPrefixChordCanCommitFileExplorerSearchTextSuffix() throws {
+        try withIsolatedShortcutSettings {
+            let appDelegate = try #require(AppDelegate.shared)
+            let chord = StoredShortcut(
+                first: ShortcutStroke(key: "b", command: true, shift: false, option: false, control: false),
+                second: ShortcutStroke(key: "p", command: false, shift: false, option: false, control: false)
+            )
+            KeyboardShortcutSettings.setShortcut(chord, for: .fileExplorerOpenSelection)
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 320, height: 120),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.identifier = NSUserInterfaceItemIdentifier("cmux.about")
+            let searchField = FileExplorerSearchField(frame: NSRect(x: 20, y: 40, width: 240, height: 28))
+            searchField.fileExplorerPanelPlacement = .pane
+            var commitCount = 0
+            searchField.onCommit = { commitCount += 1 }
+            window.contentView = searchField
+            window.makeKeyAndOrderFront(nil)
+            defer { window.orderOut(nil) }
+            #expect(window.makeFirstResponder(searchField))
+
+            let event = try #require(makeKeyDownEvent(
+                shortcut: StoredShortcut(first: chord.secondStroke!),
+                windowNumber: window.windowNumber
+            ))
+            defer { appDelegate.clearShortcutEventFocusContextCache(for: event) }
+            let previousActionID = appDelegate.activeResolvedPrefixChordActionID
+            let previousPrefix = appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent
+            appDelegate.activeResolvedPrefixChordActionID =
+                KeyboardShortcutSettings.Action.fileExplorerOpenSelection.rawValue
+            appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent = chord.firstStroke
+            defer {
+                appDelegate.activeResolvedPrefixChordActionID = previousActionID
+                appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent = previousPrefix
+            }
+
+            #expect(searchField.handleOpenSelectionShortcut(event))
+            #expect(commitCount == 1)
+        }
+    }
+
+    @Test func resolvedPrefixChordCanCommitSystemDefinedMediaSuffix() throws {
+        try withIsolatedShortcutSettings {
+            let appDelegate = try #require(AppDelegate.shared)
+            let chord = StoredShortcut(
+                first: ShortcutStroke(key: "b", command: true, shift: false, option: false, control: false),
+                second: ShortcutStroke(key: "media.playPause", command: false, shift: false, option: false, control: false)
+            )
+            KeyboardShortcutSettings.setShortcut(chord, for: .fileExplorerOpenSelection)
+            let binding = try #require(ShortcutPrefixChordBinding(
+                actionID: KeyboardShortcutSettings.Action.fileExplorerOpenSelection.rawValue,
+                shortcut: chord.cmuxSettingsStoredShortcut
+            ))
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 320, height: 120),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.identifier = NSUserInterfaceItemIdentifier("cmux.about")
+            let searchField = FileExplorerSearchField(frame: NSRect(x: 20, y: 40, width: 240, height: 28))
+            searchField.fileExplorerPanelPlacement = .pane
+            var commitCount = 0
+            searchField.onCommit = { commitCount += 1 }
+            window.contentView = searchField
+            window.makeKeyAndOrderFront(nil)
+            defer { window.orderOut(nil) }
+            #expect(window.makeFirstResponder(searchField))
+
+            let event = try #require(NSEvent.otherEvent(
+                with: .systemDefined,
+                location: .zero,
+                modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber,
+                context: nil,
+                subtype: 8,
+                data1: Int((UInt32(16) << 16) | (UInt32(0x0A) << 8)),
+                data2: -1
+            ))
+            defer { appDelegate.clearShortcutEventFocusContextCache(for: event) }
+
+            #expect(appDelegate.executeResolvedPrefixChordBinding(binding, event: event))
+            #expect(commitCount == 1)
+        }
+    }
+
+    @Test func resolvedPrefixChordOnlyAllowsTheSelectedAuxiliaryMatcher() throws {
+        try withIsolatedShortcutSettings {
+            let appDelegate = try #require(AppDelegate.shared)
+            let leader = ShortcutStroke(key: "b", command: true, shift: false, option: false, control: false)
+            KeyboardShortcutSettings.setShortcut(
+                StoredShortcut(first: leader, second: ShortcutStroke(key: "2", command: false, shift: false, option: false, control: false)),
+                for: .selectWorkspaceByNumber
+            )
+            KeyboardShortcutSettings.setShortcut(
+                StoredShortcut(first: leader, second: ShortcutStroke(key: "b", command: false, shift: false, option: false, control: false)),
+                for: .browserBack
+            )
+            let event = try #require(makeKeyDownEvent(
+                shortcut: StoredShortcut(first: ShortcutStroke(key: "2", command: false, shift: false, option: false, control: false))
+            ))
+            let previousActionID = appDelegate.activeResolvedPrefixChordActionID
+            let previousPrefix = appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent
+            defer {
+                appDelegate.activeResolvedPrefixChordActionID = previousActionID
+                appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent = previousPrefix
+                appDelegate.clearShortcutEventFocusContextCache(for: event)
+            }
+            appDelegate.activeResolvedPrefixChordActionID =
+                KeyboardShortcutSettings.Action.selectSurfaceByNumber.rawValue
+            appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent = leader
+
+            #expect(appDelegate.routableNumberedConfiguredShortcutDigit(
+                event: event,
+                action: .selectWorkspaceByNumber
+            ) == nil)
+            #expect(!appDelegate.shouldForwardBrowserSurfaceShortcutToTerminal(event))
         }
     }
 
@@ -410,9 +583,15 @@ private final class ShortcutNoopFileSearchController: FileSearchControlling {
             prefix: "cmux-file-explorer-shortcut-settings"
         )
         KeyboardShortcutSettings.resetAll()
+#if DEBUG
+        AppDelegate.shared?.debugResetShortcutRoutingStateForTesting()
+#endif
         defer {
             KeyboardShortcutSettings.resetAll()
             KeyboardShortcutSettings.settingsFileStore = originalSettingsFileStore
+#if DEBUG
+            AppDelegate.shared?.debugResetShortcutRoutingStateForTesting()
+#endif
         }
 
         try body()
