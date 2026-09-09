@@ -26,6 +26,10 @@ public final class DeclarativeTerminalConfigurationModel:
     private var fixedPathObservationTasks = MainActorTaskStore<String>()
     private var fixedPathWatcher: FileWatcher?
     private var fixedPathWatchPath: String?
+    private var authoritativeSnapshot: (
+        revision: UInt64,
+        terminal: DeclarativeTerminalConfiguration.Snapshot
+    )?
 
     private struct PendingWrites: Sendable {
         var workingDirectoryPolicy: (id: UUID, value: NewSurfaceWorkingDirectoryPolicy)?
@@ -215,6 +219,15 @@ public final class DeclarativeTerminalConfigurationModel:
         legacyInheritanceEnabled: Bool? = nil
     ) async {
         let terminal = await reader.decode(revision)
+        guard !Task.isCancelled else { return }
+        if let authoritativeSnapshot, revision.revision < authoritativeSnapshot.revision {
+            publish(
+                authoritativeSnapshot.terminal,
+                legacyInheritanceEnabled: values.legacyInheritanceEnabled
+            )
+            return
+        }
+        authoritativeSnapshot = (revision.revision, terminal)
         publish(
             terminal,
             legacyInheritanceEnabled: legacyInheritanceEnabled ?? values.legacyInheritanceEnabled
@@ -339,6 +352,10 @@ public final class DeclarativeTerminalConfigurationModel:
     }
 
     private func applyFixedPathValidation(_ isUsable: Bool, for path: String) {
+        if authoritativeSnapshot?.terminal.workingDirectoryPolicy == .fixedPath,
+           authoritativeSnapshot?.terminal.expandedWorkingDirectoryPath == path {
+            authoritativeSnapshot?.terminal.fixedPathIsUsable = isUsable
+        }
         guard fixedPathWatchPath == path,
               values.workingDirectoryPolicy == .fixedPath,
               values.expandedWorkingDirectoryPath == path,

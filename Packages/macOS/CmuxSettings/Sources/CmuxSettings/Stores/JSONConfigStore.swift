@@ -47,6 +47,7 @@ public actor JSONConfigStore {
 
     private var cachedRoot: [String: Any] = [:]
     private var cacheValid = false
+    private var lastCoherentSnapshot: JSONConfigStoreSnapshot?
     // Resolution identity the cache was loaded under. A cmux.json symlink can be
     // retargeted at any time without a watcher event having been processed (or
     // with no subscriber at all, since drains spawn on first subscribe), so
@@ -245,7 +246,15 @@ public actor JSONConfigStore {
             withJSONObject: root,
             options: [.sortedKeys, .withoutEscapingSlashes]
         )) ?? Data("{}".utf8)
-        return JSONConfigStoreSnapshot(data: data)
+        if let lastCoherentSnapshot, lastCoherentSnapshot.data == data {
+            return lastCoherentSnapshot
+        }
+        let snapshot = JSONConfigStoreSnapshot(
+            data: data,
+            revision: (lastCoherentSnapshot?.revision ?? 0) + 1
+        )
+        lastCoherentSnapshot = snapshot
+        return snapshot
     }
 
     private func addSubscriber(id: UUID, continuation: AsyncStream<Void>.Continuation) {
