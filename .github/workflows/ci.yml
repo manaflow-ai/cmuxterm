@@ -1690,6 +1690,7 @@ jobs:
             CmuxIrohTransport
             CmuxCommandPalette
             CmuxControlSocket
+            CmuxSocketObservability
             CmuxFoundation
             CmuxGit
             CmuxMobileTerminalKit
