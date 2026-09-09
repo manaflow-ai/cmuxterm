@@ -27,7 +27,7 @@ if ! awk '
   /^  refresh-compilation-cache:/ { job="refresh"; next }
   /^  build-nightly-app:/ { job="build"; next }
   /^  [a-zA-Z0-9_-]+:/ { job="" }
-  job && /^      - name: Cache Xcode compilation results/ { in_cache=1; next }
+  job && /^      - name: Restore Xcode compilation cache/ { in_cache=1; next }
   in_cache && /^      - name:/ { in_cache=0 }
   in_cache && /path: build-universal\/CompilationCache\.noindex/ { saw_path[job]=1 }
   in_cache && /key: xcode-compilation-release-/ { saw_key[job]=1 }
@@ -82,15 +82,15 @@ if ! awk '
   in_refresh && /runs-on: \$\{\{ vars\.MACOS_RUNNER_26_RELEASE/ { saw_release_runner=1 }
   in_refresh && /CMUX_CI_XCODE_APP_MACOS_26/ { saw_release_xcode=1 }
   in_refresh && /select-ci-xcode\.sh/ { saw_xcode_selection=1 }
-  in_refresh && /^      - name: Look up Xcode compilation cache/ { saw_lookup=1 }
+  in_refresh && /^      - name: Restore Xcode compilation cache/ { saw_lookup=1 }
   in_refresh && /uses: actions\/cache\/restore@/ { saw_restore_action=1 }
-  in_refresh && /lookup-only: true/ { saw_lookup_only=1 }
-  in_refresh && /^      - name: Cache Xcode compilation results/ { saw_cache=1 }
+  in_refresh && /id: compilation-cache-restore/ { saw_restore_id=1 }
+  in_refresh && /^      - name: Save Xcode compilation cache/ { saw_cache=1 }
   in_refresh && /^      - name: Refresh universal nightly compilation cache/ { saw_refresh=1 }
-  in_refresh && /if: steps\.compilation-cache-lookup\.outputs\.cache-hit != '\''true'\''/ { saw_change_gate=1 }
+  in_refresh && /if: steps\.compilation-cache-restore\.outputs\.cache-hit != '\''true'\''/ { saw_change_gate=1 }
   in_refresh && /-showBuildTimingSummary/ { saw_timing_summary=1 }
   in_refresh && /-quiet/ { saw_quiet=1 }
-  END { exit !(saw_cold_build_timeout && saw_schedule_gate && saw_release_runner && saw_release_xcode && saw_xcode_selection && saw_lookup && saw_restore_action && saw_lookup_only && saw_cache && saw_refresh && saw_change_gate && saw_timing_summary && !saw_quiet) }
+  END { exit !(saw_cold_build_timeout && saw_schedule_gate && saw_release_runner && saw_release_xcode && saw_xcode_selection && saw_lookup && saw_restore_action && saw_restore_id && saw_cache && saw_refresh && saw_change_gate && saw_timing_summary && !saw_quiet) }
 ' "$WORKFLOW_FILE"; then
   echo "FAIL: the six-hour schedule must allow 45 minutes for a cold cache build and use the matching runner, Xcode, and visible timing output"
   exit 1
@@ -148,10 +148,13 @@ if ! awk '
   in_release && /COMPILATION_CACHE_ENABLE_CACHING=YES/ { saw_cache_flag=1 }
   in_release && /COMPILATION_CACHE_LIMIT_SIZE=3221225472/ { saw_runtime_limit=1 }
   in_release && /max_cache_kib=\$\(\(5 \* 1024 \* 1024\)\)/ { saw_save_limit=1 }
+  in_release && /python3 scripts\/ci\/prune-xcode-compilation-cache\.py "\$cache_path" \\$/ { saw_prune=NR }
+  in_release && saw_prune && NR == saw_prune + 1 && /^ +\|\| echo "::warning::Xcode compilation cache pruning failed/ { saw_prune_nonfatal=1 }
+  in_release && /cache_kib=\$\(du -sk "\$cache_path"/ { saw_measure=NR }
   in_release && /rm -rf "\$cache_path"/ { saw_skip_save=1 }
-  END { exit !(saw_path && saw_parent_exclusion && saw_key && saw_restore && saw_cache_flag && saw_runtime_limit && saw_save_limit && saw_skip_save) }
+  END { exit !(saw_path && saw_parent_exclusion && saw_key && saw_restore && saw_cache_flag && saw_runtime_limit && saw_save_limit && saw_prune && saw_prune_nonfatal && saw_measure && saw_prune < saw_measure && saw_skip_save) }
 ' "$CI_WORKFLOW_FILE"; then
-  echo "FAIL: PR release builds must restore and update the bounded cache warmed from main without archiving it twice"
+  echo "FAIL: PR release builds must restore and update the bounded cache warmed from main, pruned of dead CAS generations, without archiving it twice"
   exit 1
 fi
 
@@ -366,6 +369,50 @@ if ! awk '
   END { exit !(sign_line && smoke_line && notarize_line && sign_line < smoke_line && smoke_line < notarize_line) }
 ' "$RELEASE_WORKFLOW_FILE"; then
   echo "FAIL: release must smoke-launch the signed app before paying the Apple notarization wait"
+  exit 1
+fi
+
+# PR release builds restore the cache nightly warms from main by this prefix.
+# Renaming it on either side, or on a key but not its restore-keys, silently
+# turns every PR release build or every nightly restore cold.
+XCODE_CACHE_PREFIX='xcode-compilation-release-${{ runner.os }}-${{ runner.arch }}-${{ steps.compilation-cache-key.outputs.toolchain }}-'
+for cache_workflow in "$WORKFLOW_FILE" "$CI_WORKFLOW_FILE"; do
+  if ! grep -qF -- "$XCODE_CACHE_PREFIX" "$cache_workflow" \
+    || grep -F 'xcode-compilation-release-' "$cache_workflow" | grep -vqF -- "$XCODE_CACHE_PREFIX"; then
+    echo "FAIL: nightly and PR release builds must share one Xcode compilation cache key prefix"
+    exit 1
+  fi
+done
+
+# A warm build leaves a dead CAS generation behind, so the cache directory
+# measures two full builds and used to exceed the bound on every warm run.
+# Prune it before measuring, then save explicitly on a miss using the bound
+# step's verdict instead of rescanning the directory with hashFiles.
+if ! awk '
+  /^  refresh-compilation-cache:/ { job="refresh"; next }
+  /^  build-nightly-app:/ { job="app"; next }
+  /^  [a-zA-Z0-9_-]+:/ { job=""; step="" }
+  job && /^      - name: Bound Xcode compilation cache size/ { step="bound"; bound[job]=NR; next }
+  job && /^      - name: Save Xcode compilation cache/ { step="save"; save[job]=NR; next }
+  job && /^      - name:/ { step="" }
+  step == "bound" && /^        id: compilation-cache-bound$/ { bound_id[job]=1 }
+  step == "bound" && /python3 scripts\/ci\/prune-xcode-compilation-cache\.py "\$cache_path" \\$/ { prune[job]=NR }
+  step == "bound" && prune[job] && NR == prune[job] + 1 && /^ +\|\| echo "::warning::Xcode compilation cache pruning failed/ { prune_nonfatal[job]=1 }
+  step == "bound" && /cache_kib=\$\(du -sk "\$cache_path"/ { measure[job]=NR }
+  step == "bound" && /echo "save=/ && /GITHUB_OUTPUT/ { verdict[job]=1 }
+  step == "save" && /uses: actions\/cache\/save@/ { save_action[job]=1 }
+  step == "save" && /^        if: steps\.compilation-cache-restore\.outputs\.cache-hit != '\''true'\'' && steps\.compilation-cache-bound\.outputs\.save == '\''true'\''$/ { save_gate[job]=1 }
+  step == "save" && /hashFiles/ { rescan[job]=1 }
+  END {
+    n = split("refresh app", jobs, " ")
+    for (i = 1; i <= n; i++) {
+      j = jobs[i]
+      if (!(bound[j] && bound_id[j] && prune[j] && prune_nonfatal[j] && measure[j] && prune[j] < measure[j] && verdict[j] && save[j] && save[j] > bound[j] && save_action[j] && save_gate[j] && !rescan[j])) exit 1
+    }
+    exit 0
+  }
+' "$WORKFLOW_FILE"; then
+  echo "FAIL: nightly cache saves must prune dead CAS generations (non-fatally) before measuring the bound, then save explicitly on a miss from the bound step verdict"
   exit 1
 fi
 
