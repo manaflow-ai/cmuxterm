@@ -5,13 +5,18 @@ private func entriesWithMinimumSupportedVersions(
     _ entries: [String: MobileMacListAuthState.Entry],
     stableMinimum: String?,
     nightlyMinimum: String?,
-    shouldOverride: Bool
+    overrideStable: Bool,
+    overrideNightly: Bool
 ) -> [String: MobileMacListAuthState.Entry] {
-    guard shouldOverride else { return entries }
+    guard overrideStable || overrideNightly else { return entries }
     return entries.mapValues { entry in
         var updated = entry
-        updated.minimumSupportedVersion = stableMinimum
-        updated.minimumSupportedNightlyVersion = nightlyMinimum
+        if overrideStable {
+            updated.minimumSupportedVersion = stableMinimum
+        }
+        if overrideNightly {
+            updated.minimumSupportedNightlyVersion = nightlyMinimum
+        }
         return updated
     }
 }
@@ -100,8 +105,10 @@ public final class MobileMacListAuthState {
         }
 
         private var isNightly: Bool {
-            releaseTrack?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "nightly"
-                || appVersion?.contains("-nightly.") == true
+            if let releaseTrack {
+                return releaseTrack.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "nightly"
+            }
+            return appVersion?.contains("-nightly.") == true
         }
 
         private static func numericVersion(_ raw: String) -> [Int]? {
@@ -165,20 +172,23 @@ public final class MobileMacListAuthState {
         let effectiveNightlyMinimum = hasPolicyMinimumSupportedMacVersion
             ? policyMinimumSupportedNightlyMacVersion
             : minimumSupportedNightlyMacVersion
-        let shouldOverride = hasPolicyMinimumSupportedMacVersion
+        let overrideStable = hasPolicyMinimumSupportedMacVersion
             || minimumSupportedMacVersion != nil
+        let overrideNightly = hasPolicyMinimumSupportedMacVersion
             || minimumSupportedNightlyMacVersion != nil
         self.entriesByEndpointID = entriesWithMinimumSupportedVersions(
             entriesByEndpointID,
             stableMinimum: effectiveStableMinimum,
             nightlyMinimum: effectiveNightlyMinimum,
-            shouldOverride: shouldOverride
+            overrideStable: overrideStable,
+            overrideNightly: overrideNightly
         )
         self.entriesByDeviceID = entriesWithMinimumSupportedVersions(
             entriesByDeviceID,
             stableMinimum: effectiveStableMinimum,
             nightlyMinimum: effectiveNightlyMinimum,
-            shouldOverride: shouldOverride
+            overrideStable: overrideStable,
+            overrideNightly: overrideNightly
         )
         self.minimumSupportedMacVersion = effectiveStableMinimum
         self.minimumSupportedNightlyMacVersion = effectiveNightlyMinimum
