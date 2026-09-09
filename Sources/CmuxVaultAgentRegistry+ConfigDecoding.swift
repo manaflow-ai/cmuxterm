@@ -65,10 +65,17 @@ extension CmuxVaultAgentRegistry {
         }
     }
 
+    private static func logDecodeFailure(path: String, message: String, key: String) {
+        guard configFailureLogGate.claim(path: path, key: key) else { return }
+        configLogger.fault(
+            "Failed to decode config at \(path, privacy: .private(mask: .hash)): \(message, privacy: .private)"
+        )
+    }
+
     private static func logDecodeIssue(path: String, message: String, key: String) {
         guard configFailureLogGate.claim(path: path, key: key) else { return }
         configLogger.warning(
-            "Loaded config with ignored invalid entries at \(path, privacy: .private(mask: .hash)): \(message, privacy: .private)"
+            "Loaded config with validation issues at \(path, privacy: .private(mask: .hash)): \(message, privacy: .private)"
         )
     }
 

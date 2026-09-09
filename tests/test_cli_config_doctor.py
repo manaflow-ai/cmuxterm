@@ -129,49 +129,12 @@ def main() -> int:
                 if finding is not None:
                     if payload.get("ok") is not True or finding.get("status") != "ok":
                         failures.append(f"valid JSONC was not ok: {ok_result.stdout}")
+                    if "command entries" not in str(finding.get("message", "")):
+                        failures.append(f"doctor success message overclaimed its scope: {ok_result.stdout}")
                     keys_raw = finding.get("keys", [])
                     keys = keys_raw if isinstance(keys_raw, list) else []
                     if "app" not in keys or "schemaVersion" not in keys:
                         failures.append(f"valid JSONC keys missing: {ok_result.stdout}")
-
-        for label, invalid_config, expected_path in [
-            ("invalid actions", {"actions": {"broken": "not an object"}}, "actions.broken"),
-            ("invalid ui", {"ui": {"newWorkspace": "not an object"}}, "ui.newWorkspace"),
-            ("invalid vault", {"vault": {"agents": "not an array"}}, "vault.agents"),
-        ]:
-            config_path.write_text(json.dumps(invalid_config) + "\n", encoding="utf-8")
-            invalid_result = run_cli(cli_path, ["--json", "config", "doctor", "--path", str(config_path)], home)
-            if invalid_result.returncode == 0:
-                failures.append(f"{label} returned success: {invalid_result.stdout}")
-            else:
-                payload = parse_json_output(invalid_result.stdout, label, failures)
-                if payload is not None:
-                    finding = first_finding(payload, label, invalid_result.stdout, failures)
-                    if finding is not None:
-                        message = str(finding.get("message", ""))
-                        if finding.get("status") != "error" or expected_path not in message:
-                            failures.append(f"{label} was not reported at {expected_path}: {invalid_result.stdout}")
-
-        config_path.write_text(
-            """
-            {
-              // JSONC comments and trailing commas are valid in cmux.json.
-              "schemaVersion": 1,
-              "app": {
-                "appearance": "system",
-              },
-              "commands": [
-                {
-                  "name": "Saved layout",
-                  "cwd": "/tmp",
-                  "layout": { "pane": { "surfaces": [{ "type": "terminal" }] } },
-                },
-                { "name": "Run tests", "command": "echo tests" },
-              ],
-            }
-            """,
-            encoding="utf-8",
-        )
 
         default_result = run_cli(cli_path, ["--json", "config", "doctor"], home, cwd=workspace)
         if default_result.returncode != 0:
