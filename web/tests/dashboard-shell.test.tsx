@@ -3,7 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type React from "react";
 
 const linkPrefetch = new Map<string, boolean | undefined>();
-const accountControl = <span data-testid="account-control" />;
+
+mock.module("../app/[locale]/dashboard/dashboard-account-menu", () => ({
+  DashboardAccountMenu: () => <span data-testid="account-control" />,
+}));
 
 mock.module("next-intl", () => ({
   NextIntlClientProvider: ({ children }: { children: React.ReactNode }) =>
@@ -35,7 +38,7 @@ const { DashboardShell } = await import(
 describe("dashboard shell", () => {
   test("mounts one account control across responsive layouts", () => {
     const html = renderToStaticMarkup(
-      <DashboardShell vaultEnabled account={accountControl}>
+      <DashboardShell vaultEnabled>
         <p>Dashboard content</p>
       </DashboardShell>,
     );
@@ -62,7 +65,7 @@ describe("dashboard shell", () => {
 
   test("removes every Vault navigation entry when the release flag is off", () => {
     const html = renderToStaticMarkup(
-      <DashboardShell vaultEnabled={false} account={accountControl}>
+      <DashboardShell vaultEnabled={false}>
         <p>Dashboard content</p>
       </DashboardShell>,
     );
@@ -76,7 +79,7 @@ describe("dashboard shell", () => {
   test("renders iOS TestFlight in its own section below coderouter", () => {
     linkPrefetch.clear();
     const html = renderToStaticMarkup(
-      <DashboardShell vaultEnabled account={accountControl}>
+      <DashboardShell vaultEnabled>
         <p>Dashboard content</p>
       </DashboardShell>,
     );
@@ -90,9 +93,8 @@ describe("dashboard shell", () => {
     expect(coderouterIndex).toBeGreaterThan(-1);
     expect(testflightIndex).toBeGreaterThan(coderouterIndex);
     expect(billingIndex).toBeGreaterThan(testflightIndex);
-    // Every page prefetches its static shell; private data streams behind
-    // Suspense and is never part of a prefetch, so no link opts out.
-    expect(linkPrefetch.get("/dashboard/coderouter")).toBeUndefined();
-    expect(linkPrefetch.get("/dashboard/testflight")).toBeUndefined();
+    // Auth-dependent pages must not be prefetched into a client snapshot.
+    expect(linkPrefetch.get("/dashboard/coderouter")).toBe(false);
+    expect(linkPrefetch.get("/dashboard/testflight")).toBe(false);
   });
 });
