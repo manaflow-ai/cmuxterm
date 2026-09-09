@@ -25,6 +25,19 @@ export interface SqliteExecutor {
   exec<T = Record<string, unknown>>(query: string, ...bindings: unknown[]): Iterable<T>;
 }
 
+export interface AccountSqliteDatabase {
+  readonly sql: SqliteExecutor;
+  /** Cloudflare's synchronous transaction API. Tests may omit it because the
+   * fake executor is already single threaded. */
+  readonly transactionSync?: <T>(callback: () => T) => T;
+}
+
+export interface AccountSqliteMigration {
+  readonly version: number;
+  readonly name: string;
+  readonly statements: readonly string[];
+}
+
 export class AccountStorageQuotaError extends Error {
   readonly code = "account_storage_quota_exceeded";
 
@@ -46,9 +59,8 @@ export class AccountBindingQuotaError extends Error {
 /** Create the schema idempotently. This function is safe to run on every DO
  * activation, so a class migration never needs to depend on application code
  * having run previously. */
-export function ensureAccountSchema(sql: SqliteExecutor): void {
-  sql.exec(`
-    CREATE TABLE IF NOT EXISTS account_bindings (
+const ACCOUNT_SCHEMA_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS account_bindings (
       binding_id TEXT PRIMARY KEY,
       endpoint_id TEXT NOT NULL,
       device_id TEXT NOT NULL,
@@ -60,51 +72,110 @@ export function ensureAccountSchema(sql: SqliteExecutor): void {
       registered_at INTEGER NOT NULL,
       revoked_at INTEGER,
       tombstone_expires_at INTEGER
-    );
-    CREATE UNIQUE INDEX IF NOT EXISTS account_bindings_endpoint_live
+    )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS account_bindings_endpoint_live
       ON account_bindings(endpoint_id) WHERE revoked_at IS NULL;
-    CREATE INDEX IF NOT EXISTS account_bindings_expiry
-      ON account_bindings(revoked_at, tombstone_expires_at, last_seen_at);
-
-    CREATE TABLE IF NOT EXISTS account_challenges (
+    `,
+  `CREATE INDEX IF NOT EXISTS account_bindings_expiry
+      ON account_bindings(revoked_at, tombstone_expires_at, last_seen_at)`,
+  `CREATE TABLE IF NOT EXISTS account_challenges (
       challenge_id TEXT PRIMARY KEY,
       payload TEXT NOT NULL,
       payload_bytes INTEGER NOT NULL,
       expires_at INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS account_challenges_expiry
-      ON account_challenges(expires_at);
-
-    CREATE TABLE IF NOT EXISTS account_pair_grants (
+    )`,
+  `CREATE INDEX IF NOT EXISTS account_challenges_expiry
+      ON account_challenges(expires_at)`,
+  `CREATE TABLE IF NOT EXISTS account_pair_grants (
       grant_id TEXT PRIMARY KEY,
       payload TEXT NOT NULL,
       payload_bytes INTEGER NOT NULL,
       expires_at INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS account_pair_grants_expiry
-      ON account_pair_grants(expires_at);
-
-    CREATE TABLE IF NOT EXISTS account_relay_issuances (
+    )`,
+  `CREATE INDEX IF NOT EXISTS account_pair_grants_expiry
+      ON account_pair_grants(expires_at)`,
+  `CREATE TABLE IF NOT EXISTS account_relay_issuances (
       issuance_id TEXT PRIMARY KEY,
       payload TEXT NOT NULL,
       payload_bytes INTEGER NOT NULL,
       expires_at INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS account_relay_issuances_expiry
-      ON account_relay_issuances(expires_at);
-
-    CREATE TABLE IF NOT EXISTS account_preferences (
+    )`,
+  `CREATE INDEX IF NOT EXISTS account_relay_issuances_expiry
+      ON account_relay_issuances(expires_at)`,
+  `CREATE TABLE IF NOT EXISTS account_preferences (
       preference_key TEXT PRIMARY KEY,
       payload TEXT NOT NULL,
       payload_bytes INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS account_meta (
+    )`,
+  `CREATE TABLE IF NOT EXISTS account_meta (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
-    );
+    )`,
+] as const;
+
+/** Append-only schema history. Changing a previously deployed migration is a
+ * data-loss bug: an object may have applied it before a later code deployment
+ * reaches the same object. */
+export const ACCOUNT_SQLITE_MIGRATIONS: readonly AccountSqliteMigration[] = [
+  { version: 1, name: "account_state_tables", statements: ACCOUNT_SCHEMA_STATEMENTS },
+];
+
+export function runAccountSqliteMigrations(
+  database: AccountSqliteDatabase,
+  nowMs: number,
+): void {
+  const { sql } = database;
+  sql.exec(`
+    CREATE TABLE IF NOT EXISTS account_schema_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at INTEGER NOT NULL
+    )
   `);
+
+  const applied = new Map<number, string>();
+  for (const row of sql.exec<{ version?: unknown; name?: unknown }>(
+    "SELECT version, name FROM account_schema_migrations ORDER BY version",
+  )) {
+    if (typeof row.version !== "number" || !Number.isSafeInteger(row.version)
+      || typeof row.name !== "string") {
+      throw new Error("invalid account schema migration row");
+    }
+    applied.set(row.version, row.name);
+  }
+
+  const highestKnown = ACCOUNT_SQLITE_MIGRATIONS.at(-1)?.version ?? 0;
+  for (const [version, name] of applied) {
+    if (version > highestKnown) throw new Error(`account schema is newer than this worker: v${version}`);
+    const expected = ACCOUNT_SQLITE_MIGRATIONS.find((migration) => migration.version === version);
+    if (!expected || expected.name !== name) {
+      throw new Error(`account schema migration identity mismatch at v${version}`);
+    }
+  }
+
+  const apply = (): void => {
+    for (const migration of ACCOUNT_SQLITE_MIGRATIONS) {
+      if (applied.has(migration.version)) continue;
+      for (const statement of migration.statements) sql.exec(statement);
+      sql.exec(
+        "INSERT INTO account_schema_migrations (version, name, applied_at) VALUES (?, ?, ?)",
+        migration.version,
+        migration.name,
+        nowMs,
+      );
+      applied.set(migration.version, migration.name);
+    }
+  };
+  if (database.transactionSync) database.transactionSync(apply);
+  else apply();
+}
+
+/** Compatibility name for callers that only have the SQL handle. New DO code
+ * should pass the full DurableObjectStorage wrapper to the migration runner so
+ * schema changes are applied in one synchronous transaction. */
+export function ensureAccountSchema(sql: SqliteExecutor): void {
+  runAccountSqliteMigrations({ sql }, Date.now());
 }
 
 /** Use one cutoff for every expiry delete. A single timestamp makes a cleanup

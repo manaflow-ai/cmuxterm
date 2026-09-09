@@ -203,3 +203,48 @@ Leave `CMUX_PRESENCE_BASE_URL` unset to use the shared `cmux-presence-dev`
 baseline. The durable fix for any feature is to **merge it** — then it ships on
 prod via CI and anyone deploying dev from `main` carries it, no coordination
 needed.
+# Durable Object SQLite migration runbook
+
+The account control plane uses one SQLite-backed Durable Object per account. The
+database is private to that object. It is not a replacement for global Cloud VM
+billing or usage storage.
+
+## Schema changes
+
+1. Add a new entry to `ACCOUNT_SQLITE_MIGRATIONS` in
+   `src/accountSqliteStorage.ts`. Migration versions are append-only. Never edit
+   a statement or rename a migration after it has shipped.
+2. Make the migration idempotent and bounded. Use `CREATE ... IF NOT EXISTS`,
+   add indexes before large reads, and do not scan or rewrite unbounded data in
+   an activation.
+3. Add a focused test that starts from the previous schema, applies the new
+   version, runs the runner twice, and checks the version and data invariants.
+4. If the Durable Object class itself changes, append a Wrangler `[[migrations]]`
+   tag. Never edit an old tag or reuse a class name for a different schema.
+
+The runner creates `account_schema_migrations`, rejects a worker that is older
+than an object, rejects a changed migration identity, and applies all missing
+versions in one synchronous transaction when the runtime provides
+`transactionSync`. A schema rollback is not supported. Roll back the worker
+code only when it remains compatible with the already-applied schema.
+
+## Deployment sequence
+
+Deploy the worker to the development environment with a dry run, run the
+migration tests and request-contract tests, then canary one account. Check
+object errors, `SQLITE_FULL`, migration duration, and row counts. Promote the
+same immutable worker revision. Keep the old route available until the canary
+has completed; a route rollback must not attempt to downgrade SQLite.
+
+SQLite-backed objects have a 10 GB per-object platform limit on Workers Paid,
+but this service enforces a much smaller logical quota. Every write path must
+run expiry cleanup first, enforce payload and active-binding limits, and handle
+`SQLITE_FULL` as a recoverable storage error after bounded deletion. Temporary
+rows require an `expires_at` column and an index. The alarm runs cleanup daily
+and is scheduled earlier when the next expiry is known. Terminal bytes,
+WebSocket frames, and analytics payloads must never be persisted here.
+
+If a future migration needs destructive cleanup, ship it in two revisions:
+first add the replacement columns and dual-read, then backfill in bounded alarm
+steps, then remove the old columns in a later migration. Do not combine a data
+rewrite with a traffic cutover.

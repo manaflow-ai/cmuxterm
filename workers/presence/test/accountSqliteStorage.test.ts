@@ -7,7 +7,24 @@ import {
   retentionAlarmAt,
   expiredBefore,
   isPayloadWithinQuota,
+  runAccountSqliteMigrations,
+  type SqliteExecutor,
 } from "../src/accountSqliteStorage";
+
+class RecordingSql implements SqliteExecutor {
+  readonly statements: string[] = [];
+  readonly applied: { version: number; name: string }[] = [];
+  exec<T = Record<string, unknown>>(query: string, ..._bindings: unknown[]): Iterable<T> {
+    this.statements.push(query);
+    if (query.includes("SELECT version, name FROM account_schema_migrations")) {
+      return this.applied as T[];
+    }
+    if (query.includes("INSERT INTO account_schema_migrations")) {
+      this.applied.push({ version: 1, name: "account_state_tables" });
+    }
+    return [] as T[];
+  }
+}
 
 describe("account SQLite retention policy", () => {
   it("keeps a logical quota well below the platform limit", () => {
@@ -33,5 +50,15 @@ describe("account SQLite retention policy", () => {
     const now = 1_700_000_000_000;
     expect(expiredBefore(now)).toBe(now);
     expect(retentionAlarmAt(now)).toBe(now + 24 * 60 * 60 * 1000);
+  });
+
+  it("records each schema version and is idempotent", () => {
+    const sql = new RecordingSql();
+    const database = { sql, transactionSync: (callback: () => void) => callback() };
+    runAccountSqliteMigrations(database, 1_700_000_000_000);
+    const firstRun = sql.statements.length;
+    runAccountSqliteMigrations(database, 1_700_000_000_001);
+    expect(sql.statements.length).toBeGreaterThan(firstRun);
+    expect(sql.statements.filter((statement) => statement.includes("INSERT INTO account_schema_migrations"))).toHaveLength(1);
   });
 });
