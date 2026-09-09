@@ -14,6 +14,7 @@ struct SidebarRowTextAccessibilityTreeTests {
             backing: .buffered,
             defer: false
         )
+        window.isReleasedWhenClosed = false
         defer { window.close() }
         let label = SidebarRowTextView(lines: lines)
         label.frame = NSRect(x: 0, y: 0, width: 280, height: 80)
