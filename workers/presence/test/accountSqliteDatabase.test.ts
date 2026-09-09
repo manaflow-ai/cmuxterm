@@ -123,3 +123,55 @@ describe("account schema on real SQLite", () => {
     },
   );
 });
+
+function seedBinding(db: Database, id: string, lastSeen = now, revokedAt: number | null = null, tombstoneExpiry: number | null = null) {
+  db.run(`INSERT INTO account_bindings (
+    binding_id, endpoint_id, device_id, client_namespace, platform, payload,
+    last_seen_at, registered_at, revoked_at, tombstone_expires_at
+  ) VALUES (?, ?, ?, 'test', 'mac', '{}', ?, ?, ?, ?)`,
+  [id, id.padStart(64, '0'), id, lastSeen, lastSeen, revokedAt, tombstoneExpiry]);
+}
+
+test("binding cap allows updates at capacity and prevents unrevoking over capacity", () => {
+  const { db, storage } = database();
+  runAccountSqliteMigrations(storage, now);
+  for (let i = 0; i < 32; i++) seedBinding(db, String(i));
+  expect(() => seedBinding(db, "extra")).toThrow();
+  db.run("UPDATE account_bindings SET payload = 'updated' WHERE binding_id = '0'");
+  db.run("UPDATE account_bindings SET revoked_at = ?, tombstone_expires_at = ? WHERE binding_id = '0'", [now, now + 30 * 86400000]);
+  seedBinding(db, "extra");
+  expect(() => db.run("UPDATE account_bindings SET revoked_at = NULL, tombstone_expires_at = NULL WHERE binding_id = '0'")).toThrow();
+  expect(db.query("SELECT live_bindings FROM account_storage_usage").get()).toEqual({ live_bindings: 32 });
+});
+
+test("row count and preference key limits prevent growth from tiny records", () => {
+  const { db, storage } = database();
+  runAccountSqliteMigrations(storage, now);
+  for (let i = 0; i < 4096; i++) seedChallenge(db, String(i));
+  expect(() => seedChallenge(db, "extra")).toThrow();
+  db.run("DELETE FROM account_challenges WHERE challenge_id = '0'");
+  seedChallenge(db, "extra");
+  expect(db.query("SELECT records FROM account_storage_usage").get()).toEqual({ records: 4096 });
+  expect(() => db.run("INSERT INTO account_preferences (preference_key, payload, updated_at) VALUES ('history', '{}', ?)", [now])).toThrow();
+});
+
+test("expiry covers each temporary table and retains protected tombstones", () => {
+  const { db, storage } = database();
+  runAccountSqliteMigrations(storage, now);
+  for (const [table, key] of [["account_pair_grants", "grant_id"], ["account_relay_issuances", "issuance_id"]]) {
+    db.run(`INSERT INTO ${table} (${key}, payload, expires_at) VALUES ('expired', '{}', ?), ('live', '{}', ?)`, [now, now + 1]);
+  }
+  const retention = 30 * 86400000;
+  seedBinding(db, "inactive", now - retention);
+  seedBinding(db, "active", now);
+  seedBinding(db, "expired-tombstone", now - retention, now - retention, now);
+  seedBinding(db, "protected-tombstone", now - retention, now - retention + 1, now + 1);
+  expect(() => seedBinding(db, "unsafe-tombstone", now, now, now + 1)).toThrow();
+  expect(() => seedBinding(db, "immortal-tombstone", now, now, null)).toThrow();
+  pruneExpiredAccountState(storage.sql, now);
+  expect(db.query("SELECT binding_id FROM account_bindings ORDER BY binding_id").all()).toEqual([
+    { binding_id: "active" }, { binding_id: "protected-tombstone" },
+  ]);
+  expect(db.query("SELECT grant_id FROM account_pair_grants").all()).toEqual([{ grant_id: "live" }]);
+  expect(db.query("SELECT issuance_id FROM account_relay_issuances").all()).toEqual([{ issuance_id: "live" }]);
+});

@@ -26,7 +26,7 @@ import { captureSentryException, type SentryEnv } from "./sentry";
 import { parseRetryAfterSeconds, rateLimitedJson } from "./retryAfterResponse";
 import {
   pruneExpiredAccountState,
-  retentionAlarmAt,
+  nextAccountRetentionAt,
   runAccountSqliteMigrations,
 } from "./accountSqliteStorage";
 
@@ -88,7 +88,7 @@ export class AccountControlPlane extends DurableObject<ControlPlaneEnv> {
         transactionSync: <T>(callback: () => T): T => this.ctx.storage.transactionSync(callback),
       }, now);
       pruneExpiredAccountState(this.sqlite, now);
-      await this.ctx.storage.setAlarm(retentionAlarmAt(now));
+      await this.scheduleRetention(now);
     });
   }
 
@@ -262,6 +262,7 @@ export class AccountControlPlane extends DurableObject<ControlPlaneEnv> {
     try {
       pruneExpiredAccountState(this.sqlite, Date.now());
       await this.core.handleAlarm();
+      await this.scheduleRetention(Date.now());
     } catch (error) {
       await captureSentryException(this.env, "cloudflare-control-plane", error, {
         durable_object: "AccountControlPlane",
@@ -269,6 +270,11 @@ export class AccountControlPlane extends DurableObject<ControlPlaneEnv> {
       });
       throw error;
     }
+  }
+
+  private async scheduleRetention(now: number): Promise<void> {
+    const deadline = nextAccountRetentionAt(this.sqlite, now);
+    if (deadline !== null) await this.ensureAlarmAt(deadline);
   }
 
   /** Pull the alarm earlier if `due` precedes the currently scheduled one
