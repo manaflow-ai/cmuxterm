@@ -504,7 +504,12 @@ struct CLIRelayQueuedHookRegressionTests {
             listenerFD: listenerFD,
             commands: captured,
             surfaceId: replaySurfaceID,
-            connectionLimit: 32
+            connectionLimit: 32,
+            processBinding: CodexHookMockProcessBinding(
+                processID: 1,
+                workspaceID: replayWorkspaceID,
+                surfaceID: replaySurfaceID
+            )
         )
         defer {
             Darwin.close(listenerFD)
@@ -583,6 +588,16 @@ struct CLIRelayQueuedHookRegressionTests {
         from relay: RelayQueuedHookMockServer,
         subcommand: String? = nil
     ) throws -> [String: Any] {
+        #expect(waitForConditionBlocking(timeout: 2) {
+            relay.requests().contains {
+                guard $0["method"] as? String == "agent.hook.enqueue" else {
+                    return false
+                }
+                guard let subcommand else { return true }
+                return ($0["params"] as? [String: Any])?["subcommand"] as? String
+                    == subcommand
+            }
+        })
         let requests = relay.requests()
         let request = try #require(requests.first {
             guard $0["method"] as? String == "agent.hook.enqueue" else {
