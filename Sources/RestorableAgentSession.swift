@@ -3585,6 +3585,11 @@ struct DeferredAgentResumeRestore: Sendable {
     let workingDirectory: String?
     let resumeWorkingDirectory: String?
 
+    /// The shell dialect used for notices typed into this deferred restore.
+    var noticeDialect: TerminalStartupShellDialect {
+        restoresRemoteWorkspaceTerminalSnapshot ? .remoteHost : .loginShell
+    }
+
     init(
         stablePanelID: UUID,
         restorableAgent: SessionRestorableAgentSnapshot?,

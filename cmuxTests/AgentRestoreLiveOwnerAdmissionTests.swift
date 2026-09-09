@@ -93,7 +93,6 @@ struct AgentRestoreLiveOwnerAdmissionTests {
                 // window here.
                 let churn = hookStateDirectory.appendingPathComponent("churn-\(pass).json")
                 try? Data("{}".utf8).write(to: churn, options: .atomic)
-                Thread.sleep(forTimeInterval: 0.3)
                 let index = loadIndex()
                 return (
                     index: index,
@@ -211,11 +210,17 @@ struct AgentRestoreLiveOwnerAdmissionTests {
                 ),
                 "cycle \(cycle): the pre-exec claim must be free once the previous launch exited"
             )
+            let reloadedArguments = try #require(
+                fixture.index.snapshot(
+                    workspaceId: fixture.ownerWorkspaceID,
+                    panelId: fixture.ownerSurfaceID
+                )?.launchCommand.arguments
+            )
             let argv = try #require(AgentResumeArgv().builtInKind(
                 kind: "amp",
                 sessionId: fixture.sessionID,
                 executablePath: fixture.executable,
-                arguments: capturedArguments
+                arguments: reloadedArguments
             ))
             #expect(
                 argv == ["amp", "threads", "continue", "--mode", "smart", fixture.sessionID],

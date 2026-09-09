@@ -312,6 +312,7 @@ extension Workspace {
             switch restoredAgentResumeStatesByPanelId[panelId] {
             case .some(.awaitingAutoResumeCommand):
                 restoredAgentLifecycle.setResumeState(.autoResumeCommandRunning, panelId: panelId)
+                restoredAgentLifecycle.clearStartupInput(panelId: panelId)
             case .some(.autoResumeCommandRunning), .some(.observedAgentCommandRunning),
                  .some(.completedAgentExit):
                 break
@@ -324,7 +325,9 @@ extension Workspace {
                 markRestoredAgentCompleted(panelId: panelId, snapshot: restoredAgent)
                 restoredResumeSessionWorkingDirectoriesByPanelId.removeValue(forKey: panelId)
                 retireAgentHookResumeBinding(panelId: panelId, matching: restoredAgent)
-            case .some(.awaitingAutoResumeCommand), .some(.manualResumeAvailable), .some(.completedAgentExit), nil:
+            case .some(.awaitingAutoResumeCommand):
+                scheduleRestoredStartupInputResend(panelId: panelId)
+            case .some(.manualResumeAvailable), .some(.completedAgentExit), nil:
                 break
             }
         case .unknown:
@@ -339,6 +342,9 @@ extension Workspace {
         switch (shellState, restoredAgentResumeStatesByPanelId[panelId]) {
         case (.commandRunning, .some(.awaitingAutoResumeCommand)):
             restoredAgentLifecycle.setResumeState(.autoResumeCommandRunning, panelId: panelId)
+            restoredAgentLifecycle.clearStartupInput(panelId: panelId)
+        case (.promptIdle, .some(.awaitingAutoResumeCommand)):
+            scheduleRestoredStartupInputResend(panelId: panelId)
         case (.promptIdle, .some(.autoResumeCommandRunning)),
              (.promptIdle, .some(.observedAgentCommandRunning)):
             restoredAgentLifecycle.setResumeState(nil, panelId: panelId)
@@ -347,6 +353,28 @@ extension Workspace {
         default:
             break
         }
+    }
+
+    /// Grace period before replaying startup input that a slow login shell may discard.
+    static var restoredStartupInputResendGrace: TimeInterval = 2
+
+    /// Replays a retained restore selector once after the shell reports an idle prompt.
+    func scheduleRestoredStartupInputResend(panelId: UUID) {
+        guard restoredAgentLifecycle.armStartupInputResend(panelId: panelId) else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.restoredStartupInputResendGrace) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.resendRestoredStartupInputIfStillIdle(panelId: panelId)
+            }
+        }
+    }
+
+    func resendRestoredStartupInputIfStillIdle(panelId: UUID) {
+        let shellState = panelShellActivityStates[panelId] ?? .unknown
+        guard !isRetiredFromOwningTabManager,
+              let terminal = panels[panelId] as? TerminalPanel,
+              let input = restoredAgentLifecycle.takeStartupInputForResend(panelId: panelId, shellState: shellState),
+              terminal.surface.surface != nil else { return }
+        _ = terminal.sendInputResult(input)
     }
 
     private func invalidateRestoredAgentSnapshot(
@@ -820,10 +848,13 @@ extension Workspace {
                 .awaitingAutoResumeCommand,
                 panelId: panelId
             )
+            let admittedInput = restore.remoteResumeCommandEmbedded ? nil : startupInput
+            restoredAgentLifecycle.registerStartupInput(admittedInput, panelId: panelId)
             let admitted = terminal.surface.admitStartupRestoreRuntime(
-                initialInput: restore.remoteResumeCommandEmbedded ? nil : startupInput
+                initialInput: admittedInput
             )
             if !admitted {
+                restoredAgentLifecycle.clearStartupInput(panelId: panelId)
                 if let ownedClaim {
                     AgentResumeLaunchGuard.shared.releaseResumeLaunch(
                         kind: ownedClaim.kind,
@@ -879,6 +910,7 @@ extension Workspace {
             restoredAgentLifecycle.clearSessionRestore(panelId: panelId)
         }
         removeDeferredAgentResumeRestore(panelId: panelId)
+        restoredAgentLifecycle.clearStartupInput(panelId: panelId)
         if startRuntime, retireBinding, restore.restorableAgent == nil {
             if let binding = restore.resumeBinding {
                 retireAgentHookResumeBinding(panelId: panelId, matching: binding)
@@ -967,17 +999,17 @@ extension Workspace {
             panelId: panelId
         )
         if restore.remoteResumeCommandEmbedded {
+            let fallbackCommand: String
             if let remoteResumeContext = restore.remoteResumeContext,
-               let remoteNoticeCommand = persistentSSHLiveOwnerNoticeCommand(
-                   noticeInput
-               ) {
-                terminal.surface.setStartupRestoreAdmissionFallbackCommand(
-                    remotePTYAttachStartupCommand(
-                        sessionID: remoteResumeContext.persistentPTYSessionID,
-                        remoteCommand: remoteNoticeCommand
-                    )
+               let remoteNoticeCommand = persistentSSHLiveOwnerNoticeCommand(noticeInput) {
+                fallbackCommand = remotePTYAttachStartupCommand(
+                    sessionID: remoteResumeContext.persistentPTYSessionID,
+                    remoteCommand: remoteNoticeCommand
                 )
+            } else {
+                fallbackCommand = noticeInput
             }
+            terminal.surface.setStartupRestoreAdmissionFallbackCommand(fallbackCommand)
             // The original remote attach command contains the agent resume
             // payload. Cancel admission so the attach-only/notice fallback
             // replaces it and the payload can never execute.
@@ -987,12 +1019,6 @@ extension Workspace {
                 initialInput: noticeInput
             )
         }
-    }
-
-    private static func deferredNoticeDialect(
-        for restore: DeferredAgentResumeRestore
-    ) -> TerminalStartupShellDialect {
-        restore.restoresRemoteWorkspaceTerminalSnapshot ? .remoteHost : .loginShell
     }
 
     /// The live-agent scan did not finish inside the admission deadline, so
@@ -1017,7 +1043,7 @@ extension Workspace {
                 restore: restore,
                 terminal: terminal,
                 noticeInput: AgentRestoreUnverifiableNotice()
-                    .startupInput(dialect: Self.deferredNoticeDialect(for: restore))
+                    .startupInput(dialect: restore.noticeDialect)
             )
         }
         deferredAgentResumeRestoresByPanelId.removeAll()
