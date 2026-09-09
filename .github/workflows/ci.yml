@@ -1244,6 +1244,9 @@ jobs:
               -disableAutomaticPackageResolution \
               -destination "platform=macOS" \
               "${only_testing_args[@]}" \
+              -test-timeouts-enabled YES \
+              -default-test-execution-time-allowance "${CMUX_UNIT_TEST_CASE_TIMEOUT_SECONDS:-300}" \
+              -maximum-test-execution-time-allowance "${CMUX_UNIT_TEST_CASE_TIMEOUT_SECONDS:-300}" \
               CMUX_SKIP_ZIG_BUILD=1 \
               test > "$batch_output" 2>&1 &
             local xcodebuild_pid=$!
