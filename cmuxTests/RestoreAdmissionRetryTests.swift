@@ -96,71 +96,10 @@ import Testing
     }
 }
 
-/// Deferred restores wait for the ownership scan to settle instead of
-/// cancelling every restore on the first unsettled pass (#12084).
-@Suite struct LiveAgentIndexSettleTests {
-    @Test
-    func settledIndexRetriesUntilTheScanSettles() async {
-        var refreshes = 0
-        var pauses = 0
-
-        let index = await SharedLiveAgentIndex.settledIndex(
-            attempts: 4,
-            pause: { pauses += 1 },
-            refresh: {
-                refreshes += 1
-                return refreshes == 3 ? RestorableAgentSessionIndex.empty : nil
-            }
-        )
-
-        #expect(index != nil)
-        #expect(refreshes == 3)
-        #expect(pauses == 2)
-    }
-
-    @Test
-    func settledIndexGivesUpAfterTheAttemptBudget() async {
-        var refreshes = 0
-        var pauses = 0
-
-        let index = await SharedLiveAgentIndex.settledIndex(
-            attempts: 3,
-            pause: { pauses += 1 },
-            refresh: {
-                refreshes += 1
-                return nil
-            }
-        )
-
-        #expect(index == nil)
-        #expect(refreshes == 3)
-        #expect(pauses == 2)
-    }
-
-    @Test
-    func settledIndexTreatsNonPositiveAttemptsAsOne() async {
-        var refreshes = 0
-
-        let index = await SharedLiveAgentIndex.settledIndex(
-            attempts: 0,
-            pause: {},
-            refresh: {
-                refreshes += 1
-                return nil
-            }
-        )
-
-        #expect(index == nil)
-        #expect(refreshes == 1)
-        #expect(SharedLiveAgentIndex.deferredRestoreSettleAttempts > 1)
-    }
-}
-
-/// An ownership-sensitive refresh scoped to the agent kind being restored
-/// settles on that kind's hook store alone. Every agent on the Mac writes its
-/// own hook store into the same directory, so whole-directory quiescence
-/// almost never holds on a busy machine and failed every restore closed
-/// (#12084).
+/// Ownership refreshes must finish while either Pi or another agent writes
+/// its hook store. Main's fresh-scan contract (#12166) supersedes this branch's
+/// per-kind quiescence checks: admission revalidates process identity and
+/// claims the launch after this scan, without waiting for hook traffic to stop.
 @MainActor
 @Suite(.serialized)
 struct LiveAgentIndexRelevantChurnTests {
@@ -195,64 +134,24 @@ struct LiveAgentIndexRelevantChurnTests {
         )
     }
 
-    @Test
-    func unrelatedHookStoreChurnDoesNotFailAScopedRefreshClosed() async throws {
+    @Test(arguments: ["claude-hook-sessions.json", "pi-hook-sessions.json"])
+    func hookStoreChurnDoesNotBlockOwnershipDecision(filename: String) async throws {
         let directory = try Self.makeHookStoreDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let loadCount = OSAllocatedUnfairLock(initialState: 0)
         let index = Self.makeChurningIndex(
             directory: directory,
-            churnedFilename: "claude-hook-sessions.json",
+            churnedFilename: filename,
             loadCount: loadCount
         )
 
-        let refreshed = await index.indexRefreshingNow(relevantKinds: ["pi"])
+        let outcome = await index.indexForOwnershipDecision()
 
-        #expect(refreshed != nil)
-        #expect(loadCount.withLock { $0 } == 1)
-    }
-
-    @Test
-    func relevantHookStoreChurnStillFailsClosed() async throws {
-        let directory = try Self.makeHookStoreDirectory()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let loadCount = OSAllocatedUnfairLock(initialState: 0)
-        let index = Self.makeChurningIndex(
-            directory: directory,
-            churnedFilename: "pi-hook-sessions.json",
-            loadCount: loadCount
-        )
-
-        let refreshed = await index.indexRefreshingNow(relevantKinds: ["pi"])
-
-        #expect(refreshed == nil)
-        #expect(loadCount.withLock { $0 } == 2)
-    }
-
-    @Test
-    func hookStoreFilenamesCoverBuiltInAndCustomKinds() {
-        let filenames = SharedLiveAgentIndex.hookStoreFilenames(forKinds: ["pi", "my-agent"])
-        #expect(filenames == ["pi-hook-sessions.json", "my-agent-hook-sessions.json"])
-    }
-
-    @Test
-    func fingerprintsTrackPresenceAndRewrites() throws {
-        let directory = try Self.makeHookStoreDirectory()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let filename = "pi-hook-sessions.json"
-        let file = directory.appendingPathComponent(filename)
-
-        #expect(SharedLiveAgentIndex.hookStoreFingerprints(directory: directory.path)[filename] == nil)
-        try Data("{}".utf8).write(to: file, options: .atomic)
-        let first = SharedLiveAgentIndex.hookStoreFingerprints(directory: directory.path)[filename]
-        try Data("{\"sessions\":{}}".utf8).write(to: file, options: .atomic)
-        let second = SharedLiveAgentIndex.hookStoreFingerprints(
-            directory: directory.path,
-            filenames: [filename]
-        )[filename]
-
-        #expect(first != nil)
-        #expect(second != nil)
-        #expect(first != second)
+        guard case .index(let refreshed) = outcome else {
+            Issue.record("Hook-store churn blocked a fresh ownership scan: \(outcome)")
+            return
+        }
+        #expect(refreshed.isComplete)
+        #expect(loadCount.withLock { $0 } >= 1)
     }
 }

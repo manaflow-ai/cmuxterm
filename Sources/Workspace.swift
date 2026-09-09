@@ -6138,9 +6138,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             }
         }
         // These checks and the assignment are one MainActor mutation, so
-        // concurrent hook publications cannot observe-then-downgrade a TUI
-        // binding, or a trusted same-session binding, between separate get/set
-        // socket calls.
+        // concurrent publications cannot downgrade a TUI or trusted same-session
+        // binding between separate get/set socket calls.
         let existingBinding = surfaceResumeBindingsByPanelId[panelId]
         guard binding.allowsCodexAgentHookReplacement(of: existingBinding),
               !binding.downgradesTrustedAgentHookBinding(existingBinding) else {

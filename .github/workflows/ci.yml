@@ -805,7 +805,6 @@ jobs:
             SurfaceResumeAgentHookDowngradeTests \
             RestoredAgentShellActivityLivenessTests \
             RestoreAdmissionRetryPolicyTests \
-            LiveAgentIndexSettleTests \
             LiveAgentIndexRelevantChurnTests
           do
             scripts/ci/run-in-console-session.sh \

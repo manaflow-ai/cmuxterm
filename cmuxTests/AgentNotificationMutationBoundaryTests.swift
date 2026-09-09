@@ -10,9 +10,7 @@ import Testing
 #endif
 
 extension AgentNotificationRegressionTests {
-    // Generous for loaded CI runners: subprocess spawn, signal propagation,
-    // and marker writes can take multiple seconds there. A long timeout only
-    // slows the failure path.
+    // Allow loaded CI runners time for subprocess spawning and signal delivery.
     func waitForMarker(at url: URL, timeout: Duration = .seconds(15)) async -> Bool {
         let deadline = ContinuousClock.now + timeout
         while !FileManager.default.fileExists(atPath: url.path), ContinuousClock.now < deadline {
