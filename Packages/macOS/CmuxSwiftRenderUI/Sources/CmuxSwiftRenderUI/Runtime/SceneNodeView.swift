@@ -266,17 +266,7 @@ private struct SceneNodeContent: View {
     }
 
     private var fontSpec: DSLFontSpec? {
-        let weight = dslFontWeight(node.string("weight"))
-        if let size = node.props["font"]?.doubleValue {
-            return dslFontSpec(named: nil, size: size, weight: weight, family: node.string("family"))
-        }
-        if let named = node.string("font") {
-            return dslFontSpec(named: named, size: nil, weight: weight, family: node.string("family"))
-        }
-        if weight != nil {
-            return dslFontSpec(named: "body", size: nil, weight: weight, family: node.string("family"))
-        }
-        return nil
+        dslFontSpec(from: node)
     }
 }
 

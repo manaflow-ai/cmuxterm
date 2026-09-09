@@ -16390,7 +16390,7 @@ struct TabItemView: View, Equatable {
             emphasis: shortcutHintEmphasis,
             offsetX: sidebarShortcutHintXOffset,
             offsetY: sidebarShortcutHintYOffset,
-            fontSize: scaledFontSize(10)
+            fontSize: scaledFontSize(10), fontFamily: settings.sidebarFontFamily
         )
         .shortcutHintVisibilityAnimation(value: showsWorkspaceShortcutHint)
         .padding(.horizontal, SidebarWorkspaceListMetrics.rowOuterHorizontalPadding)

@@ -19,7 +19,7 @@ func dslFontSpec(
         )
     }
     if let size { return make(CGFloat(size)) }
-    guard let token else { return nil }
+    guard let token else { return normalizedFamily == nil ? nil : make(13) }
     switch token.lowercased() {
     case "largetitle": return make(26)
     case "title": return make(22)
@@ -34,4 +34,15 @@ func dslFontSpec(
     case "caption2": return make(9)
     default: return nil
     }
+}
+
+@MainActor
+func dslFontSpec(from node: SceneNode) -> DSLFontSpec? {
+    let weight = dslFontWeight(node.string("weight"))
+    return dslFontSpec(
+        named: node.string("font") ?? (weight == nil ? nil : "body"),
+        size: node.props["font"]?.doubleValue,
+        weight: weight,
+        family: node.string("family")
+    )
 }

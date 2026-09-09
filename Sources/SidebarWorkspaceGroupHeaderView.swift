@@ -281,7 +281,8 @@ struct SidebarWorkspaceGroupHeaderView: View, Equatable {
             text: shortcutHintPillText,
             emphasis: isAnchorActive ? 1.0 : 0.9,
             offsetX: shortcutHintXOffset,
-            offsetY: shortcutHintYOffset
+            offsetY: shortcutHintYOffset,
+            fontFamily: sidebarFontFamily
         )
         .padding(.horizontal, SidebarWorkspaceListMetrics.rowOuterHorizontalPadding)
         .shortcutHintVisibilityAnimation(value: showsShortcutHint)
