@@ -446,7 +446,7 @@ struct VaultRestorePathGuaranteeTests {
 
         #expect(launch.strategy == .legacyCommand)
         #expect(launch.legacyFallbackReason == .unrepresentableRegistration)
-        #expect(launch.startupInput(for: .remoteHost) == "legacy-agent --session legacy-session\n")
+        #expect(launch.startupInput(for: .remoteHost) == "'legacy-agent' '--session' 'legacy-session'\n")
         #expect(entry.copyResumeCommand?.contains("cd -- '/tmp/legacy-project'") == true)
     }
 
