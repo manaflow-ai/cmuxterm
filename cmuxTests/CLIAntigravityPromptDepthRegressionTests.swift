@@ -350,6 +350,88 @@ extension CLINotifyProcessIntegrationRegressionTests {
         )
     }
 
+    func testAntigravityDelayedSessionEndPreservesSettledIntermediateStop() throws {
+        let context = try makeClaudeHookContext(name: "antigravity-session-end-settled-stop")
+        defer { context.cleanup() }
+
+        startAgentHookMockServerAccepting(context: context)
+        let sessionId = "antigravity-session-end-settled-stop-session"
+        func run(_ subcommand: String, payload: String) -> ProcessRunResult {
+            runAgentHook(
+                context: context,
+                agent: "antigravity",
+                subcommand: subcommand,
+                standardInput: payload
+            )
+        }
+
+        let sessionStart = run(
+            "session-start",
+            payload: #"{"conversationId":"\#(sessionId)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"SessionStart"}"#
+        )
+        XCTAssertEqual(sessionStart.status, 0, sessionStart.stderr)
+        let prompt = run(
+            "prompt-submit",
+            payload: #"{"conversationId":"\#(sessionId)","turn_id":"turn-1","workspacePaths":["\#(context.root.path)"],"hook_event_name":"PreInvocation"}"#
+        )
+        XCTAssertEqual(prompt.status, 0, prompt.stderr)
+        let initialRecord = try readAntigravityHookSession(sessionId, context: context)
+        let initialRevision = try XCTUnwrap(
+            (initialRecord["promptLifecycleRevision"] as? NSNumber)?.int64Value
+        )
+
+        let sessionEndBarrier = context.root.appendingPathComponent("session-end-settled-stop.barrier").path
+        FileManager.default.createFile(atPath: sessionEndBarrier, contents: Data())
+        let sessionEndFinished = expectation(description: "delayed SessionEnd finishes")
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = self.runAgentHook(
+                context: context,
+                agent: "antigravity",
+                subcommand: "session-end",
+                standardInput: #"{"conversationId":"\#(sessionId)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"SessionEnd"}"#,
+                extraEnvironment: ["CMUX_TEST_AGENT_HOOK_SESSION_END_BARRIER": sessionEndBarrier]
+            )
+            sessionEndFinished.fulfill()
+        }
+
+        let readyPath = sessionEndBarrier + ".ready"
+        let readyDeadline = Date().addingTimeInterval(5)
+        while !FileManager.default.fileExists(atPath: readyPath), Date() < readyDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+        }
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: readyPath),
+            "SessionEnd must reach the post-lookup barrier"
+        )
+
+        let intermediateStop = run(
+            "stop",
+            payload: #"{"conversationId":"\#(sessionId)","fullyIdle":false,"workspacePaths":["\#(context.root.path)"],"hook_event_name":"Stop"}"#
+        )
+        XCTAssertEqual(intermediateStop.status, 0, intermediateStop.stderr)
+        let settledRecord = try readAntigravityHookSession(sessionId, context: context)
+        XCTAssertNil(settledRecord["activePromptDepth"])
+        XCTAssertEqual(settledRecord["agentLifecycle"] as? String, "running")
+        XCTAssertEqual(settledRecord["runtimeStatus"] as? String, "running")
+
+        try FileManager.default.removeItem(atPath: sessionEndBarrier)
+        wait(for: [sessionEndFinished], timeout: 5)
+
+        let finalRecord = try readAntigravityHookSession(sessionId, context: context)
+        XCTAssertNil(finalRecord["activePromptDepth"])
+        XCTAssertEqual(
+            finalRecord["agentLifecycle"] as? String,
+            "running",
+            "A delayed SessionEnd must not overwrite an accepted intermediate Stop"
+        )
+        XCTAssertEqual(finalRecord["runtimeStatus"] as? String, "running")
+        XCTAssertEqual(
+            (finalRecord["promptLifecycleRevision"] as? NSNumber)?.int64Value,
+            initialRevision,
+            "Settling a same-generation Stop must not create a new prompt generation"
+        )
+    }
+
     func testAntigravityDelayedStopAndNotificationCannotCloseNewerPrompt() throws {
         let context = try makeClaudeHookContext(name: "antigravity-terminal-generation")
         defer { context.cleanup() }
