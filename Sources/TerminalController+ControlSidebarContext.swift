@@ -328,7 +328,7 @@ extension TerminalController: ControlSidebarContext {
         requireOwnedKey: Bool = false
     ) {
         controlSidebarSchedulePanelOwnedMutation(target: target, panelID: panelID) { _, owner in
-            owner.clearAgentPID(
+            _ = owner.clearAgentPID(
                 key: key,
                 panelId: panelID,
                 clearStatus: clearStatus,

@@ -691,6 +691,13 @@ extension Workspace {
         switch (expectedPID, expectedPIDStartSeconds, expectedPIDStartMicroseconds) {
         case (nil, nil, nil):
             expectedProcessIdentity = nil
+        case (_, nil, nil):
+            // A PID without birth metadata is still useful for the legacy
+            // explicit-session/shared-key path. The later expected-PID guard
+            // requires an exact recorded PID unless a SessionStart is
+            // explicitly establishing a new owner; anonymous session-
+            // qualified claims still require the process-generation tuple.
+            expectedProcessIdentity = nil
         case let (pid?, startSeconds?, startMicroseconds?):
             expectedProcessIdentity = AgentPIDProcessIdentity(
                 pid: pid,

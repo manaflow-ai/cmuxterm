@@ -607,6 +607,11 @@ extension DockSplitStore {
         switch (expectedPID, expectedPIDStartSeconds, expectedPIDStartMicroseconds) {
         case (nil, nil, nil):
             expectedProcessIdentity = nil
+        case (_, nil, nil):
+            // Preserve the legacy explicit-session/shared-key path when the
+            // caller has a PID but cannot obtain birth metadata. Anonymous
+            // process-generation claims still take the tuple branch below.
+            expectedProcessIdentity = nil
         case let (pid?, startSeconds?, startMicroseconds?):
             expectedProcessIdentity = AgentPIDProcessIdentity(
                 pid: pid,

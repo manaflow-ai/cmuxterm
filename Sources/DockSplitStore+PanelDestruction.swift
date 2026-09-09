@@ -25,7 +25,6 @@ extension DockSplitStore {
             surfaceIds: [panelId],
             workspaceID: workspaceId
         )
-        removeDetachedSurfaceTransfer(forPanelID: panelId)
         terminalStartupRestoreCoordinator.discardPendingRestoreForPanelTeardown(
             panelID: panelId
         )

@@ -40,7 +40,7 @@ struct ControlCommandCoordinatorSidebarV1Tests {
                 args: "claude_code running \(option)"
             )
 
-            #expect(setResponse.hasPrefix("ERROR: Usage:"))
+            #expect(setResponse?.hasPrefix("ERROR: Usage:") == true)
             #expect(setContext.agentLifecycleCall == nil)
 
             let clearContext = FakeSidebarV1ControlCommandContext()
@@ -50,7 +50,7 @@ struct ControlCommandCoordinatorSidebarV1Tests {
                 args: "claude_code \(option)"
             )
 
-            #expect(clearResponse.hasPrefix("ERROR: Usage:"))
+            #expect(clearResponse?.hasPrefix("ERROR: Usage:") == true)
             #expect(clearContext.agentPIDClearCall == nil)
         }
     }
@@ -169,7 +169,7 @@ struct ControlCommandCoordinatorSidebarV1Tests {
                 command: "set_agent_pid",
                 args: "kiro.surface 43210 \(option)"
             )
-            #expect(pidResponse.hasPrefix("ERROR: Usage:"))
+            #expect(pidResponse?.hasPrefix("ERROR: Usage:") == true)
             #expect(pidContext.agentPIDRecordCall == nil)
 
             let lifecycleContext = FakeSidebarV1ControlCommandContext()
@@ -178,7 +178,7 @@ struct ControlCommandCoordinatorSidebarV1Tests {
                 command: "set_agent_lifecycle",
                 args: "kiro running --expected-pid-key=kiro.surface --expected-pid=43210 \(option)"
             )
-            #expect(lifecycleResponse.hasPrefix("ERROR: Usage:"))
+            #expect(lifecycleResponse?.hasPrefix("ERROR: Usage:") == true)
             #expect(lifecycleContext.agentLifecycleCall == nil)
         }
     }
@@ -239,7 +239,7 @@ struct ControlCommandCoordinatorSidebarV1Tests {
                 args: "kiro Running \(options)"
             )
 
-            #expect(response.hasPrefix("ERROR: Usage:"))
+            #expect(response?.hasPrefix("ERROR: Usage:") == true)
             #expect(context.statusUpsertCall == nil)
         }
     }
