@@ -52,7 +52,7 @@ struct SSHStartupManualReconnectTests {
         }
     }
 
-    @Test func manualReconnectReentersConnectLoop() throws {
+    @Test func failedVMStartupClosesAfterDismissalWithoutImplicitReconnect() throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory
             .appendingPathComponent("cmux-ssh-manual-retry-\(UUID().uuidString)", isDirectory: true)
@@ -93,29 +93,27 @@ struct SSHStartupManualReconnectTests {
         environment["CMUX_TEST_ATTEMPT_FILE"] = attemptFile.path
         environment["CMUX_SSH_RECONNECT_DELAY_SECONDS"] = "0"
 
-        let result = Self.runProcess(
-            executablePath: "/bin/sh",
-            arguments: ["-c", startupCommand],
+        let prompt = try Self.makeTerminalExitPromptProcess(TerminalExitPromptFixture(
+            startupCommand: startupCommand,
             environment: environment,
-            standardInput: "r\n",
-            timeout: 5
-        )
+            temporaryDirectory: root
+        ))
+        defer { Self.stopAndCleanUp(prompt) }
+        try #require(Self.waitForFile(
+            at: prompt.transcriptURL,
+            containing: "press Enter to close this pane",
+            timeout: 3
+        ), "the failed VM connection must reach its dismissal prompt")
 
-        #expect(!result.timedOut, Comment(rawValue: result.stderr))
-        #expect(result.status == 0, Comment(rawValue: result.stderr))
-        #expect(
-            (try? String(contentsOf: attemptFile, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) == "2",
-            "manual `r` retry must re-run the SSH connect loop a second time"
-        )
-        let recordedCalls = (try? String(contentsOf: logFile, encoding: .utf8)) ?? ""
-        let sessionEndCalls = recordedCalls
-            .split(separator: "\n")
-            .filter { $0.contains("ssh-session-end") }
-        #expect(sessionEndCalls.count == 2, Comment(rawValue: result.stderr))
-        #expect(
-            recordedCalls.contains("rpc workspace.remote.reconnect {\"workspace_id\":\"11111111-1111-1111-1111-111111111111\",\"surface_id\":\"22222222-2222-2222-2222-222222222222\"}"),
-            Comment(rawValue: recordedCalls)
-        )
+        // Startup no longer owns manual reconnect. The old retry character is
+        // ordinary input; Enter dismisses this failed attempt without an RPC.
+        try prompt.standardInput.fileHandleForWriting.write(contentsOf: Data("r\n".utf8))
+        try #require(Self.waitForExit(prompt.process, timeout: 3))
+        #expect(prompt.process.terminationStatus == 1)
+        #expect(try String(contentsOf: attemptFile, encoding: .utf8) == "1")
+        let recordedCalls = try String(contentsOf: logFile, encoding: .utf8)
+        #expect(recordedCalls.split(separator: "\n").filter { $0.contains("ssh-session-end") }.count == 1)
+        #expect(!recordedCalls.contains("rpc workspace.remote.reconnect "))
     }
 
     @Test func terminalTeardownDisablesRemoteInputReportingModesBeforePrompt() throws {
@@ -294,7 +292,7 @@ struct SSHStartupManualReconnectTests {
             try? standardInput.fileHandleForWriting.close()
         }
 
-        try process.run()
+        try Self.startProcess(process)
         let authReady = Self.waitForFile(at: authReadyMarker, containing: "ready", timeout: 3)
         #expect(authReady, "Timed out waiting for foreground authentication to enter its nested PTY")
         if authReady {
@@ -380,7 +378,7 @@ struct SSHStartupManualReconnectTests {
             }
         }
 
-        try process.run()
+        try Self.startProcess(process)
         try #require(
             Self.waitForFile(at: backoffReadyMarker, containing: "ready", timeout: 3),
             "Timed out waiting for initial authentication retry backoff"
@@ -1041,8 +1039,10 @@ struct SSHStartupManualReconnectTests {
         }
     }
 
-    private static func makeTerminalExitPromptProcess() throws -> TerminalExitPromptProcess {
-        let fixture = try makeTerminalExitPromptFixture()
+    private static func makeTerminalExitPromptProcess(
+        _ suppliedFixture: TerminalExitPromptFixture? = nil
+    ) throws -> TerminalExitPromptProcess {
+        let fixture = try suppliedFixture ?? makeTerminalExitPromptFixture()
         let transcriptURL = fixture.temporaryDirectory.appendingPathComponent("transcript.txt")
         try Data().write(to: transcriptURL)
         let transcriptHandle = try FileHandle(forWritingTo: transcriptURL)
@@ -1055,7 +1055,7 @@ struct SSHStartupManualReconnectTests {
         process.standardOutput = transcriptHandle
         process.standardError = FileHandle.nullDevice
         do {
-            try process.run()
+            try Self.startProcess(process)
         } catch {
             try? transcriptHandle.close()
             try? FileManager.default.removeItem(at: fixture.temporaryDirectory)
@@ -1115,6 +1115,23 @@ struct SSHStartupManualReconnectTests {
         return handled
     }
 
+    private static func startProcess(_ process: Process) throws {
+        do {
+            try process.run()
+        } catch {
+            let failure = error as NSError
+            let arguments = [process.executableURL?.path ?? ""] + (process.arguments ?? [])
+            let environment = process.environment ?? ProcessInfo.processInfo.environment
+            var details = failure.userInfo
+            details["argvBytes"] = arguments.reduce(0) { $0 + $1.utf8.count + 1 }
+            details["largestArgumentBytes"] = arguments.map { $0.utf8.count }.max() ?? 0
+            details["environmentBytes"] = environment.reduce(0) {
+                $0 + $1.key.utf8.count + $1.value.utf8.count + 2
+            }
+            throw NSError(domain: failure.domain, code: failure.code, userInfo: details)
+        }
+    }
+
     static func runProcess(
         executablePath: String,
         arguments: [String],
@@ -1134,7 +1151,7 @@ struct SSHStartupManualReconnectTests {
         process.standardError = stderrPipe
 
         do {
-            try process.run()
+            try Self.startProcess(process)
         } catch {
             return ProcessRunResult(status: -1, stdout: "", stderr: String(describing: error), timedOut: false)
         }

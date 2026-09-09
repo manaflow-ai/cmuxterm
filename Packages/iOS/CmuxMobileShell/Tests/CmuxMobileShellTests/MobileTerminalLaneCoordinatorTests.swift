@@ -125,13 +125,10 @@ struct MobileTerminalLaneCoordinatorTests {
         await coordinator.deactivateAll()
     }
 
-    @Test
+    @Test(.timeLimit(.minutes(1)))
     func outputLaneDoesNotFallBackToInputOnlyProvider() async throws {
         let inputProvider = TerminalLaneTestProvider(lanes: [
-            TerminalLaneTestConnection(
-                frames: [Self.frame(kind: .replay, sequence: 0, bytes: "")],
-                waitsAfterFrames: true
-            ),
+            TerminalLaneTestConnection(frames: [], waitsAfterFrames: false),
         ])
         let coordinator = MobileTerminalLaneCoordinator(
             provider: nil,
@@ -140,13 +137,29 @@ struct MobileTerminalLaneCoordinatorTests {
             }
         )
 
-        await coordinator.ensure(Self.configuration(
+        let openings = TerminalLaneOpeningRecorder()
+        let configuration = Self.configuration(
             providerRequest: try Self.request(),
-            cursor: { nil },
+            cursor: {
+                await openings.record()
+                return nil
+            },
             consume: { _ in .accepted(outputReady: true) },
             readinessChanged: { _ in }
-        ))
-        try await Task.sleep(for: .milliseconds(10))
+        )
+        // A second opening proves the first provider decision finished. Keep
+        // the fallback nonblocking so an incorrect selection also reaches the
+        // assertion, where its recorded request makes the test fail.
+        do {
+            while await openings.count() < 2 {
+                try Task.checkCancellation()
+                await coordinator.ensure(configuration)
+                await Task.yield()
+            }
+        } catch {
+            await coordinator.deactivateAll()
+            throw error
+        }
 
         #expect(await inputProvider.requestCount() == 0)
         #expect(await coordinator.isOutputReady(surfaceID: Self.surfaceID) == false)
@@ -441,6 +454,13 @@ private actor TerminalLaneCursor {
 
     func value() -> UInt64? { storedValue }
     func setValue(_ value: UInt64?) { storedValue = value }
+}
+
+private actor TerminalLaneOpeningRecorder {
+    private var openings = 0
+
+    func record() { openings += 1 }
+    func count() -> Int { openings }
 }
 
 private actor TerminalLaneFlag {
