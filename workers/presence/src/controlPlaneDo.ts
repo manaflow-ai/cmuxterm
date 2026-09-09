@@ -24,6 +24,11 @@ import {
 } from "./controlPlane";
 import { captureSentryException, type SentryEnv } from "./sentry";
 import { parseRetryAfterSeconds, rateLimitedJson } from "./retryAfterResponse";
+import {
+  pruneExpiredAccountState,
+  nextAccountRetentionAt,
+  runAccountSqliteMigrations,
+} from "./accountSqliteStorage";
 
 export interface ControlPlaneEnv extends SentryEnv {
   /** Vercel web API origin the DO proxies (dev/prod), e.g. https://cmux.com.
@@ -72,6 +77,21 @@ function wrapSocket(ws: WebSocket): CtlSocket {
 }
 
 export class AccountControlPlane extends DurableObject<ControlPlaneEnv> {
+  private readonly sqlite = this.ctx.storage.sql;
+
+  constructor(ctx: DurableObjectState, env: ControlPlaneEnv) {
+    super(ctx, env);
+    this.ctx.blockConcurrencyWhile(async () => {
+      const now = Date.now();
+      runAccountSqliteMigrations({
+        sql: this.sqlite,
+        transactionSync: <T>(callback: () => T): T => this.ctx.storage.transactionSync(callback),
+      }, now);
+      pruneExpiredAccountState(this.sqlite, now);
+      await this.scheduleRetention(now);
+    });
+  }
+
   private readonly core = new ControlPlaneCore({
     // DurableObjectStorage's get/put/delete structurally cover CtlStorage;
     // single widening cast, same pattern as TeamPresence.syncStorage().
@@ -240,7 +260,9 @@ export class AccountControlPlane extends DurableObject<ControlPlaneEnv> {
 
   override async alarm(): Promise<void> {
     try {
+      pruneExpiredAccountState(this.sqlite, Date.now());
       await this.core.handleAlarm();
+      await this.scheduleRetention(Date.now());
     } catch (error) {
       await captureSentryException(this.env, "cloudflare-control-plane", error, {
         durable_object: "AccountControlPlane",
@@ -248,6 +270,11 @@ export class AccountControlPlane extends DurableObject<ControlPlaneEnv> {
       });
       throw error;
     }
+  }
+
+  private async scheduleRetention(now: number): Promise<void> {
+    const deadline = nextAccountRetentionAt(this.sqlite, now);
+    if (deadline !== null) await this.ensureAlarmAt(deadline);
   }
 
   /** Pull the alarm earlier if `due` precedes the currently scheduled one
