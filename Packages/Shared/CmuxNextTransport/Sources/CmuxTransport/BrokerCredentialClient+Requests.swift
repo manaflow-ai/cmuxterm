@@ -205,16 +205,16 @@ extension BrokerCredentialClient {
         }
     }
 
-    /// Builds a credential whose `expiresAt` is ALWAYS populated when
-    /// knowable: the server-provided expiry first, else the token's own JWT
-    /// `exp` claim, so `RelayCredentialSchedule` gets a real deadline
-    /// instead of the blind fallback cadence whenever one exists.
+    /// Uses the earliest known broker or JWT expiry: a broker timestamp
+    /// cannot extend the token's relay-enforced lifetime. Unknown deadlines
+    /// retain the scheduler's fallback cadence only when neither is visible.
     static func credential(
         relayUrl: String, token: String, serverExpiresAt: Int64?
     ) -> Credential {
         Credential(
             relayUrl: relayUrl, token: token,
-            expiresAt: serverExpiresAt ?? IrohSubstrate().tokenExpiry(token))
+            expiresAt: [serverExpiresAt, IrohSubstrate().tokenExpiry(token)]
+                .compactMap { $0 }.min())
     }
 
     /// Epoch seconds from the broker's ISO-8601 timestamps

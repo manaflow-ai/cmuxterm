@@ -7,7 +7,7 @@ extension BrokerCredentialClient {
         public let relayUrl: String
         /// Secret relay admission token; never render it in diagnostics.
         public let token: String
-        /// Expiry in Unix seconds, or nil when the broker supplied no usable expiry.
+        /// Earliest known broker or JWT expiry in Unix seconds, or nil when neither is visible.
         public let expiresAt: Int64?
     }
 }
