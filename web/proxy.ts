@@ -349,7 +349,7 @@ export default function middleware(incomingRequest: NextRequest) {
     );
   }
 
-  const response = intlMiddleware(request);
+  const response = intlMiddlewareResponse(request);
   if (featureWorkflowDocRequest) {
     setFeatureWorkflowDocLinkHeader(
       response,
@@ -369,6 +369,21 @@ export default function middleware(incomingRequest: NextRequest) {
   return dashboardReturnPath
     ? dashboardResponse(request, response, dashboardReturnPath)
     : response;
+}
+
+function intlMiddlewareResponse(request: NextRequest): NextResponse {
+  const response = intlMiddleware(request);
+  if (request.headers.get("sec-fetch-dest") !== "empty") {
+    return response;
+  }
+  const headers = new Headers(response.headers);
+  headers.delete("set-cookie");
+  headers.delete("x-middleware-set-cookie");
+  return new NextResponse(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 /**

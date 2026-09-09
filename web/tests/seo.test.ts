@@ -990,6 +990,7 @@ describe("SEO middleware", () => {
       expect(response.headers.get("x-middleware-request-x-next-intl-locale")).toBe(locale);
       expect(response.headers.get("set-cookie")).toBeNull();
       expect(response.headers.get("x-middleware-set-cookie")).toBeNull();
+      expect(response.cookies.get("NEXT_LOCALE")).toBeUndefined();
     }
   });
 
