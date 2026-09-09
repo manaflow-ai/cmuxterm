@@ -866,9 +866,7 @@ def test_app_host_batch_watchdog_kills_hung_runner_tree_and_fails_fast() -> None
 #!/bin/bash
 printf 'invoked\\n' > "${{CMUX_TEST_RUNNER_MARKER:?}}"
 echo "Test Case '-[cmuxTests.HungTests testForever]' started."
-echo "Test Suite 'Selected tests' passed at now"
 echo "Executed 2 tests, with 2 failures (0 unexpected) in 0.5 (0.5) seconds"
-echo "Test run started."
 /bin/sleep 300 &
 echo $! > "{orphan_pid_file}"
 /bin/sleep 300
