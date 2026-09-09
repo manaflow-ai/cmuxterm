@@ -81,12 +81,15 @@ export class AccountControlPlane extends DurableObject<ControlPlaneEnv> {
 
   constructor(ctx: DurableObjectState, env: ControlPlaneEnv) {
     super(ctx, env);
-    runAccountSqliteMigrations({
-      sql: this.sqlite,
-      transactionSync: <T>(callback: () => T): T => this.ctx.storage.transactionSync(callback),
-    }, Date.now());
-    pruneExpiredAccountState(this.sqlite, Date.now());
-    void this.ctx.storage.setAlarm(retentionAlarmAt(Date.now()));
+    this.ctx.blockConcurrencyWhile(async () => {
+      const now = Date.now();
+      runAccountSqliteMigrations({
+        sql: this.sqlite,
+        transactionSync: <T>(callback: () => T): T => this.ctx.storage.transactionSync(callback),
+      }, now);
+      pruneExpiredAccountState(this.sqlite, now);
+      await this.ctx.storage.setAlarm(retentionAlarmAt(now));
+    });
   }
 
   private readonly core = new ControlPlaneCore({
