@@ -133,6 +133,18 @@ struct JSONConfigStoreTests {
         #expect(merged[.accent] == ChromeColor(hex: "#AABBCC"))
     }
 
+    @Test func cachedChromeOverridesRoundTripThroughTypedDictionary() async throws {
+        let (store, _, catalog) = makeStore()
+        let key = catalog.chrome.overrides
+        let overrides = try #require(ChromeTokenOverrides(hexValues: ["accent": "#112233"]))
+
+        try await store.set(overrides, for: key)
+
+        #expect(await store.value(for: key) == overrides)
+        #expect(await store.value(for: key) == overrides)
+        #expect(store.snapshotValue(for: key) == overrides)
+    }
+
     @Test func updateRefusesToOverwriteUnreadableConfig() async throws {
         let (store, fileURL, catalog) = makeStore()
         let key = catalog.chrome.overrides
