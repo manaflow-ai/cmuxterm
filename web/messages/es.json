@@ -172,7 +172,7 @@
       "accountGroup": "cuenta",
       "billing": "facturación",
       "team": "equipo",
-      "testflight": "Vuelo de prueba de iOS"
+      "testflight": "iOS TestFlight"
     },
     "home": {
       "title": "tablero",
@@ -389,7 +389,7 @@
     },
     "testflight": {
       "eyebrow": "cuenta",
-      "title": "Vuelo de prueba de iOS",
+      "title": "iOS TestFlight",
       "description": "únete a la beta de cmux iOS desde tu suscripción activa.",
       "banners": {
         "joined": "Apple le enviará por correo electrónico su invitación a TestFlight en breve.",
@@ -450,7 +450,7 @@
       "eyebrow": "Bóveda cmux",
       "title": "Aprobar el acceso CLI",
       "description": "Confirme el código que muestra cmux-vault para conectar este dispositivo a su cuenta cmux iniciada.",
-      "coderouterEyebrow": "Enrutador de código",
+      "coderouterEyebrow": "CodeRouter",
       "coderouterTitle": "Aprobar el acceso a CodeRouter",
       "coderouterDescription": "Confirme el código que muestra cr para conectar este dispositivo a su equipo cmux que haya iniciado sesión.",
       "codeLabel": "código de usuario",
@@ -542,7 +542,7 @@
     "terms": "Términos",
     "eula": "EULA",
     "github": "GitHub",
-    "twitter": "X/Twitter",
+    "twitter": "X / Twitter",
     "discord": "Discord",
     "contact": "Contacto",
     "nightly": "todas las noches",
@@ -1190,7 +1190,7 @@
         "Agentes de codificación de IA",
         "agentes de codificación paralelos",
         "Cmd+Mayús+U",
-        "Barra de códice"
+        "CodexBar"
       ]
     },
     "passkeyAuth": {
@@ -1238,10 +1238,10 @@
         "Claude Code",
         "Codex",
         "OpenCode",
-        "código abierto",
+        "opencode",
         "CLI de Géminis",
         "CLI antigravedad",
-        "CLI de compilación de Grok",
+        "Grok Build CLI",
         "agentes de programación con IA"
       ]
     },
@@ -1262,7 +1262,7 @@
         "super repo cmux",
         "agentes de programación con IA",
         "Codex",
-        "comandos personalizados cmux",
+        "Codex",
         "skills de cmux",
         "flujo de terminal",
         "desarrollo agentic"
@@ -2466,8 +2466,8 @@
       "copilotCliRepoHooks": "Para hooks a nivel de repositorio, cree un archivo .github/hooks/notify.json con la misma estructura:",
       "integrationExamples": "Ejemplos de integración",
       "notifyAfterLong": "Notificar después de un comando largo",
-      "python": "pitón",
-      "nodejs": "Nodo.js",
+      "python": "Python",
+      "nodejs": "Node.js",
       "tmuxPassthrough": "Passthrough de tmux",
       "tmuxDesc": "Si usa tmux dentro de cmux, habilite passthrough:",
       "hooksTitle": "Hooks de notificación",
@@ -2712,7 +2712,7 @@
     },
     "claudeCodeTeams": {
       "title": "Equipos del código Claude",
-      "metaTitle": "Equipos de Claude Code - cmux",
+      "metaTitle": "Claude Code Teams - cmux",
       "metaDescription": "Ejecute Claude Code con equipos de agentes dentro de cmux. Los agentes de compañeros de equipo se generan como divisiones cmux nativas en lugar de paneles tmux.",
       "nightlyWarning": "Disponible únicamente en <nightly>compilaciones nocturnas</nightly>.",
       "intro": "cmux claude-teams lanza Claude Code con los equipos de agentes habilitados. Cuando Claude genera agentes compañeros de equipo, aparecen como divisiones cmux nativas en lugar de paneles tmux, con notificaciones y metadatos de barra lateral completos.",
@@ -3264,9 +3264,9 @@
       "ghosttyBody": "Ghostty es el terminal nativo rápido cuyo motor, libghostty, impulsa cmux. Frente a terminales antiguos renderizados por CPU y terminales más pesados de estilo Electron, Ghostty destaca por renderizado GPU de baja latencia, fuentes y colores nítidos, gran compatibilidad de terminal, configuración sencilla basada en archivos y ausencia de requisito de cuenta en la nube. Si quieres una sola ventana de terminal limpia con esas ventajas de renderizado y sin capa de espacios de trabajo ni automatización, Ghostty es excelente por sí solo. Si quieres esas mismas ventajas de renderizado de Ghostty más espacios de trabajo, notificaciones, scripting y orquestación de agentes, usa cmux.",
       "iterm2Title": "iTerm2",
       "iterm2Body": "La terminal de macOS madura e infinitamente configurable. Perfiles profundos, disparadores e integración con tmux. La opción segura si quieres el máximo de funciones y no estás orquestando muchas tareas a la vez.",
-      "warpTitle": "deformar",
+      "warpTitle": "Warp",
       "warpBody": "Una terminal en Rust con un asistente de IA integrado y una interfaz de comandos por bloques, detrás de una cuenta y disponible más allá de macOS. Una buena opción si quieres IA integrada en la propia terminal o también necesitas Linux y Windows.",
-      "terminalAppTitle": "Terminal.aplicación",
+      "terminalAppTitle": "Terminal.app",
       "terminalAppBody": "La terminal integrada de macOS. Siempre disponible, sin configuración. Está bien para un uso ligero; la mayoría de los usuarios avanzados acaban queriendo más.",
       "otherTitle": "Alacritty, kitty y WezTerm",
       "otherBody": "Terminales rápidas por GPU para quienes les gusta configurarlo todo en un archivo. Alacritty es deliberadamente minimalista, kitty es repleta de funciones y programable, y WezTerm incluye su propio multiplexor. Todas son multiplataforma y una buena opción si lo que quieres es una única terminal muy ajustada.",
@@ -3426,7 +3426,7 @@
                 "App Electron y flujo más opinado"
               ],
               [
-                "pastor",
+                "Herdr",
                 "Multiplexación de agentes nativa de terminal",
                 "Muchos agentes CLI",
                 "Se ejecuta dentro de otra terminal en vez de ser una app Mac"
@@ -3462,7 +3462,7 @@
                 "La supervisión de agentes de terminal queda ligada al editor"
               ],
               [
-                "deformar",
+                "Warp",
                 "Terminal agéntico más orquestación en la nube",
                 "Warp Agent, Oz y agentes CLI propios",
                 "Cliente de código abierto ligado a servicios gestionados Warp/Oz"
@@ -3480,7 +3480,7 @@
                 "El estado de los agentes sigue siendo manual"
               ],
               [
-                "gatito",
+                "Kitty",
                 "Terminal GPU rápida y con muchas funciones",
                 "Cualquier agente CLI",
                 "Sin cola de revisión integrada para agentes"
@@ -3492,7 +3492,7 @@
                 "Funciones mínimas de flujo a nivel de app"
               ],
               [
-                "WezTérmino",
+                "WezTerm",
                 "Terminal y multiplexor multiplataforma",
                 "Cualquier agente CLI",
                 "La atención de agentes aún necesita cableado propio"
@@ -3944,7 +3944,7 @@
             "headers": [
               "Dimensión",
               "cmux",
-              "devin"
+              "Devin"
             ],
             "rows": [
               [
@@ -4106,7 +4106,7 @@
             "headers": [
               "Dimensión",
               "cmux",
-              "gatito"
+              "Kitty"
             ],
             "rows": [
               [
@@ -4187,7 +4187,7 @@
             "headers": [
               "Dimensión",
               "cmux",
-              "pastor"
+              "Herdr"
             ],
             "rows": [
               [
@@ -4653,7 +4653,7 @@
             "headers": [
               "Dimensión",
               "cmux",
-              "deformar"
+              "Warp"
             ],
             "rows": [
               [
@@ -4735,7 +4735,7 @@
             "headers": [
               "Dimensión",
               "cmux",
-              "WezTérmino"
+              "WezTerm"
             ],
             "rows": [
               [
