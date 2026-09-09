@@ -2,104 +2,219 @@ import Darwin
 import Foundation
 import Testing
 
-#if canImport(cmux_DEV)
-@testable import cmux_DEV
-#elseif canImport(cmux)
-@testable import cmux
-#endif
+extension CLICodexHookTimeoutRegressionTests {
+    @Test func codexStopPreservesRunningForUntimestampedLiveSibling() throws {
+        let cliPath = try bundledCLIPath()
+        let root = try makeRuntimeOrderingFixtureRoot(name: "untimestamped")
+        let socketPath = makeCodexHookSocketPath("codex-untimed")
+        let listenerFD = try bindCodexHookUnixSocket(at: socketPath)
+        let commands = CodexHookCapturedSocketCommands()
+        let workspaceId = "11111111-1111-1111-1111-111111111111"
+        let surfaceId = "22222222-2222-2222-2222-222222222222"
+        let sessionId = "codex-untimestamped-current"
+        let siblingSessionId = "codex-untimestamped-sibling"
+        let stateURL = root.appendingPathComponent("codex-hook-sessions.json")
+        let livePID = Int(ProcessInfo.processInfo.processIdentifier)
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+            try? FileManager.default.removeItem(at: root)
+        }
 
-@Suite(.serialized)
-struct ClaudeHookSessionStoreRuntimeOrderingTests {
-    @Test("An untimestamped idle record cannot demote a live sibling")
-    func untimestampedIdleTreatsRunningSiblingAsNewer() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-runtime-ordering-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let stateURL = root.appendingPathComponent("claude-hook-sessions.json")
-        try writeState(
+        try writeRuntimeOrderingStore(
             to: stateURL,
-            excludedEventTime: nil,
+            currentSessionId: sessionId,
+            siblingSessionId: siblingSessionId,
+            workspaceId: workspaceId,
+            surfaceId: surfaceId,
+            pid: livePID,
+            currentEventTime: nil,
             siblingEventTime: nil
         )
-        let store = ClaudeHookSessionStore(processEnv: [
-            "CMUX_CLAUDE_HOOK_STATE_PATH": stateURL.path
-        ])
+        startCodexHookMockSocketServerAccepting(
+            listenerFD: listenerFD,
+            commands: commands,
+            surfaceId: surfaceId,
+            connectionLimit: 12
+        )
 
-        #expect(try store.hasRunningSession(
-            workspaceId: "workspace",
-            surfaceId: "surface",
-            excludingSessionId: "completed",
-            onlyNewerThanExcludedSession: true,
-            requireLiveProcess: true,
-            requireActiveTurn: true
-        ))
+        let result = runCodexHookProcess(
+            executablePath: cliPath,
+            arguments: ["hooks", "codex", "stop"],
+            environment: runtimeOrderingEnvironment(
+                root: root,
+                socketPath: socketPath,
+                workspaceId: workspaceId,
+                surfaceId: surfaceId,
+                pid: livePID
+            ),
+            standardInput: "{\"session_id\":\"\(sessionId)\",\"turn_id\":\"current-turn\",\"cwd\":\"\(root.path)\",\"hook_event_name\":\"Stop\",\"timestamp\":1700000200,\"last_assistant_message\":\"done\"}",
+            timeout: 5
+        )
+
+        #expect(!result.timedOut, Comment(rawValue: result.stderr))
+        #expect(result.status == 0, Comment(rawValue: result.stderr))
+        #expect(result.stdout == "{}\n")
+        let saved = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: stateURL)) as? [String: Any]
+        )
+        let sessions = try #require(saved["sessions"] as? [String: Any])
+        let current = try #require(sessions[sessionId] as? [String: Any])
+        #expect(
+            current["runtimeStatus"] as? String == "running",
+            "An untimestamped excluded record must not be demoted while a live running sibling exists"
+        )
+        #expect(
+            !commands.snapshot().contains { $0.hasPrefix("set_status codex Idle ") },
+            "The stale Stop must not publish Idle over the live sibling"
+        )
     }
 
-    @Test("Timestamped ordering still rejects an older running sibling")
-    func timestampedIdleRequiresStrictlyNewerSibling() throws {
+    @Test func codexStopKeepsStrictTimestampOrderingForOlderLiveSibling() throws {
+        let cliPath = try bundledCLIPath()
+        let root = try makeRuntimeOrderingFixtureRoot(name: "timestamped")
+        let socketPath = makeCodexHookSocketPath("codex-timed")
+        let listenerFD = try bindCodexHookUnixSocket(at: socketPath)
+        let commands = CodexHookCapturedSocketCommands()
+        let workspaceId = "11111111-1111-1111-1111-111111111111"
+        let surfaceId = "22222222-2222-2222-2222-222222222222"
+        let sessionId = "codex-timestamped-current"
+        let siblingSessionId = "codex-timestamped-sibling"
+        let stateURL = root.appendingPathComponent("codex-hook-sessions.json")
+        let livePID = Int(ProcessInfo.processInfo.processIdentifier)
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        try writeRuntimeOrderingStore(
+            to: stateURL,
+            currentSessionId: sessionId,
+            siblingSessionId: siblingSessionId,
+            workspaceId: workspaceId,
+            surfaceId: surfaceId,
+            pid: livePID,
+            currentEventTime: 200,
+            siblingEventTime: 100
+        )
+        startCodexHookMockSocketServerAccepting(
+            listenerFD: listenerFD,
+            commands: commands,
+            surfaceId: surfaceId,
+            connectionLimit: 12
+        )
+
+        let result = runCodexHookProcess(
+            executablePath: cliPath,
+            arguments: ["hooks", "codex", "stop"],
+            environment: runtimeOrderingEnvironment(
+                root: root,
+                socketPath: socketPath,
+                workspaceId: workspaceId,
+                surfaceId: surfaceId,
+                pid: livePID
+            ),
+            standardInput: "{\"session_id\":\"\(sessionId)\",\"turn_id\":\"current-turn\",\"cwd\":\"\(root.path)\",\"hook_event_name\":\"Stop\",\"timestamp\":300,\"last_assistant_message\":\"done\"}",
+            timeout: 5
+        )
+
+        #expect(!result.timedOut, Comment(rawValue: result.stderr))
+        #expect(result.status == 0, Comment(rawValue: result.stderr))
+        #expect(result.stdout == "{}\n")
+        let saved = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: stateURL)) as? [String: Any]
+        )
+        let sessions = try #require(saved["sessions"] as? [String: Any])
+        let current = try #require(sessions[sessionId] as? [String: Any])
+        #expect(
+            current["runtimeStatus"] as? String == "idle",
+            "A sibling older than the timestamped excluded record must not block settlement"
+        )
+        #expect(
+            !commands.snapshot().contains { $0.hasPrefix("set_status codex Idle ") },
+            "The older active sibling may keep the workspace badge Running without changing ordering"
+        )
+    }
+
+    private func makeRuntimeOrderingFixtureRoot(name: String) throws -> URL {
         let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-runtime-ordering-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("cmux-runtime-ordering-\(name)-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let stateURL = root.appendingPathComponent("claude-hook-sessions.json")
-        try writeState(to: stateURL, excludedEventTime: 200, siblingEventTime: 100)
-        let store = ClaudeHookSessionStore(processEnv: [
-            "CMUX_CLAUDE_HOOK_STATE_PATH": stateURL.path
-        ])
-
-        #expect(!(try store.hasRunningSession(
-            workspaceId: "workspace",
-            surfaceId: "surface",
-            excludingSessionId: "completed",
-            onlyNewerThanExcludedSession: true,
-            requireLiveProcess: true,
-            requireActiveTurn: true
-        )))
+        return root
     }
 
-    private func writeState(
+    private func runtimeOrderingEnvironment(
+        root: URL,
+        socketPath: String,
+        workspaceId: String,
+        surfaceId: String,
+        pid: Int
+    ) -> [String: String] {
+        [
+            "HOME": root.path,
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+            "PWD": root.path,
+            "CMUX_SOCKET_PATH": socketPath,
+            "CMUX_WORKSPACE_ID": workspaceId,
+            "CMUX_SURFACE_ID": surfaceId,
+            "CMUX_AGENT_HOOK_STATE_DIR": root.path,
+            "CMUX_CLI_SENTRY_DISABLED": "1",
+            "CMUX_CODEX_PID": "\(pid)",
+        ]
+    }
+
+    private func writeRuntimeOrderingStore(
         to url: URL,
-        excludedEventTime: TimeInterval?,
+        currentSessionId: String,
+        siblingSessionId: String,
+        workspaceId: String,
+        surfaceId: String,
+        pid: Int,
+        currentEventTime: TimeInterval?,
         siblingEventTime: TimeInterval?
     ) throws {
-        let completed: [String: Any] = [
-            "sessionId": "completed",
-            "workspaceId": "workspace",
-            "surfaceId": "surface",
-            "startedAt": 1,
-            "updatedAt": 1,
-            "runtimeStatus": "idle",
-        ]
-        var running: [String: Any] = [
-            "sessionId": "replacement",
-            "workspaceId": "workspace",
-            "surfaceId": "surface",
-            "startedAt": 1,
-            "updatedAt": 1,
+        var current: [String: Any] = [
+            "sessionId": currentSessionId,
+            "workspaceId": workspaceId,
+            "surfaceId": surfaceId,
+            "cwd": url.deletingLastPathComponent().path,
+            "pid": pid,
+            "agentLifecycle": "running",
             "runtimeStatus": "running",
             "activePromptDepth": 1,
-            "pid": Int(getpid()),
+            "activePromptTurnId": "current-turn",
+            "activePromptTurnIds": ["current-turn"],
+            "lastPromptTurnId": "current-turn",
+            "startedAt": 1,
+            "updatedAt": 1,
         ]
-        if let siblingEventTime {
-            running["runtimeStatusEventTime"] = siblingEventTime
+        var sibling: [String: Any] = [
+            "sessionId": siblingSessionId,
+            "workspaceId": workspaceId,
+            "surfaceId": surfaceId,
+            "cwd": url.deletingLastPathComponent().path,
+            "pid": pid,
+            "agentLifecycle": "running",
+            "runtimeStatus": "running",
+            "activePromptDepth": 1,
+            "activePromptTurnId": "sibling-turn",
+            "activePromptTurnIds": ["sibling-turn"],
+            "lastPromptTurnId": "sibling-turn",
+            "startedAt": 1,
+            "updatedAt": 1,
+        ]
+        if let currentEventTime {
+            current["runtimeStatusEventTime"] = currentEventTime
         }
-        var sessions: [String: Any] = [
-            "completed": completed,
-            "replacement": running,
-        ]
-        if let excludedEventTime {
-            var timestampedCompleted = completed
-            timestampedCompleted["runtimeStatusEventTime"] = excludedEventTime
-            sessions["completed"] = timestampedCompleted
+        if let siblingEventTime {
+            sibling["runtimeStatusEventTime"] = siblingEventTime
         }
         let object: [String: Any] = [
             "version": 1,
-            "sessions": sessions,
+            "sessions": [currentSessionId: current, siblingSessionId: sibling],
         ]
-        let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
-        try data.write(to: url, options: .atomic)
+        try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+            .write(to: url, options: .atomic)
     }
 }
