@@ -662,7 +662,7 @@
       ]
     },
     "pro": {
-      "name": "프로",
+      "name": "Pro",
       "cta": "프로 가입",
       "featuresLead": "무료로 제공되는 모든 기능과 다음 기능:",
       "features": [
@@ -707,24 +707,24 @@
       "rows": [
         {
           "label": "기본 macOS 터미널, 오픈 소스",
-          "free": "사실",
-          "pro": "사실",
-          "team": "사실",
-          "enterprise": "사실"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "자체 키가 있는 로컬 CLI 에이전트",
-          "free": "사실",
-          "pro": "사실",
-          "team": "사실",
-          "enterprise": "사실"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "수직 탭, 분할, 알림, 소켓 API",
-          "free": "사실",
-          "pro": "사실",
-          "team": "사실",
-          "enterprise": "사실"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "세션 기록",
@@ -736,37 +736,37 @@
         },
         {
           "label": "cmux Vault: 클라우드 세션 백업",
-          "free": "거짓",
-          "pro": "사실",
-          "team": "사실",
-          "enterprise": "사실",
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true",
           "vault": true
         },
         {
           "label": "모든 세션에서 검색",
-          "free": "거짓",
-          "pro": "사실",
-          "team": "사실",
-          "enterprise": "사실",
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true",
           "vault": true
         },
         {
           "label": "클라우드 VM의 클라우드 에이전트",
-          "free": "거짓",
-          "pro": "사실",
-          "team": "사실",
-          "enterprise": "사실"
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "동시 클라우드 VM",
-          "free": "거짓",
+          "free": "false",
           "pro": "50",
           "team": "사용자당 50개",
           "enterprise": "맞춤"
         },
         {
           "label": "Cloud VM당 리소스",
-          "free": "거짓",
+          "free": "false",
           "pro": "기본 8GB RAM 및 32GB 디스크; 4~64GB RAM, 디스크 최대 256GB",
           "team": "기본 8GB RAM 및 32GB 디스크; 4~64GB RAM, 디스크 최대 256GB",
           "enterprise": "맞춤"
@@ -780,10 +780,10 @@
         },
         {
           "label": "iOS 앱",
-          "free": "거짓",
-          "pro": "사실",
-          "team": "사실",
-          "enterprise": "사실"
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "Mac에 연결하기 위한 네트워킹",
@@ -795,38 +795,38 @@
         },
         {
           "label": "SSO 및 SAML 로그인",
-          "free": "거짓",
-          "pro": "거짓",
-          "team": "거짓",
-          "enterprise": "사실"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "자체 호스팅 및 에어갭 실행",
-          "free": "거짓",
-          "pro": "거짓",
-          "team": "거짓",
-          "enterprise": "사실"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "감사 로그: 세션, 네트워크, 브라우저",
-          "free": "거짓",
-          "pro": "거짓",
-          "team": "거짓",
-          "enterprise": "사실"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "볼륨 가격",
-          "free": "거짓",
-          "pro": "거짓",
-          "team": "거짓",
-          "enterprise": "사실"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "SOC 2 및 SLA",
-          "free": "거짓",
-          "pro": "거짓",
-          "team": "거짓",
-          "enterprise": "사실"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "지원",
