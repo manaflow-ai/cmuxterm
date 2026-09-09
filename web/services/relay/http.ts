@@ -36,6 +36,8 @@ export function enforceRelayRateLimit(input: {
    * other phones, simulators, and tagged builds.
    */
   readonly devicePartition?: string;
+  /** Server-owned deployment scope, keeping dev/staging budgets out of production. */
+  readonly deploymentPartition?: string;
   readonly ruleId: string | undefined;
   readonly check: RelayRateLimitCheck;
   readonly isVercel?: boolean;
@@ -58,9 +60,11 @@ export function enforceRelayRateLimit(input: {
       ...(input.rateLimitKey === null
         ? {}
         : {
-          rateLimitKey: input.rateLimitKey ?? (input.devicePartition
-            ? `${input.accountId}:${input.devicePartition}`
-            : input.accountId),
+          rateLimitKey: input.rateLimitKey ?? [
+            input.deploymentPartition,
+            input.accountId,
+            input.devicePartition,
+          ].filter((part): part is string => Boolean(part)).join(":"),
         }),
     }),
     catch: () => new RelayRateLimitError({ code: "rate_limit_unavailable" }),
