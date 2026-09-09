@@ -146,11 +146,11 @@ struct MobileTerminalLaneCoordinatorTests {
             consume: { _ in .accepted(outputReady: true) },
             readinessChanged: { _ in }
         ))
-        try await Task.sleep(for: .milliseconds(10))
-
+        // Await teardown to drain the coordinator task before inspecting the
+        // provider. This is a lifecycle boundary, rather than a timed race.
+        await coordinator.deactivateAll()
         #expect(await inputProvider.requestCount() == 0)
         #expect(await coordinator.isOutputReady(surfaceID: Self.surfaceID) == false)
-        await coordinator.deactivateAll()
     }
 
     @Test
