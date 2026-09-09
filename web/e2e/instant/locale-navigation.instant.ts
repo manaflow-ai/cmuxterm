@@ -14,6 +14,25 @@ const suffix = "?ref=locale-test#locale-check";
 
 test.use({ extraHTTPHeaders: { "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8" } });
 
+for (const width of [390, 1440]) {
+  test(`keeps the Arabic home screenshot within the ${width}px viewport`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto("/ar");
+    await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+    await expect(page.locator("h1")).toHaveText("cmux");
+    await expect.poll(async () => page.locator('[data-dev="screenshot"]').evaluate(
+      (element) => {
+        const bounds = element.getBoundingClientRect();
+        const viewportWidth = document.documentElement.clientWidth;
+        return bounds.left >= 0 && bounds.right <= viewportWidth;
+      },
+    )).toBe(true);
+    expect(await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    )).toBe(true);
+  });
+}
+
 async function expectHomeLocale(page: Page, locale: TestLocale, checkCookie = true) {
   const pathname = locale === "en" ? "/" : `/${locale}`;
   await expect(page).toHaveURL((url) => url.pathname === pathname && url.search + url.hash === suffix);
