@@ -8,6 +8,7 @@ import sys
 import textwrap
 import os
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -59,6 +60,7 @@ def main() -> int:
     timeout_child = textwrap.dedent(
         """
         import time
+
         print("ready", flush=True)
         time.sleep(10)
         """
@@ -87,83 +89,127 @@ def main() -> int:
         print("FAIL: helper did not report idle timeout")
         return 1
 
-    keepalive_child = textwrap.dedent(
+    # App-host log lines (NSLog-style prefix) are background noise: a stalled
+    # test host that keeps polling must still idle-time out.
+    noisy_idle_child = textwrap.dedent(
         """
         import time
-        print("Test Case '-[cmuxTests.HungTests testForever]' started.", flush=True)
-        for _ in range(40):
-            print("2026-09-08 14:30:00 cmux DEV[1:2] [CloudVM] GET /api/vm not_signed_in 1ms", flush=True)
+
+        print("ready", flush=True)
+        for _ in range(60):
+            print("2026-09-08 14:03:49.521479+0000 cmux DEV[13904:67193] [CloudVM] GET /api/vm not_signed_in 1ms", flush=True)
             time.sleep(0.05)
-        raise SystemExit(0)
         """
     )
-    # Without an ignore pattern every line is progress, so the keepalive child
-    # runs to completion and exits 0 (the pre-fix behavior, kept for callers
-    # that opt out).
-    keepalive_counts_result = subprocess.run(
-        [sys.executable, str(HELPER), sys.executable, "-c", keepalive_child],
+    noisy_idle_env = {
+        **os.environ,
+        "CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_TIMEOUT_SECONDS": "0.5",
+    }
+    noisy_idle_result = subprocess.run(
+        [sys.executable, str(HELPER), sys.executable, "-c", noisy_idle_child],
         cwd=ROOT,
         text=True,
         capture_output=True,
         check=False,
-        timeout=15,
-        env={
-            **os.environ,
-            # Leave enough startup headroom on loaded CI runners while still
-            # exercising that frequent output resets the idle deadline.
-            "CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_TIMEOUT_SECONDS": "20",
-            "CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_IGNORE_RE": "",
-        },
+        timeout=10,
+        env=noisy_idle_env,
     )
-    if keepalive_counts_result.returncode != 0:
-        print(keepalive_counts_result.stdout, end="")
-        print(keepalive_counts_result.stderr, end="", file=sys.stderr)
-        print(f"FAIL: without an ignore pattern the keepalive child should finish, got {keepalive_counts_result.returncode}")
+    if noisy_idle_result.returncode != 124 or "no test progress" not in noisy_idle_result.stderr:
+        print(noisy_idle_result.stdout, end="")
+        print(noisy_idle_result.stderr, end="", file=sys.stderr)
+        print(
+            "FAIL: app-host log noise kept the idle timeout from firing "
+            f"(exit {noisy_idle_result.returncode})"
+        )
         return 1
-    # With the pattern the keepalive is not progress: the child idles out 0.3s
-    # after its last real line even though it prints every 50ms.
-    keepalive_ignored_result = subprocess.run(
-        [sys.executable, str(HELPER), sys.executable, "-c", keepalive_child],
+
+    # Real test progress interleaved with the same noise keeps the run alive.
+    progressing_child = textwrap.dedent(
+        """
+        import time
+
+        for index in range(6):
+            print("2026-09-08 14:03:49.521479+0000 cmux DEV[13904:67193] [generic_renderer] tick", flush=True)
+            print(f"\u25c7 Test example{index}() started.", flush=True)
+            time.sleep(0.25)
+        print("done", flush=True)
+        raise SystemExit(3)
+        """
+    )
+    # A generous idle window relative to the child's cadence: this asserts the
+    # reset, not scheduling latency on a loaded machine.
+    progressing_env = {
+        **os.environ,
+        "CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_TIMEOUT_SECONDS": "3",
+    }
+    progressing_result = subprocess.run(
+        [sys.executable, str(HELPER), sys.executable, "-c", progressing_child],
         cwd=ROOT,
         text=True,
         capture_output=True,
         check=False,
-        timeout=15,
-        env={
-            **os.environ,
-            "CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_TIMEOUT_SECONDS": "0.3",
-            "CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_IGNORE_RE": r"\[CloudVM\] GET /api/vm ",
-        },
+        timeout=20,
+        env=progressing_env,
     )
-    if keepalive_ignored_result.returncode != 124:
-        print(keepalive_ignored_result.stdout, end="")
-        print(keepalive_ignored_result.stderr, end="", file=sys.stderr)
-        print(f"FAIL: keepalive-only output must idle out, got {keepalive_ignored_result.returncode}")
+    if progressing_result.returncode != 3:
+        print(progressing_result.stdout, end="")
+        print(progressing_result.stderr, end="", file=sys.stderr)
+        print(
+            "FAIL: test progress should reset the idle timeout "
+            f"(expected exit 3, got {progressing_result.returncode})"
+        )
         return 1
-    if "Idle timed out after 0.3s" not in keepalive_ignored_result.stderr:
-        print(keepalive_ignored_result.stderr, end="", file=sys.stderr)
-        print("FAIL: helper did not report the keepalive idle timeout")
-        return 1
-    if keepalive_ignored_result.stdout.count("[CloudVM] GET /api/vm") >= 40:
-        print("FAIL: helper let the keepalive child run to completion despite the ignore pattern")
-        return 1
-    invalid_pattern_result = subprocess.run(
-        [sys.executable, str(HELPER), sys.executable, "-c", "print('x')"],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-        timeout=15,
-        env={
-            **os.environ,
-            "CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_TIMEOUT_SECONDS": "1",
-            "CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_IGNORE_RE": "(",
-        },
-    )
-    if invalid_pattern_result.returncode != 2 or "not a valid regex" not in invalid_pattern_result.stderr:
-        print(invalid_pattern_result.stderr, end="", file=sys.stderr)
-        print(f"FAIL: an invalid ignore pattern must fail closed with exit 2, got {invalid_pattern_result.returncode}")
-        return 1
+
+    # An outer timeout terminates the wrapper; the wrapped process group must
+    # go with it instead of surviving to hold the batch's output pipe open.
+    with tempfile.TemporaryDirectory() as sigterm_dir:
+        pid_file = Path(sigterm_dir) / "child.pid"
+        sigterm_child = textwrap.dedent(
+            f"""
+            import os
+            import time
+
+            open({str(pid_file)!r}, "w").write(str(os.getpid()))
+            print("ready", flush=True)
+            time.sleep(30)
+            """
+        )
+        wrapper = subprocess.Popen(
+            [sys.executable, str(HELPER), sys.executable, "-c", sigterm_child],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        deadline = time.monotonic() + 10
+        while not pid_file.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        wrapper.send_signal(15)
+        try:
+            wrapper_stdout, wrapper_stderr = wrapper.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            wrapper.kill()
+            print("FAIL: helper did not exit after SIGTERM")
+            return 1
+        if wrapper.returncode != 124 or "Terminated by signal 15" not in wrapper_stdout:
+            print(wrapper_stdout, end="")
+            print(wrapper_stderr, end="", file=sys.stderr)
+            print(f"FAIL: expected SIGTERM to exit 124, got {wrapper.returncode}")
+            return 1
+        child_pid = int(pid_file.read_text())
+        alive_deadline = time.monotonic() + 6
+        child_alive = True
+        while time.monotonic() < alive_deadline:
+            try:
+                os.kill(child_pid, 0)
+            except ProcessLookupError:
+                child_alive = False
+                break
+            time.sleep(0.1)
+        if child_alive:
+            os.kill(child_pid, 9)
+            print("FAIL: wrapped child survived the helper's SIGTERM")
+            return 1
 
     heartbeat_result = subprocess.run(
         [
@@ -198,6 +244,7 @@ def main() -> int:
     passing_post_test_child = textwrap.dedent(
         """
         import time
+
         print("Test Suite 'Selected tests' passed at now", flush=True)
         print("\\t Executed 1 test, with 0 failures (0 unexpected) in 0.001 seconds", flush=True)
         time.sleep(10)
@@ -224,6 +271,7 @@ def main() -> int:
     noisy_post_test_child = textwrap.dedent(
         """
         import time
+
         print("Test Suite 'Selected tests' passed at now", flush=True)
         print("\\t Executed 1 test, with 0 failures (0 unexpected) in 0.001 seconds", flush=True)
         for _ in range(20):
@@ -231,6 +279,7 @@ def main() -> int:
             time.sleep(0.1)
         """
     )
+    noisy_started = time.monotonic()
     noisy_post_test_result = subprocess.run(
         [sys.executable, str(HELPER), sys.executable, "-c", noisy_post_test_child],
         cwd=ROOT,
@@ -240,6 +289,7 @@ def main() -> int:
         timeout=5,
         env=post_test_env,
     )
+    noisy_elapsed = time.monotonic() - noisy_started
     if noisy_post_test_result.returncode != 0:
         print(noisy_post_test_result.stdout, end="")
         print(noisy_post_test_result.stderr, end="", file=sys.stderr)
@@ -248,9 +298,16 @@ def main() -> int:
             f"to exit 0, got {noisy_post_test_result.returncode}"
         )
         return 1
+    if noisy_elapsed > 1.5:
+        print(noisy_post_test_result.stdout, end="")
+        print(noisy_post_test_result.stderr, end="", file=sys.stderr)
+        print(f"FAIL: noisy post-test timeout was rearmed; elapsed {noisy_elapsed:.2f}s")
+        return 1
+
     failing_post_test_child = textwrap.dedent(
         """
         import time
+
         print("Test Suite 'Selected tests' failed at now", flush=True)
         print("\\t Executed 1 test, with 1 failure (1 unexpected) in 0.001 seconds", flush=True)
         time.sleep(10)
@@ -277,6 +334,7 @@ def main() -> int:
     mixed_framework_child = textwrap.dedent(
         """
         import time
+
         print("Test Suite 'Selected tests' passed at now", flush=True)
         print("\\t Executed 1 test, with 0 failures (0 unexpected) in 0.001 seconds", flush=True)
         print("Test run started.", flush=True)
@@ -311,6 +369,7 @@ def main() -> int:
     failing_mixed_framework_child = textwrap.dedent(
         """
         import time
+
         print("Test Suite 'Selected tests' passed at now", flush=True)
         print("\\t Executed 1 test, with 0 failures (0 unexpected) in 0.001 seconds", flush=True)
         print("Test run started.", flush=True)
