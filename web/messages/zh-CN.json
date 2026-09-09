@@ -66,7 +66,7 @@
     "notifications": "代理通知",
     "notificationsDesc": "：当 Claude、Codex 或任何代理需要您的输入时收到通知",
     "keyboard": "全键盘",
-    "keyboardDesc": "：硬件快捷方式和带有箭头、选项卡和修饰符的终端级输入栏",
+    "keyboardDesc": "：硬件快捷方式和带有箭头、标签页和修饰符的终端级输入栏",
     "native": "原生且快速",
     "nativeDesc": "：与 Mac 应用程序在同一引擎上进行 GPU 加速渲染",
     "howTitle": "它是如何运作的",
@@ -633,11 +633,11 @@
     "metaDescriptionNoVault": "cmux 是一个用于 AI 编码代理的免费开源 macOS 终端。升级到专业版以获取隔离的云虚拟机。企业添加了 SSO 和自托管。",
     "metaDescriptionNoVaultShort": "cmux 是一个免费、开源的 macOS 终端。 Pro 添加了隔离的云虚拟机；企业添加了 SSO 和自托管。",
     "title": "定价",
-    "alreadyPaid": "已经付款了？ Connect 创始人版",
+    "alreadyPaid": "已付款？关联 Founder's Edition",
     "perMonth": "/月",
     "perMonthBilledYearly": "/月，按年计费",
-    "perUserMonth": "/用户/莫",
-    "perUserMonthBilledYearly": "/user/mo，按年计费",
+    "perUserMonth": "/用户/月",
+    "perUserMonthBilledYearly": "/用户/月，按年计费",
     "billingPeriod": "计费周期",
     "monthly": "每月",
     "annual": "年度",
@@ -655,7 +655,7 @@
       "features": [
         "基于 Ghostty 构建的原生 macOS 终端，完全开源",
         "使用您自己的密钥运行 Claude Code、Codex、Gemini 和任何 CLI 代理",
-        "垂直选项卡、工作区、分割窗格和完成通知",
+        "垂直标签页、工作区、分割窗格和完成通知",
         "浏览器面板、可编写脚本的套接字 API 和自定义技能",
         "本地会话历史记录",
         "Discord 和 GitHub 上的社区支持"
@@ -663,12 +663,12 @@
     },
     "pro": {
       "name": "Pro",
-      "cta": "获取专业版",
-      "featuresLead": "一切都是免费的，另外：",
+      "cta": "订阅 Pro",
+      "featuresLead": "包含免费方案的全部功能，以及：",
       "features": [
         "隔离远程沙箱中云虚拟机上的云代理",
         "最多 50 个云虚拟机，每个虚拟机都有自己的资源；默认大小 8 GB RAM 和 32 GB 磁盘，可用 4 至 64 GB RAM",
-        "无限的工作空间",
+        "无限的工作区",
         "cmux iOS 应用程序和电子邮件支持"
       ],
       "vaultFeatures": [
@@ -681,8 +681,8 @@
     },
     "team": {
       "name": "团队",
-      "cta": "获取团队",
-      "featuresLead": "专业版中的一切，加上：",
+      "cta": "订阅团队方案",
+      "featuresLead": "包含 Pro 的全部功能，以及：",
       "features": [
         "为您的整个团队集中计费",
         "优先支持"
@@ -690,9 +690,9 @@
     },
     "enterprise": {
       "name": "企业",
-      "price": "定制",
+      "price": "定制报价",
       "cta": "联系销售人员",
-      "featuresLead": "团队中的一切，加上：",
+      "featuresLead": "包含团队方案的全部功能，以及：",
       "features": [
         "自托管云执行和网络，因此没有任何东西会离开您的网络",
         "SSO 和 SAML 登录",
@@ -720,7 +720,7 @@
           "enterprise": "true"
         },
         {
-          "label": "垂直选项卡、拆分、通知、套接字 API",
+          "label": "垂直标签页、拆分、通知、套接字 API",
           "free": "true",
           "pro": "true",
           "team": "true",
@@ -772,7 +772,7 @@
           "enterprise": "定制"
         },
         {
-          "label": "工作空间",
+          "label": "工作区",
           "free": "无限",
           "pro": "无限",
           "team": "无限",
@@ -787,9 +787,9 @@
         },
         {
           "label": "通过网络连接到您的 Mac",
-          "free": "带上你自己的",
-          "pro": "主办",
-          "team": "主办",
+          "free": "使用自己的网络",
+          "pro": "托管网络",
+          "team": "托管网络",
           "enterprise": "自托管",
           "hostedNetworking": true
         },
@@ -801,7 +801,7 @@
           "enterprise": "true"
         },
         {
-          "label": "自托管和气隙执行",
+          "label": "自托管及物理隔离环境中的执行",
           "free": "false",
           "pro": "false",
           "team": "false",
@@ -832,8 +832,8 @@
           "label": "支持",
           "free": "社区",
           "pro": "电子邮件",
-          "team": "优先级",
-          "enterprise": "专用"
+          "team": "优先支持",
+          "enterprise": "专属支持"
         }
       ]
     },
@@ -847,28 +847,28 @@
         },
         {
           "q": "什么是云虚拟机？",
-          "a": "云中的持久 Linux 机器：宠物，不是牛。遵循 cmux 的禅宗，机器是一个原始的，而不是托管的解决方案：它保留其文件、已安装的工具和状态，并且您在其上构建的内容是您的。代理克隆存储库、运行命令并打开拉取请求，而无需接触您的 Mac。 Pro 包括多达 50 台机器。团队中每个用户最多包含 50 个云虚拟机。每台机器都有自己的CPU、内存和磁盘。默认大小为 8 GB RAM 和 32 GB 磁盘； RAM 大小从 4 GB 到 64 GB 不等。磁盘最大可增长至 256 GB。没有计量或超额计费。"
+          "a": "长期保留的云端 Linux 机器：像宠物一样持续照料，而不是当作可随时替换的牲畜。遵循 cmux 的设计理念，机器是基础组件，而非全托管解决方案：它保留文件、已安装的工具和状态，您在上面构建的内容归您所有。代理在机器上克隆仓库、执行命令和创建拉取请求，不会改动您的 Mac。Pro 包含最多 50 台机器，团队方案为每位用户提供最多 50 台云虚拟机。每台机器都有独立的 CPU、内存和磁盘。默认配置为 8 GB 内存和 32 GB 磁盘，可选择 4 至 64 GB 内存。磁盘最多可扩容至 256 GB。不按用量计费，也不收取超额费用。"
         },
         {
           "q": "什么是 cmux Vault？",
-          "a": "Vault 将每个终端会话备份到云端，并允许您搜索所有终端会话，并在您的计算机上拥有无限的历史记录。免费在每台机器上本地保存历史记录； Pro 增加了云备份和搜索。",
+          "a": "Vault 将每个终端会话备份到云端，并支持跨会话搜索和跨机器的无限历史记录。免费方案将历史记录保存在各台机器本地；Pro 额外提供云端备份和搜索。",
           "vault": true
         },
         {
           "q": "iOS 应用程序还需要 Tailscale 吗？",
-          "a": "不需要。iOS 应用程序通过内置 cmux iroh 网络与您的 Mac 配对。您还可以自带网络，例如 Tailscale。企业可以自行托管。"
+          "a": "不需要。iOS 应用通过内置的 cmux iroh 网络与您的 Mac 配对。您也可以使用自己的网络方案，例如 Tailscale。企业方案支持自托管。"
         },
         {
           "q": "计费如何运作？",
-          "a": "Pro 版价格为 50 美元/月，按年计费则为 40 美元/月（节省 20%）。团队费用为 60 美元/用户/月，按年计费则为 48 美元/用户/月。付费计划包括每个用户最多 50 个云虚拟机。每台机器都有自己的CPU、内存和磁盘，没有计量或超额计费。航站楼和当地代理保持免费。"
+          "a": "Pro 每月 50 美元，按年计费时折合每月 40 美元，可节省 20%。团队方案每位用户每月 60 美元，按年计费时折合每位用户每月 48 美元。付费方案为每位用户提供最多 50 台云虚拟机，每台机器都有独立的 CPU、内存和磁盘。不按用量计费，也不收取超额费用。终端和本地代理功能仍然免费。"
         },
         {
           "q": "我可以自行托管云吗？",
-          "a": "是的，在企业版上。在您自己的基础设施或完全隔离的基础设施上运行代理执行，因此源代码永远不会离开您的网络。"
+          "a": "可以，企业方案支持在您自己的基础设施或与外部网络完全隔离的环境中运行代理，让源代码始终留在您的网络内。"
         },
         {
-          "q": "你有团队计划吗？",
-          "a": "是的。团队费用为 60 美元/用户/月，按年计费则为 48 美元/用户/月，为整个团队提供集中计费和优先支持。"
+          "q": "有团队方案吗？",
+          "a": "有。团队方案每位用户每月 60 美元，按年计费时折合每位用户每月 48 美元，并提供全团队集中计费和优先支持。"
         }
       ]
     },
@@ -1336,7 +1336,7 @@
         "p3": "或者按 Cmd+Shift+P，在命令面板中选择任务管理器。",
         "p4": "需要 cmux v0.64.4+。",
         "workflowTitle": "嘈杂代理运行的工作流程",
-        "workflowOpen": "当风扇旋转、工作空间变得缓慢或代理出现卡住时，打开任务管理器。",
+        "workflowOpen": "当风扇旋转、工作区变得缓慢或代理出现卡住时，打开任务管理器。",
         "workflowScan": "使用最多 CPU 或内存扫描工作区、窗格、表面、代理或浏览器 Web 视图的实时进程列表。",
         "workflowJump": "从管理器跳回匹配界面，以便您可以检查实际的流程上下文。",
         "workflowAct": "使用操作系统显示的相同信息（范围为 cmux）停止、重新启动或拆分有问题的任务。",
@@ -1373,7 +1373,7 @@
         "docsCta": "阅读<link>会话恢复文档</link>，了解设置命令、受支持代理和故障排查。",
         "workflowTitle": "推荐设置",
         "workflowInstall": "安装您使用的代理 CLI，然后运行 cmux hooks setup，以便 cmux 可以捕获本机会话 ID。",
-        "workflowWork": "在普通 cmux 终端中运行代理。当工作发生时，挂钩会记录会话 ID、cwd、工作空间和界面。",
+        "workflowWork": "在普通 cmux 终端中运行代理。当工作发生时，挂钩会记录会话 ID、cwd、工作区和界面。",
         "workflowRelaunch": "重新启动后，cmux 会在启动任何保存的代理恢复命令之前重建窗口和窗格树。",
         "workflowVerify": "检查恢复的代理是否继续相同的上游会话，然后继续在相同的工作区中工作。",
         "faqTitle": "FAQ",
@@ -1658,7 +1658,7 @@
       "title": "基地",
       "metaTitle": "基础云工作区",
       "metaDescription": "Base 是您的持久 cmux 云工作区：每个个人或团队范围一个虚拟机，可从 Mac 和 iOS 恢复。",
-      "intro": "Base 是您始终在线的 cmux 云工作空间。它是 cmux 为登录帐户打开的默认云虚拟机：持久、可恢复，适用于您希望从任何 cmux 客户端访问的编码代理、shell 和工作。",
+      "intro": "Base 是您始终在线的 cmux 云工作区。它是 cmux 为登录帐户打开的默认云虚拟机：持久、可恢复，适用于您希望从任何 cmux 客户端访问的编码代理、shell 和工作。",
       "previewNote": "预览命名。一些 CLI 输出和较低级别的菜单仍然显示 Cloud VM，而产品名称已移至 Base。",
       "whatTitle": "什么是基地",
       "whatDesc": "Base 是 cmux 中云工作的主工作区。 Opening Base 是确定性的：cmux 为您的当前帐户范围找到正确的持久 VM，在需要时恢复它，如果可以的话修复终端端点，并在其中打开一个终端。",
@@ -1680,9 +1680,9 @@
       "resetMeaning": "Reset Base：为同一账户范围创建新的 Base 代。保留了上一代产品，因此意外重置是可以恢复的。",
       "createMeaning": "创建虚拟机：为额外的机器创建一个额外的、独立的云虚拟机。",
       "forkMeaning": "Fork VM：将当前VM复制到新的工作分支中。",
-      "cliNamingDesc": "当前的预览版 CLI 通过 vm 命令公开了这一点。产品模型是用于默认持久工作空间的 Base，以及用于显式额外机器和低级操作的 VM。",
+      "cliNamingDesc": "当前的预览版 CLI 通过 vm 命令公开了这一点。产品模型是用于默认持久工作区的 Base，以及用于显式额外机器和低级操作的 VM。",
       "sessionsTitle": "会话和重新连接",
-      "sessionsDesc": "每个终端窗格都应该有自己的远程 PTY 会话。拆分或打开新选项卡会创建新会话。如果可能，恢复 cmux 会将每个窗格重新附加到其会话。",
+      "sessionsDesc": "每个终端窗格都应该有自己的远程 PTY 会话。拆分或打开新标签页会创建新会话。如果可能，恢复 cmux 会将每个窗格重新附加到其会话。",
       "sessionScrollback": "Scrollback 属于 cmux 中的窗格，并且应该在应用程序重新启动后继续存在。",
       "sessionReconnect": "终端中的重新连接应该安静。 cmux 应在 UI 中显示状态，而不是将重试循环附加到回滚。",
       "sessionRepair": "如果终端端点已过时，cmux 会在要求您重置任何内容之前尝试就地修复。",
@@ -1716,7 +1716,7 @@
       "defaultHeader": "默认",
       "behaviorHeader": "被迫为真时的行为",
       "booleanType": "布尔值",
-      "browserKeyDesc": "禁用每个嵌入式浏览器表面：浏览器窗格和选项卡、终端链接拦截、自动化创建浏览器、布局和会话恢复。当策略激活时，实时浏览器窗格将关闭；链接会在系统默认浏览器中打开。基于 WebKit 的本地查看器（差异查看器、代理聊天窗格、应用内升级页面）也无法使用，并且 Mac 停止向 iOS 应用程序宣传浏览器功能。",
+      "browserKeyDesc": "禁用每个嵌入式浏览器表面：浏览器窗格和标签页、终端链接拦截、自动化创建浏览器、布局和会话恢复。当策略激活时，实时浏览器窗格将关闭；链接会在系统默认浏览器中打开。基于 WebKit 的本地查看器（差异查看器、代理聊天窗格、应用内升级页面）也无法使用，并且 Mac 停止向 iOS 应用程序宣传浏览器功能。",
       "remoteKeyDesc": "禁用 Mac 充当 cmux iOS 应用程序的远程查看/控制主机：Iroh 主机运行时（包括其本地网络通告）、旧版 TCP 配对侦听器、连接准入和设备配对。当策略激活时，实时电话连接将关闭，并且配对信任经纪人拒绝创建新的配对授权。仅出站通知转发、应用程序更新、本地自动化套接字和 Mac 作为客户端 SSH 不受影响。",
       "noteBoolean": "值必须是布尔值。强制为 false（或非布尔值）的密钥不会强制执行该策略，但出于写锁定目的，该密钥仍算作托管密钥。",
       "noteForcedOnly": "只有强制的（配置文件提供的）值才会被视为政策。这些键的普通默认写入没有任何效果。",
@@ -1736,24 +1736,24 @@
     "remoteTmux": {
       "title": "远程tmux",
       "metaTitle": "远程 tmux（测试版）",
-      "metaDescription": "使用 tmux 控制模式通过 SSH 从 cmux 驱动远程 tmux 会话。会话变成工作区，窗口变成选项卡，窗口的窗格变成本机 cmux 分割。",
-      "intro": "远程 tmux 使用 tmux 控制模式 (tmux -CC) 通过 SSH 将远程计算机上运行的 tmux 会话镜像到 cmux 中。远程会话不是普通的 SSH 终端，而是重新投影到 cmux 的本机 UI（工作区、选项卡、拆分、回滚和复制）中，并且 cmux 驱动其背后的真实 tmux 服务器。它是 Beta 功能标志，不会更改本地终端。",
+      "metaDescription": "使用 tmux 控制模式通过 SSH 从 cmux 驱动远程 tmux 会话。会话变成工作区，窗口变成标签页，窗口的窗格变成本机 cmux 分割。",
+      "intro": "远程 tmux 使用 tmux 控制模式 (tmux -CC) 通过 SSH 将远程计算机上运行的 tmux 会话镜像到 cmux 中。远程会话不是普通的 SSH 终端，而是重新投影到 cmux 的本机 UI（工作区、标签页、拆分、回滚和复制）中，并且 cmux 驱动其背后的真实 tmux 服务器。它是 Beta 功能标志，不会更改本地终端。",
       "betaNote": "贝塔。此功能是选择性加入的并且仍然稳定 - 请参阅下面的限制。",
       "moshContrast": "如需在网络之间漫游，请使用 cmux mosh-tmux。它会打开一个连接到命名 tmux 会话的完整 Mosh 终端；不会取代 SSH tmux 控制模式提供的原生工作区、标签页和分屏镜像。",
       "mappingTitle": "tmux 如何映射到 cmux",
-      "mappingIntro": "cmux 和 tmux 以相反的方向嵌套它们的布局。在 cmux 中，一个窗格包含一行选项卡（每个选项卡都是一个终端）。在 tmux 中，一个窗口包含多个窗格。远程 tmux 通过将 tmux 的结构投影到 cmux 的结构来桥接两者：",
+      "mappingIntro": "cmux 和 tmux 以相反的方向嵌套它们的布局。在 cmux 中，一个窗格包含一行标签页（每个标签页都是一个终端）。在 tmux 中，一个窗口包含多个窗格。远程 tmux 通过将 tmux 的结构投影到 cmux 的结构来桥接两者：",
       "mapTmux": "tmux",
       "mapCmux": "cmux",
       "rowSession": "侧边栏中的专用工作区。",
-      "rowWindow": "该工作区中的一个选项卡。",
-      "rowPane": "该选项卡内本机拆分中的窗格。",
-      "mappingPanes": "新功能是选项卡内的窗格：一个 cmux 选项卡用于容纳单个终端，但具有多个窗格的 tmux 窗口现在呈现为一个选项卡内真正的 cmux 拆分布局 — 每个远程窗格都是带有常用镶边的本机 cmux 终端窗格。该桥是双向的：在运行 tmux split-window 的选项卡中拆分或关闭窗格，并且对选项卡重新排序会使用 swap-window 对 tmux 窗口重新排序。",
+      "rowWindow": "该工作区中的一个标签页。",
+      "rowPane": "该标签页内本机拆分中的窗格。",
+      "mappingPanes": "新功能是标签页内的窗格：一个 cmux 标签页用于容纳单个终端，但具有多个窗格的 tmux 窗口现在呈现为一个标签页内真正的 cmux 拆分布局 — 每个远程窗格都是带有常用镶边的本机 cmux 终端窗格。该桥是双向的：在运行 tmux split-window 的标签页中拆分或关闭窗格，并且对标签页重新排序会使用 swap-window 对 tmux 窗口重新排序。",
       "requirementsTitle": "要求",
       "requirementsDesc": "安装了 tmux 3.2 或更高版本的可访问 SSH 主机（cmux 读取您的 ~/.ssh/config）。控制模式（tmux -CC）是标准的 tmux 功能，因此不需要特殊构建； cmux 在连接之前检查远程 tmux 版本，并且在旧服务器上明显失败。 cmux 通过 SSH ControlMaster 连接进行连接，并且远程 tmux 服务器在您分离时保持运行。",
       "enableTitle": "启用它",
       "enableDesc": "打开“设置”→“测试版功能”并打开“远程 tmux”。默认情况下，该开关处于关闭状态，因此在您选择加入之前，本地终端不会发生任何变化。",
       "attachTitle": "附加",
-      "attachIntro": "在终端中运行 cmux ssh-tmux <destination> - ~/.ssh/config 别名或 user@host。 cmux 将托管 tmux 会话的镜像镜像到当前窗口的侧边栏：每个会话成为一个工作区，每个窗口成为一个选项卡，多窗格窗口成为选项卡内拆分。",
+      "attachIntro": "在终端中运行 cmux ssh-tmux <destination> - ~/.ssh/config 别名或 user@host。 cmux 将托管 tmux 会话的镜像镜像到当前窗口的侧边栏：每个会话成为一个工作区，每个窗口成为一个标签页，多窗格窗口成为标签页内拆分。",
       "attachNewWindow": "通过 --new-window 在专用的新窗口而不是当前窗口中打开镜像。",
       "attachSockets": "Remote.tmux.* 套接字命令（如下）提供更精细的控制。 remote.tmux.mirror 是镜像入口点；它接受窗口/调用者路由，并且可以选择镜像工作区。",
       "attachCli": "以非交互方式进行身份验证的主机（ssh-agent 或 ~/.ssh/config 中的密钥）会在没有提示的情况下进行连接。如果主机需要交互式身份验证（密码、主机密钥确认或 MFA），cmux 会在终端中内联运行 ssh，以便您可以进行身份​​验证，然后镜像到当前窗口。接受 --port、--identity 和 --no-focus。",
@@ -1765,19 +1765,19 @@
       "behaviorTitle": "它支持什么",
       "behaviorSize": "大小调整：远程客户端的大小调整为渲染网格（refresh-client -C），因此 TUI 不会停留在 tmux 的默认 80×24。",
       "behaviorSplit": "拆分：拆分或关闭镜像窗口中的窗格会通过 split-window 传播到 tmux，因此 cmux 布局和 tmux 布局保持同步。编程式拆分（cmux new-split 或通过套接字的 surface.split）报告接受，但没有表面 id — 一旦 tmux 确认布局更改，新窗格就会异步到达。在远程会话发生突变之前，携带路由拆分无法执行的选项（启动命令、工作目录、分隔符位置、左/上放置）的请求将被预先拒绝。",
-      "behaviorReorder": "重新排序：拖动重新排序镜像选项卡会使用交换窗口重新排序 tmux 窗口。",
-      "behaviorCwd": "工作目录：跟踪远程窗格的当前文件夹并显示在选项卡上。",
+      "behaviorReorder": "重新排序：拖动重新排序镜像标签页会使用交换窗口重新排序 tmux 窗口。",
+      "behaviorCwd": "工作目录：跟踪远程窗格的当前文件夹并显示在标签页上。",
       "behaviorPaste": "粘贴和放置：粘贴的文本和放置的图像/文件通过 tmux Paste-Buffer -p，因此远程应用程序（例如编码代理）会收到真正的括号粘贴 - 图像以 [Image #N] 形式到达，而不是本地路径。",
       "behaviorMouse": "鼠标：当远程应用程序处于鼠标模式时，单击、滚动和拖动可到达远程应用程序。拖动时按住 Shift 键可进行本机 cmux 文本选择/复制（与运行鼠标模式应用程序的任何终端相同）。",
       "behaviorUnicode": "Unicode 正确的输出：即使 tmux 在更新中分割多字节字符，也会保留多字节字符，因此方框图和其他宽内容可以清晰地呈现。",
       "socketTitle": "套接字命令",
-      "socketDesc": "该功能还由套接字命令驱动（在 Beta 功能标志上门控）。 host 是 SSH 目标或 ~/.ssh/config 别名； session 是 tmux 会话名称；镜子还接受标准窗口/工作空间/表面/窗格路由。",
+      "socketDesc": "该功能还由套接字命令驱动（在 Beta 功能标志上门控）。 host 是 SSH 目标或 ~/.ssh/config 别名； session 是 tmux 会话名称；镜子还接受标准窗口/工作区/表面/窗格路由。",
       "socketMethod": "方法",
       "socketParams": "参数",
       "socketMeaning": "描述",
       "methodSessions": "列出主机上的 tmux 会话。",
       "methodAttach": "将控制客户端附加到会话（创建附加或创建）。",
-      "methodMirror": "将主机上的每个会话镜像到已解析的窗口中，每个会话都作为自己的工作区（窗口变成选项卡）；返回 ssh 命令，以便在主机需要时运行交互式身份验证。",
+      "methodMirror": "将主机上的每个会话镜像到已解析的窗口中，每个会话都作为自己的工作区（窗口变成标签页）；返回 ssh 命令，以便在主机需要时运行交互式身份验证。",
       "methodDetach": "分离控制客户端；远程会话继续运行。",
       "methodState": "报告控制客户端的观察状态（诊断）。",
       "socketSafetyDesc": "以破折号为前缀的主机或身份文件在信任边界处被拒绝，以防御 SSH 选项注入。",
@@ -2056,7 +2056,7 @@
         },
         "terminal": {
           "adaptiveDefaultTheme": "当为 true（默认值）时，cmux 仅当 Ghostty 配置不包含指令时才提供其托管明/暗调色板。当为 false 时，未更改的 Ghostty 配置将使用 Ghostty 的固定内置调色板。任何 Ghostty 指令都会抑制托管调色板；幽灵主题 = light:X,dark:Y 保持外观自适应。",
-          "agentHibernation": "常规代理休眠设置。 cmux 会终止空闲的后台代理进程以释放 RAM 和 CPU，然后在访问其选项卡时使用保存的会话恢复它们。常规休眠需要一个可恢复的编码代理，其生命周期报告空闲、一个离屏终端、高于配置限制的活动终端计数以及通过空闲和确认窗口的未更改的输出。独立地，在严重内存压力期间，即使启用为 false，cmux 也可能会休眠一批有限的安全空闲后台代理；可见的、正在运行的、需要输入的、最近更改的和不受保护的代理仍然被排除在外。占位符“恢复”按钮是手动后备按钮。",
+          "agentHibernation": "常规代理休眠设置。 cmux 会终止空闲的后台代理进程以释放 RAM 和 CPU，然后在访问其标签页时使用保存的会话恢复它们。常规休眠需要一个可恢复的编码代理，其生命周期报告空闲、一个离屏终端、高于配置限制的活动终端计数以及通过空闲和确认窗口的未更改的输出。独立地，在严重内存压力期间，即使启用为 false，cmux 也可能会休眠一批有限的安全空闲后台代理；可见的、正在运行的、需要输入的、最近更改的和不受保护的代理仍然被排除在外。占位符“恢复”按钮是手动后备按钮。",
           "agentHibernationEnabled": "根据实时终端限制启用例行代理休眠。当错误时，临界压力安全休眠仍保持活动状态。",
           "copyOnSelect": "为 true 时，在确认选择后将所选终端文本复制到系统剪贴板。为 false 时，cmux 不会输出 Ghostty copy-on-select 覆盖项；选择剪贴板行为由 Ghostty 配置和默认值控制。",
           "scrollSpeed": "应用于终端滚轮和触控板滚动量的倍数。值越大滚动越快，值越小滚动越慢。",
@@ -2202,7 +2202,7 @@
       "workspaceActions": "工作区布局",
       "workspaceActionsDesc": "工作区布局存储为 <workspace>workspace</workspace> 操作，将完整的工作区定义直接嵌入到该操作中，因此不需要单独的 <commands>commands</commands> 条目。它支持相同的工作区字段以及 <setup>setup</setup>，这是在该终端自己的命令之前发送到第一个终端的引导命令：",
       "workspaceActionsMenuDesc": "工作区布局会自动出现在加号按钮的右键菜单中。将 <newWorkspaceMenu>newWorkspaceMenu</newWorkspaceMenu> 设置为 <falseValue>false</falseValue> 可隐藏某个布局，或在其他操作上设置 <trueValue>true</trueValue> 将其添加到菜单。",
-      "workspaceActionsSaveDesc": "您还可以在不编写 JSON 的情况下创建这些：右键单击加号按钮并选择 <saveLayout>Save Workspace as Layout</saveLayout> 将当前工作区的拆分、目录、运行代理和浏览器选项卡捕获到 <configPath>~/.config/cmux/cmux.json</configPath> 中。它们作为条目存储在 <actions>actions</actions> 块中。 <customize>自定义工作区布局</customize> 在编辑器中打开该文件。",
+      "workspaceActionsSaveDesc": "您还可以在不编写 JSON 的情况下创建这些：右键单击加号按钮并选择 <saveLayout>Save Workspace as Layout</saveLayout> 将当前工作区的拆分、目录、运行代理和浏览器标签页捕获到 <configPath>~/.config/cmux/cmux.json</configPath> 中。它们作为条目存储在 <actions>actions</actions> 块中。 <customize>自定义工作区布局</customize> 在编辑器中打开该文件。",
       "simpleCommands": "简单命令",
       "simpleCommandsDesc": "简单命令在当前聚焦的终端中运行 shell 命令：",
       "simpleCommandFields": "字段",
@@ -2255,7 +2255,7 @@
       "fullExample": "完整示例",
       "restartNew": "创建新的 workspace（默认）",
       "workspaceActionsDefaultTitle": "新工作区的默认设置",
-      "workspaceActionsDefaultDesc": "使用新工作空间的 <defaultMenu>Default</defaultMenu> 子菜单来选择应运行的普通新工作空间所保存的工作空间布局，或选择“无”以返回到空白终端。保存对话框还有一个 <checkbox>Use as default for newworkspaces</checkbox> 复选框。设置为<action>ui.newWorkspace.action</action>；项目本地 <localConfig>.cmux/cmux.json</localConfig> 值胜过 <globalConfig>~/.config/cmux/cmux.json</globalConfig>。"
+      "workspaceActionsDefaultDesc": "使用新工作区的 <defaultMenu>Default</defaultMenu> 子菜单来选择应运行的普通新工作区所保存的工作区布局，或选择“无”以返回到空白终端。保存对话框还有一个 <checkbox>Use as default for newworkspaces</checkbox> 复选框。设置为<action>ui.newWorkspace.action</action>；项目本地 <localConfig>.cmux/cmux.json</localConfig> 值胜过 <globalConfig>~/.config/cmux/cmux.json</globalConfig>。"
     },
     "keyboardShortcuts": {
       "title": "快捷键",
@@ -2371,7 +2371,7 @@
       "closeWorkspaceDesc": "关闭工作区。",
       "splitCommands": "分屏命令",
       "newSplitDesc": "创建新的分屏面板。方向：left、right、up、down。",
-      "listSurfacesDesc": "列出当前工作空间中的所有曲面。",
+      "listSurfacesDesc": "列出当前工作区中的所有曲面。",
       "focusSurfaceDesc": "聚焦到指定 surface。",
       "inputCommands": "输入命令",
       "sendDesc": "向当前聚焦的终端发送文本输入。",
@@ -2549,7 +2549,7 @@
       "settingsDescription": "使用捆绑的帮助程序脚本检查、编辑、验证和打开 ~/.config/cmux/cmux.json。",
       "settingsUse": "通过 JSON 路径更改外观、侧边栏、通知、浏览器、自动化或快捷方式设置时使用它。",
       "customizationName": "cmux定制",
-      "customizationDescription": "自定义 cmux.json 操作、加号按钮行为、选项卡栏按钮、工作区布局、Dock 控件、提要挂钩、侧边栏设置、命令面板条目、快捷方式和 Ghostty 拥有的终端首选项。",
+      "customizationDescription": "自定义 cmux.json 操作、加号按钮行为、标签页栏按钮、工作区布局、Dock 控件、提要挂钩、侧边栏设置、命令面板条目、快捷方式和 Ghostty 拥有的终端首选项。",
       "customizationUse": "使用它可以使 cmux 从用户想要的确切 UI 入口点打开用户的工作树、多个签出、SSH 会话、开发工具或项目布局。",
       "diagnosticsName": "cmux 诊断",
       "diagnosticsDescription": "对 cmux CLI 运行状况、套接字访问、挂钩、会话恢复、设置和代理二进制文件运行支持安全检查。",
@@ -2570,8 +2570,8 @@
       "workspaceReferences": "工作区命令参考，涵盖上下文、窗口、工作区、窗格、表面、输入、侧边栏状态、通知、文档和标记重新加载。",
       "settingsScope": "cmux.json 设置读取和写入、键查找、JSONC 解析、安全原子更新、验证、编辑器打开和快捷方式绑定编辑。",
       "settingsReferences": "生成的设置键列表、快捷操作 ID、架构 URL、支持的路径检测以及捆绑的 cmux-settings 帮助程序。",
-      "customizationScope": "最终用户可自定义 cmux.json 设置、操作、命令、工作区布局、加号按钮单击和右键单击菜单、表面选项卡栏按钮、Dock 控件、源和通知挂钩、侧边栏元数据、命令面板条目、快捷方式和 Ghostty 配置边界。",
-      "customizationReferences": "配置表面选择、可以自定义的内容、全局范围与项目本地范围、操作示例、加号按钮接线、选项卡栏按钮示例、Dock 示例、Feed 挂钩、工作区布局示例、重新加载步骤、验证规则和安全约束。",
+      "customizationScope": "最终用户可自定义 cmux.json 设置、操作、命令、工作区布局、加号按钮单击和右键单击菜单、表面标签页栏按钮、Dock 控件、源和通知挂钩、侧边栏元数据、命令面板条目、快捷方式和 Ghostty 配置边界。",
+      "customizationReferences": "配置表面选择、可以自定义的内容、全局范围与项目本地范围、操作示例、加号按钮接线、标签页栏按钮示例、Dock 示例、Feed 挂钩、工作区布局示例、重新加载步骤、验证规则和安全约束。",
       "customizationExamplesTitle": "定制示例库",
       "customizationExamplesIntro": "这些是可重用的工作流模式，用户可以要求代理通过 cmux 自定义应用这些模式。",
       "exampleHeader": "示例",
@@ -2596,8 +2596,8 @@
       "exampleCiSurface": "Dock 控件、Feed TUI、通知挂钩",
       "exampleCiUse": "观看 GitHub Actions、CircleCI、发布监视器和代理挂钩事件，而不会丢失主工作区。",
       "exampleAgentButtonsName": "快速代理按钮",
-      "exampleAgentButtonsSurface": "表面选项卡栏按钮、操作、命令面板条目",
-      "exampleAgentButtonsUse": "添加一键式 Codex、Claude 或自定义代理启动器，同时保持内置选项卡按钮可见。",
+      "exampleAgentButtonsSurface": "表面标签页栏按钮、操作、命令面板条目",
+      "exampleAgentButtonsUse": "添加一键式 Codex、Claude 或自定义代理启动器，同时保持内置标签页按钮可见。",
       "customizationExamplesCallout": "详细片段位于 <code>skills/cmux-customization/references/examples.md</code> 中。仅当需要示例库模式时，代理才会加载该文件。",
       "customizationExamplePrompts": "提示示例",
       "customizationPromptWorktree": "使用 $cmux-customization 设置 worktree-agents 示例。",
@@ -2620,7 +2620,7 @@
       "suggestionUseHeader": "使用案例",
       "suggestionWhyHeader": "为什么有帮助",
       "suggestSshName": "cmux SSH",
-      "suggestSshUse": "驱动远程工作空间、SSH URL 启动、通过远程网络的浏览器路由以及重新连接行为。",
+      "suggestSshUse": "驱动远程工作区、SSH URL 启动、通过远程网络的浏览器路由以及重新连接行为。",
       "suggestSshWhy": "远程会话是主要的 cmux 表面，其行为与本地终端工作流程不同。",
       "suggestCloudVmName": "cmux 云虚拟机",
       "suggestCloudVmUse": "操作云虚拟机创建、附加、执行、SSH 端点、计费和提供商故障排除流程。",
@@ -2679,7 +2679,7 @@
       "dragDropTitle": "拖放",
       "dragDropDesc": "将图像或文件拖到远程终端中，cmux 通过现有 SSH 连接通过 scp 上传。 cmux 通过 TTY 检测前台 SSH 进程，并通过 ControlMaster 多路复用路由上传。",
       "notificationsTitle": "通知",
-      "notificationsDesc": "远程计算机上的进程可以运行在本地实例上执行的 cmux 命令。当编码代理在远程盒子上调用 cmux 通知时，通知会显示在本地侧边栏中。工作区选项卡上的蓝色环亮起。 Cmd+Shift+U 跳转到它。通过每台主机的冷却时间来抑制来自不稳定连接的通知垃圾邮件。",
+      "notificationsDesc": "远程计算机上的进程可以运行在本地实例上执行的 cmux 命令。当编码代理在远程盒子上调用 cmux 通知时，通知会显示在本地侧边栏中。工作区标签页上的蓝色环亮起。 Cmd+Shift+U 跳转到它。通过每台主机的冷却时间来抑制来自不稳定连接的通知垃圾邮件。",
       "agentsTitle": "通过 SSH 编码代理",
       "agentsDesc": "cmux claude-teams 和 cmux omo 都在 SSH 会话中工作。远程主机上的 Go 中继守护进程处理与本地 Swift CLI 相同的 tmux-compat 转换。当计算在远程机器上运行时，队友代理会在本地计算机上本地 cmux 拆分时生成。",
       "reconnectTitle": "重新连接",
@@ -3417,7 +3417,7 @@
                 "指挥",
                 "Mac 上的编码代理团队",
                 "Claude Code、Codex、Cursor 和 OpenCode 工具",
-                "对于独立的任务工作空间更加固执己见"
+                "对于独立的任务工作区更加固执己见"
               ],
               [
                 "超级组",
@@ -3512,7 +3512,7 @@
             },
             {
               "title": "多任务处理和组织",
-              "body": "当每个会话都变成另一个标题模糊的选项卡时，繁重的代理工作就会崩溃。 cmux 在显示分支、目录、端口和最新通知文本的垂直工作区中保持工作，因此多个代理在运行时保持清晰。"
+              "body": "当每个会话都变成另一个标题模糊的标签页时，繁重的代理工作就会崩溃。 cmux 在显示分支、目录、端口和最新通知文本的垂直工作区中保持工作，因此多个代理在运行时保持清晰。"
             },
             {
               "title": "负载下的性能",
@@ -3520,7 +3520,7 @@
             },
             {
               "title": "键盘优先监督",
-              "body": "cmux 将注意力视为一流的工作流程。 Cmd+Shift+U 跳转到最新的未读窗格，Cmd+Control+U 循环未读工作而不清除它。这些快捷方式是为运行足够多代理而导致手动选项卡扫描停止工作的人构建的。"
+              "body": "cmux 将注意力视为一流的工作流程。 Cmd+Shift+U 跳转到最新的未读窗格，Cmd+Control+U 循环未读工作而不清除它。这些快捷方式是为运行足够多代理而导致手动标签页扫描停止工作的人构建的。"
             },
             {
               "title": "工作树支持是一种原始支持，而不是产品盒",
@@ -3532,8 +3532,8 @@
           "faqA1": "不。cmux 是围绕您已使用的代理的本机终端和浏览器工作区。",
           "faqQ2": "哪些代理在 cmux 中工作？",
           "faqA2": "任何 CLI 代理都可以工作，包括 Claude Code、Codex、OpenCode、Gemini CLI、Aider、Amp 和 Cursor CLI。",
-          "faqQ3": "为什么不直接使用终端选项卡呢？",
-          "faqA3": "选项卡适用于一些 shell。 cmux 添加了工作区元数据、通知环、未读导航、分割窗格、浏览器自动化以及适用于代理密集型工作流程的可编写脚本的套接字。"
+          "faqQ3": "为什么不直接使用终端标签页呢？",
+          "faqA3": "标签页适用于一些 shell。 cmux 添加了工作区元数据、通知环、未读导航、分割窗格、浏览器自动化以及适用于代理密集型工作流程的可编写脚本的套接字。"
         },
         "cmuxVsAlacritty": {
           "metaTitle": "cmux 与 Alacritty 的 AI 编码代理 - cmux",
@@ -3713,7 +3713,7 @@
             ],
             "rows": [
               [
-                "每个任务一个终端选项卡",
+                "每个任务一个终端标签页",
                 "手动的",
                 "虚弱的",
                 "小实验"
@@ -4068,7 +4068,7 @@
           "sections": [
             {
               "title": "cmux 将代理状态添加到终端",
-              "body": "终端选项卡不知道哪个代理被阻止，它拥有哪个分支，或者它启动了哪个开发服务器。 cmux 将该上下文放在侧边栏中，并使等待窗格易于查找。"
+              "body": "终端标签页不知道哪个代理被阻止，它拥有哪个分支，或者它启动了哪个开发服务器。 cmux 将该上下文放在侧边栏中，并使等待窗格易于查找。"
             },
             {
               "title": "浏览器自动化是工作流的一部分",
@@ -4100,7 +4100,7 @@
           "metaDescription": "比较 cmux 和 Kitty 的 GPU 终端性能、AI 编码代理、通知环、未读键盘快捷键、浏览器窗格和可编程性。",
           "title": "cmux 与 Kitty",
           "intro": "Kitty 是一款快速、功能丰富、基于 GPU 的终端模拟器。 cmux 是一个基于 libghostty 构建的本机 macOS 终端和浏览器工作区，适合运行许多 AI 编码代理并需要可见工作区、通知、未读导航和应用程序级自动化的开发人员。",
-          "summaryTitle": "功能丰富的终端与代理多任务工作空间",
+          "summaryTitle": "功能丰富的终端与代理多任务工作区",
           "summaryBody": "当您需要功能强大的可配置终端时，请使用 Kitty。当编码代理将您的终端变成多任务队列并且您需要 Cmd+Shift+U、Cmd+Control+U、通知环、工作区元数据、浏览器检查和可编写脚本的控制时，请使用 cmux。",
           "table": {
             "headers": [
@@ -4239,7 +4239,7 @@
             },
             {
               "title": "cmux 拥有本机桌面表面",
-              "body": "cmux 构建为具有 libghostty 终端渲染的 Swift/AppKit macOS 应用程序。这使得它可以提供垂直选项卡、应用程序级工作区、本机窗格、屏幕截图、浏览器界面和桌面通知行为，而无需驻留在另一个终端内。"
+              "body": "cmux 构建为具有 libghostty 终端渲染的 Swift/AppKit macOS 应用程序。这使得它可以提供垂直标签页、应用程序级工作区、本机窗格、屏幕截图、浏览器界面和桌面通知行为，而无需驻留在另一个终端内。"
             },
             {
               "title": "两者都关心代理状态",
@@ -4448,7 +4448,7 @@
               [
                 "注意力模型",
                 "窗格环、侧边栏未读状态、Cmd+Shift+U、Cmd+Control+U",
-                "编辑器通知、视图、选项卡和扩展 UI"
+                "编辑器通知、视图、标签页和扩展 UI"
               ],
               [
                 "浏览器工作流程",
@@ -4607,7 +4607,7 @@
               [
                 "注意力模型",
                 "窗格环、侧边栏未读状态、Cmd+Shift+U、Cmd+Control+U",
-                "编辑器选项卡、面板和通知"
+                "编辑器标签页、面板和通知"
               ],
               [
                 "最适合",
@@ -4756,7 +4756,7 @@
               [
                 "组织",
                 "垂直工作区、分支和端口元数据、未读状态",
-                "选项卡、窗格、窗口和多路复用"
+                "标签页、窗格、窗口和多路复用"
               ],
               [
                 "注意力模型",
@@ -4807,9 +4807,9 @@
         },
         "cmuxVsGhostty": {
           "metaTitle": "cmux 与 Ghostty 的编码代理 — cmux",
-          "metaDescription": "比较 cmux 和 Ghostty 的 macOS 终端工作流程、编码代理、libghostty 性能、垂直选项卡、通知和可编程性。",
+          "metaDescription": "比较 cmux 和 Ghostty 的 macOS 终端工作流程、编码代理、libghostty 性能、垂直标签页、通知和可编程性。",
           "title": "cmux 与 Ghostty 对比",
-          "intro": "Ghostty 是一个快速的终端模拟器。 cmux 是一个基于 libghostty 构建的独立本机 macOS 应用程序，添加了工作区、垂直选项卡、通知环、浏览器窗格以及用于编码代理工作流程的套接字 API。",
+          "intro": "Ghostty 是一个快速的终端模拟器。 cmux 是一个基于 libghostty 构建的独立本机 macOS 应用程序，添加了工作区、垂直标签页、通知环、浏览器窗格以及用于编码代理工作流程的套接字 API。",
           "summaryTitle": "相同的渲染引擎系列，不同的工作",
           "summaryBody": "如果你想要专注的终端模拟器，请使用 Ghostty。如果你想在代理工作区中使用 libghostty 渲染，并拥有持久未读状态、浏览器窗格，以及让代理创建窗格、读取终端、截图并驱动 Web 检查的 Unix socket，请使用 cmux。",
           "table": {
@@ -4837,7 +4837,7 @@
               [
                 "组织",
                 "垂直工作区、拆分、侧边栏元数据",
-                "终端窗口、选项卡、拆分"
+                "终端窗口、标签页、拆分"
               ],
               [
                 "代理关注",
@@ -4857,7 +4857,7 @@
               "body": "Ghostty 是优秀的终端模拟器，现在也提供用于终端自动化的 AppleScript。cmux 针对代理工作流更进一步：终端控制、工作区状态、通知、截图和浏览器窗格通过一个 CLI/socket 界面暴露，因此代理无需离开工作区即可运行命令并验证 Web 应用。"
             },
             {
-              "title": "垂直工作空间可以更好地适应座席人员",
+              "title": "垂直工作区可以更好地适应座席人员",
               "body": "代理会话受益于持久名称、分支上下文、目录上下文、端口和未读状态。 cmux 将该元数据放在侧边栏中，以便数十个会话保持可扫描状态。"
             },
             {
@@ -5171,7 +5171,7 @@
     "marketing": {
       "sectionLabel": "TUI",
       "metaTitle": "cmux TUI：代理的终端工作区",
-      "metaDescription": "从适用于 macOS、Linux 和 Windows 的快速开源终端 UI 运行工作区、分割窗格、浏览器选项卡和远程计算机。",
+      "metaDescription": "从适用于 macOS、Linux 和 Windows 的快速开源终端 UI 运行工作区、分割窗格、浏览器标签页和远程计算机。",
       "eyebrow": "cmux TUI · 开源",
       "title": "可以在任何地方运行的终端工作区。",
       "intro": "cmux TUI 将为编码代理构建的工作区模型引入 macOS、Linux 和 Windows。将 shell、浏览器、测试和长时间运行的代理保留在一个键盘优先的树中。",
@@ -5196,12 +5196,12 @@
       },
       "workflowEyebrow": "一棵树完成整个工作",
       "workflowTitle": "让每个代理和工具都在视野范围内。",
-      "workflowBody": "工作区包含屏幕，屏幕包含分割窗格，窗格包含终端或浏览器选项卡。相同的活动树可以在本地附加、通过 SSH 访问、在 Web 上呈现或通过套接字 API 进行控制。",
+      "workflowBody": "工作区包含屏幕，屏幕包含分割窗格，窗格包含终端或浏览器标签页。相同的活动树可以在本地附加、通过 SSH 访问、在 Web 上呈现或通过套接字 API 进行控制。",
       "features": {
         "tree": {
-          "number": "01 / 工作空间",
+          "number": "01 / 工作区",
           "title": "按任务组织",
-          "body": "为每个功能、调查或代理团队提供自己的工作空间。切换时不会丢失终端状态或布局。"
+          "body": "为每个功能、调查或代理团队提供自己的工作区。切换时不会丢失终端状态或布局。"
         },
         "agents": {
           "number": "02 / 代理",
@@ -5210,8 +5210,8 @@
         },
         "browser": {
           "number": "03 / 浏览器",
-          "title": "打开真实的浏览器选项卡",
-          "body": "将 Chrome 目标驱动为终端进程旁边的选项卡，并具有持久配置文件、键盘输入、鼠标输入和实时帧。"
+          "title": "打开真实的浏览器标签页",
+          "body": "将 Chrome 目标驱动为终端进程旁边的标签页，并具有持久配置文件、键盘输入、鼠标输入和实时帧。"
         },
         "remote": {
           "number": "04 / 机器",
@@ -5221,10 +5221,10 @@
       },
       "keyboardEyebrow": "默认情况下很快",
       "keyboardTitle": "tmux肌肉记忆，更丰富的模型。",
-      "keyboardBody": "默认的 Ctrl-b 前缀保留熟悉的窗格命令，同时添加工作区、选项卡、浏览器界面、可滚动视口、布局撤消和鼠标控件。",
+      "keyboardBody": "默认的 Ctrl-b 前缀保留熟悉的窗格命令，同时添加工作区、标签页、浏览器界面、可滚动视口、布局撤消和鼠标控件。",
       "keys": {
         "split": "向右分割活动窗格",
-        "tab": "在窗格中打开一个选项卡",
+        "tab": "在窗格中打开一个标签页",
         "workspace": "创建工作区",
         "viewport": "在右侧添加一个可滚动窗格"
       },
@@ -5247,7 +5247,7 @@
       "metaTitle": "cmux TUI 文档",
       "metaDescription": "安装 cmux TUI，了解其工作区模型和键盘控制，附加到会话，连接远程计算机并使其自动化。",
       "title": "cmux TUI",
-      "intro": "cmux TUI 是适用于 macOS、Linux 和 Windows 的 Rust 终端多路复用器。它将工作区、屏幕、分割窗格、终端选项卡、浏览器选项卡、远程会话和控制套接字组合在一个进程中。",
+      "intro": "cmux TUI 是适用于 macOS、Linux 和 Windows 的 Rust 终端多路复用器。它将工作区、屏幕、分割窗格、终端标签页、浏览器标签页、远程会话和控制套接字组合在一个进程中。",
       "screenshotAlt": "cmux TUI 在 macOS 上的 cmux 内运行，在 TUI 工作区栏旁边的三个窗格中包含 Neovim、OpenCode 和 Hunk",
       "screenshotCaption": "Neovim、OpenCode 和 Hunk 审查 TUI 的现场会议。",
       "installTitle": "安装并运行",
@@ -5262,9 +5262,9 @@
       },
       "installNpx": "如果已安装 Node.js，则无需永久安装即可运行 cmux：",
       "platforms": "打包版本支持 Apple Silicon 和 Intel Mac、x64 和 Arm64 Linux 以及 x64 Windows。 Arm 上的 Windows 通过模拟运行 x64 构建。从源代码构建需要 Rust、Zig 0.15.2 和存储库的 Ghostty 子模块。",
-      "modelTitle": "工作空间模型",
-      "modelIntro": "cmux TUI 保留一棵持久的树，而不是将每个进程展平到不相关的终端选项卡中。",
-      "modelBody": "一个会话拥有一个控制套接字。每个工作区可以包含多个屏幕；每个屏幕都有一个窗格布局；每个窗格可以包含终端和浏览器选项卡。当其他选项卡仍然存在时，关闭选项卡不会关闭其窗格。",
+      "modelTitle": "工作区模型",
+      "modelIntro": "cmux TUI 保留一棵持久的树，而不是将每个进程展平到不相关的终端标签页中。",
+      "modelBody": "一个会话拥有一个控制套接字。每个工作区可以包含多个屏幕；每个屏幕都有一个窗格布局；每个窗格可以包含终端和浏览器标签页。当其他标签页仍然存在时，关闭标签页不会关闭其窗格。",
       "keyboardTitle": "键盘和鼠标",
       "keyboardIntro": "默认前缀是 Ctrl-b。按两次可将文本 Ctrl-b 发送到活动终端。",
       "keyTable": {
@@ -5274,20 +5274,20 @@
       "keys": {
         "splitRight": "向右分割活动窗格",
         "splitDown": "向下拆分活动窗格",
-        "newTab": "创建终端选项卡",
+        "newTab": "创建终端标签页",
         "newWorkspace": "创建工作区",
         "sidebar": "显示或隐藏工作区导轨",
         "detach": "本地退出或与服务器分离"
       },
-      "mouse": "直接单击窗格边框、选项卡、工作区和屏幕。右键单击窗格以执行操作。当窗格内的应用程序拥有鼠标输入时，按住 Shift 键并单击鼠标右键。",
+      "mouse": "直接单击窗格边框、标签页、工作区和屏幕。右键单击窗格以执行操作。当窗格内的应用程序拥有鼠标输入时，按住 Shift 键并单击鼠标右键。",
       "sessionsTitle": "无头会话和附加",
       "sessionsIntro": "无头模式使多路复用器后端及其终端在没有本地接口的情况下运行。当您需要 UI 时，从另一个终端连接。",
       "sessionsBody": "默认会话是主会话。命名会话使用单独的 Unix 套接字。分离会使无头服务器继续运行，因此稍后的连接会恢复相同的树和终端状态。",
       "remoteTitle": "远程机器",
       "remoteIntro": "使机器导轨能够在当前会话和配置的 Unix 套接字或 SSH 目标之间切换。",
       "remoteBody": "远程计算机必须已运行无头 cmux 会话，并且非交互式 SSH 必须找到 cmux 二进制文件。 cmux 使用严格的主机密钥检查并禁用代理转发和端口转发。",
-      "browserTitle": "浏览器选项卡",
-      "browserBody": "浏览器选项卡通过 Chrome DevTools 协议控制真正的 Chrome 或 Chromium 目标。配置文件在会话之间保留，因此 cookie 和登录仍然可用。使用以下命令打开浏览器选项卡：",
+      "browserTitle": "浏览器标签页",
+      "browserBody": "浏览器标签页通过 Chrome DevTools 协议控制真正的 Chrome 或 Chromium 目标。配置文件在会话之间保留，因此 cookie 和登录仍然可用。使用以下命令打开浏览器标签页：",
       "automationTitle": "自动化和控制插座",
       "automationIntro": "TUI 使用的每个树突变和检查也可以通过命令行和 JSON 行控制套接字获得。",
       "automationBody": "命令可以创建工作区、运行进程、分割窗格、发送输入、读取可见终端文本、订阅事件和报告代理状态。类型化绑定位于 TypeScript、Python、Go、Java 和 Rust 的存储库中。",
