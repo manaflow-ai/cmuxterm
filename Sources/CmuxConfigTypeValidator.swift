@@ -73,23 +73,502 @@ struct CmuxConfigTypeValidator: Sendable {
         guard let root = object as? [String: Any] else {
             return [issue(path: "root", key: "invalidField", arguments: [phrase("object", defaultValue: "an object")])]
         }
-        guard let rawCommands = root["commands"], !isNull(rawCommands) else {
-            return []
-        }
-        guard let commands = rawCommands as? [Any] else {
-            return [issue(path: "commands", key: "invalidField", arguments: [phrase("array", defaultValue: "an array")])]
-        }
 
         var issues: [CmuxConfigTypeIssue] = []
+        validateRoot(root, issues: &issues)
+        return issues
+    }
+
+    private func validateRoot(
+        _ root: [String: Any],
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        if let rawActions = root["actions"], !isNull(rawActions) {
+            validateActions(rawActions, path: "actions", issues: &issues)
+        }
+        if let rawUI = root["ui"], !isNull(rawUI) {
+            validateUI(rawUI, path: "ui", issues: &issues)
+        }
+        if let rawNotifications = root["notifications"], !isNull(rawNotifications) {
+            validateNotifications(rawNotifications, path: "notifications", issues: &issues)
+        }
+        if let rawAgentChat = root["agentChat"], !isNull(rawAgentChat) {
+            validateAgentChat(rawAgentChat, path: "agentChat", issues: &issues)
+        }
+        if let rawNewWorkspaceCommand = root["newWorkspaceCommand"], !isNull(rawNewWorkspaceCommand) {
+            validateNonBlankString(rawNewWorkspaceCommand, path: "newWorkspaceCommand", issues: &issues)
+        }
+        if let rawButtons = root["surfaceTabBarButtons"], !isNull(rawButtons) {
+            validateSurfaceTabBarButtons(rawButtons, path: "surfaceTabBarButtons", issues: &issues)
+        }
+        if let rawCommands = root["commands"], !isNull(rawCommands) {
+            validateCommands(rawCommands, path: "commands", issues: &issues)
+        }
+        if let rawVault = root["vault"], !isNull(rawVault) {
+            validateVault(rawVault, path: "vault", issues: &issues)
+        }
+        if let rawWorkspaceGroups = root["workspaceGroups"], !isNull(rawWorkspaceGroups) {
+            validateWorkspaceGroups(rawWorkspaceGroups, path: "workspaceGroups", issues: &issues)
+        }
+    }
+
+    private func validateCommands(
+        _ rawCommands: Any,
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        guard let commands = rawCommands as? [Any] else {
+            issues.append(issue(path: path, key: "invalidField", arguments: [phrase("array", defaultValue: "an array")]))
+            return
+        }
         for (index, rawEntry) in commands.enumerated() {
-            let path = "commands[\(index)]"
+            let entryPath = "\(path)[\(index)]"
             guard let entry = rawEntry as? [String: Any] else {
-                issues.append(issue(path: path, key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+                issues.append(issue(path: entryPath, key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
                 continue
             }
-            validateEntry(entry, path: path, issues: &issues)
+            validateEntry(entry, path: entryPath, issues: &issues)
         }
-        return issues
+    }
+
+    private func validateActions(
+        _ rawActions: Any,
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        guard let actions = rawActions as? [String: Any] else {
+            issues.append(issue(path: path, key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+            return
+        }
+        for (id, rawAction) in actions {
+            let actionPath = "\(path).\(id)"
+            guard let action = rawAction as? [String: Any] else {
+                issues.append(issue(path: actionPath, key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+                continue
+            }
+            validateAction(action, path: actionPath, issues: &issues)
+        }
+    }
+
+    private func validateAction(
+        _ action: [String: Any],
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        for key in [
+            "type", "builtin", "command", "commandName", "name", "agent", "args",
+            "title", "subtitle", "description", "tooltip", "target",
+        ] {
+            validateOptionalString(action[key], path: "\(path).\(key)", issues: &issues)
+        }
+        for key in ["palette", "confirm", "newWorkspaceMenu"] {
+            validateOptionalBoolean(action[key], path: "\(path).\(key)", issues: &issues)
+        }
+        if let rawKeywords = action["keywords"], !isNull(rawKeywords) {
+            validateArrayOfStrings(rawKeywords, path: "\(path).keywords", issues: &issues)
+        }
+        if let rawRestart = action["restart"], !isNull(rawRestart) {
+            guard let restart = rawRestart as? String,
+                  ["new", "recreate", "ignore", "confirm"].contains(restart) else {
+                issues.append(issue(path: "\(path).restart", key: "invalidValue", arguments: []))
+                return
+            }
+        }
+        if let rawShortcut = action["shortcut"], !isNull(rawShortcut) {
+            if rawShortcut is String {
+                // StoredShortcut accepts a string and validates its syntax in the app decoder.
+            } else if let strokes = rawShortcut as? [Any] {
+                guard (1...2).contains(strokes.count), strokes.allSatisfy({ $0 is String }) else {
+                    issues.append(issue(
+                        path: "\(path).shortcut",
+                        key: "invalidField",
+                        arguments: [phrase("string", defaultValue: "a string") + " or an array of one or two strings"]
+                    ))
+                }
+            } else {
+                issues.append(issue(
+                    path: "\(path).shortcut",
+                    key: "invalidField",
+                    arguments: [phrase("string", defaultValue: "a string") + " or an array of one or two strings"]
+                ))
+            }
+        }
+        if let rawWorkspace = action["workspace"], !isNull(rawWorkspace) {
+            guard let workspace = rawWorkspace as? [String: Any] else {
+                issues.append(issue(path: "\(path).workspace", key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+                return
+            }
+            validateWorkspace(workspace, path: "\(path).workspace", layoutMode: .strict, issues: &issues)
+        }
+
+        let inferredType = (action["type"] as? String)
+            ?? (action["agent"] != nil ? "agent" : nil)
+            ?? (action["builtin"] != nil ? "builtin" : nil)
+            ?? (action["workspace"] != nil ? "workspace" : nil)
+            ?? (action["command"] != nil ? "command" : nil)
+        switch inferredType {
+        case "builtin":
+            validateNonBlankString(action["builtin"], path: "\(path).builtin", issues: &issues)
+        case "command":
+            validateNonBlankString(action["command"], path: "\(path).command", issues: &issues)
+        case "agent":
+            validateNonBlankString(action["agent"], path: "\(path).agent", issues: &issues)
+        case "workspaceCommand":
+            let commandName = action["commandName"] ?? action["name"] ?? action["command"]
+            validateNonBlankString(commandName, path: "\(path).commandName", issues: &issues)
+        case "workspace":
+            guard action["workspace"] != nil, !isNull(action["workspace"]) else {
+                issues.append(issue(path: path, key: "invalidValue", arguments: []))
+                return
+            }
+        case nil:
+            break
+        default:
+            issues.append(issue(path: "\(path).type", key: "invalidValue", arguments: []))
+        }
+    }
+
+    private func validateUI(
+        _ rawUI: Any,
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        guard let ui = rawUI as? [String: Any] else {
+            issues.append(issue(path: path, key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+            return
+        }
+        if let rawNewWorkspace = ui["newWorkspace"], !isNull(rawNewWorkspace) {
+            validateButtonPlacement(rawNewWorkspace, path: "\(path).newWorkspace", issues: &issues)
+        }
+        if let rawSurfaceTabBar = ui["surfaceTabBar"], !isNull(rawSurfaceTabBar) {
+            guard let surfaceTabBar = rawSurfaceTabBar as? [String: Any] else {
+                issues.append(issue(path: "\(path).surfaceTabBar", key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+                return
+            }
+            if let rawButtons = surfaceTabBar["buttons"], !isNull(rawButtons) {
+                validateSurfaceTabBarButtons(rawButtons, path: "\(path).surfaceTabBar.buttons", issues: &issues)
+            }
+        }
+    }
+
+    private func validateButtonPlacement(
+        _ rawPlacement: Any,
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        guard let placement = rawPlacement as? [String: Any] else {
+            issues.append(issue(path: path, key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+            return
+        }
+        validateOptionalString(placement["action"], path: "\(path).action", issues: &issues)
+        validateOptionalString(placement["tooltip"], path: "\(path).tooltip", issues: &issues)
+        if let rawIcon = placement["icon"], !isNull(rawIcon) {
+            validateIcon(rawIcon, path: "\(path).icon", issues: &issues)
+        }
+        let rawContextMenu = placement["contextMenu"] ?? placement["rightClick"]
+        if let rawContextMenu, !isNull(rawContextMenu) {
+            validateContextMenu(rawContextMenu, path: "\(path).contextMenu", issues: &issues)
+        }
+    }
+
+    private func validateSurfaceTabBarButtons(
+        _ rawButtons: Any,
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        guard let buttons = rawButtons as? [Any] else {
+            issues.append(issue(path: path, key: "invalidField", arguments: [phrase("array", defaultValue: "an array")]))
+            return
+        }
+        for (index, rawButton) in buttons.enumerated() {
+            let buttonPath = "\(path)[\(index)]"
+            if let button = rawButton as? String {
+                validateNonBlankString(button, path: buttonPath, issues: &issues)
+            } else if let button = rawButton as? [String: Any] {
+                validateSurfaceTabBarButton(button, path: buttonPath, issues: &issues)
+            } else {
+                issues.append(issue(path: buttonPath, key: "invalidField", arguments: [phrase("string", defaultValue: "a string") + " or an object"]))
+            }
+        }
+    }
+
+    private func validateSurfaceTabBarButton(
+        _ button: [String: Any],
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        for key in ["id", "title", "tooltip", "action", "builtin", "command", "agent", "args", "type", "commandName", "name", "target"] {
+            validateOptionalString(button[key], path: "\(path).\(key)", issues: &issues)
+        }
+        validateOptionalBoolean(button["confirm"], path: "\(path).confirm", issues: &issues)
+        if let rawIcon = button["icon"], !isNull(rawIcon) {
+            validateIcon(rawIcon, path: "\(path).icon", issues: &issues)
+        }
+        if let rawWorkspace = button["workspace"], !isNull(rawWorkspace) {
+            guard let workspace = rawWorkspace as? [String: Any] else {
+                issues.append(issue(path: "\(path).workspace", key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+                return
+            }
+            validateWorkspace(workspace, path: "\(path).workspace", layoutMode: .strict, issues: &issues)
+        }
+    }
+
+    private func validateContextMenu(
+        _ rawContextMenu: Any,
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        guard let items = rawContextMenu as? [Any] else {
+            issues.append(issue(path: path, key: "invalidField", arguments: [phrase("array", defaultValue: "an array")]))
+            return
+        }
+        for (index, rawItem) in items.enumerated() {
+            let itemPath = "\(path)[\(index)]"
+            if let item = rawItem as? String {
+                validateNonBlankString(item, path: itemPath, issues: &issues)
+            } else if let item = rawItem as? [String: Any] {
+                if let rawType = item["type"], !isNull(rawType) {
+                    validateOptionalString(rawType, path: "\(itemPath).type", issues: &issues)
+                }
+                validateNonBlankString(item["action"], path: "\(itemPath).action", issues: &issues)
+                validateOptionalString(item["title"], path: "\(itemPath).title", issues: &issues)
+                validateOptionalString(item["tooltip"], path: "\(itemPath).tooltip", issues: &issues)
+                if let rawIcon = item["icon"], !isNull(rawIcon) {
+                    validateIcon(rawIcon, path: "\(itemPath).icon", issues: &issues)
+                }
+            } else {
+                issues.append(issue(path: itemPath, key: "invalidField", arguments: [phrase("string", defaultValue: "a string") + " or an object"]))
+            }
+        }
+    }
+
+    private func validateIcon(
+        _ rawIcon: Any,
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        guard let icon = rawIcon as? [String: Any] else {
+            issues.append(issue(path: path, key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+            return
+        }
+        guard let type = icon["type"] as? String else {
+            issues.append(issue(path: "\(path).type", key: "invalidField", arguments: [phrase("nonBlankString", defaultValue: "a non-blank string")]))
+            return
+        }
+        switch type {
+        case "symbol", "sfSymbol", "systemImage":
+            validateNonBlankString(icon["name"], path: "\(path).name", issues: &issues)
+        case "emoji":
+            validateNonBlankString(icon["value"], path: "\(path).value", issues: &issues)
+            if let rawScale = icon["scale"], !isNull(rawScale), !isJSONNumber(rawScale) {
+                issues.append(issue(path: "\(path).scale", key: "invalidField", arguments: [phrase("number", defaultValue: "a number")]))
+            }
+        case "image", "file":
+            validateNonBlankString(icon["path"], path: "\(path).path", issues: &issues)
+        default:
+            issues.append(issue(path: "\(path).type", key: "invalidValue", arguments: []))
+        }
+    }
+
+    private func validateNotifications(
+        _ rawNotifications: Any,
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        guard let notifications = rawNotifications as? [String: Any] else {
+            issues.append(issue(path: path, key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+            return
+        }
+        if let rawMode = notifications["hooksMode"], !isNull(rawMode),
+           !((rawMode as? String).map(["append", "replace"].contains) ?? false) {
+            issues.append(issue(path: "\(path).hooksMode", key: "invalidValue", arguments: []))
+        }
+        guard let rawHooks = notifications["hooks"], !isNull(rawHooks) else { return }
+        guard let hooks = rawHooks as? [Any] else {
+            issues.append(issue(path: "\(path).hooks", key: "invalidField", arguments: [phrase("array", defaultValue: "an array")]))
+            return
+        }
+        for (index, rawHook) in hooks.enumerated() {
+            let hookPath = "\(path).hooks[\(index)]"
+            guard let hook = rawHook as? [String: Any] else {
+                issues.append(issue(path: hookPath, key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+                continue
+            }
+            validateNonBlankString(hook["id"], path: "\(hookPath).id", issues: &issues)
+            validateNonBlankString(hook["command"], path: "\(hookPath).command", issues: &issues)
+            if let rawTimeout = hook["timeoutSeconds"], !isNull(rawTimeout), !isJSONNumber(rawTimeout) {
+                issues.append(issue(path: "\(hookPath).timeoutSeconds", key: "invalidField", arguments: [phrase("number", defaultValue: "a number")]))
+            }
+            validateOptionalBoolean(hook["enabled"], path: "\(hookPath).enabled", issues: &issues)
+        }
+    }
+
+    private func validateAgentChat(
+        _ rawAgentChat: Any,
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        guard let agentChat = rawAgentChat as? [String: Any] else {
+            issues.append(issue(path: path, key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+            return
+        }
+        if let rawURL = agentChat["url"], !isNull(rawURL) {
+            guard let url = rawURL as? String,
+                  let components = URLComponents(string: url.trimmingCharacters(in: .whitespacesAndNewlines)),
+                  let scheme = components.scheme?.lowercased(),
+                  ["http", "https"].contains(scheme),
+                  components.host?.isEmpty == false else {
+                issues.append(issue(path: "\(path).url", key: "invalidValue", arguments: []))
+                return
+            }
+        }
+        validateOptionalString(agentChat["startCommand"], path: "\(path).startCommand", issues: &issues)
+    }
+
+    private func validateVault(
+        _ rawVault: Any,
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        guard let vault = rawVault as? [String: Any] else {
+            issues.append(issue(path: path, key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+            return
+        }
+        guard let rawAgents = vault["agents"], !isNull(rawAgents) else {
+            issues.append(issue(path: "\(path).agents", key: "invalidField", arguments: [phrase("array", defaultValue: "an array")]))
+            return
+        }
+        guard let agents = rawAgents as? [Any] else {
+            issues.append(issue(path: "\(path).agents", key: "invalidField", arguments: [phrase("array", defaultValue: "an array")]))
+            return
+        }
+        for (index, rawAgent) in agents.enumerated() {
+            let agentPath = "\(path).agents[\(index)]"
+            guard let agent = rawAgent as? [String: Any] else {
+                issues.append(issue(path: agentPath, key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+                continue
+            }
+            validateNonBlankString(agent["id"], path: "\(agentPath).id", issues: &issues)
+            validateNonBlankString(agent["name"], path: "\(agentPath).name", issues: &issues)
+            validateNonBlankString(agent["resumeCommand"], path: "\(agentPath).resumeCommand", issues: &issues)
+            validateOptionalString(agent["iconAssetName"], path: "\(agentPath).iconAssetName", issues: &issues)
+            validateOptionalString(agent["forkCommand"], path: "\(agentPath).forkCommand", issues: &issues)
+            validateOptionalString(agent["sessionDirectory"], path: "\(agentPath).sessionDirectory", issues: &issues)
+            if let rawDetect = agent["detect"], !isNull(rawDetect) {
+                guard let detect = rawDetect as? [String: Any] else {
+                    issues.append(issue(path: "\(agentPath).detect", key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+                    continue
+                }
+                for key in ["processName", "processNames", "argvContains", "alternateProcessNames", "alternateArgvContains", "alternateArgvContainsAny", "alternateArgvBasenamesAny"] {
+                    if let rawValue = detect[key], !isNull(rawValue) {
+                        if rawValue is String {
+                            continue
+                        }
+                        validateArrayOfStrings(rawValue, path: "\(agentPath).detect.\(key)", issues: &issues)
+                    }
+                }
+            } else {
+                issues.append(issue(path: "\(agentPath).detect", key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+            }
+            if let rawSessionSource = agent["sessionIdSource"], !isNull(rawSessionSource) {
+                guard rawSessionSource is String || rawSessionSource is [String: Any] else {
+                    issues.append(issue(path: "\(agentPath).sessionIdSource", key: "invalidField", arguments: [phrase("string", defaultValue: "a string") + " or an object"]))
+                    continue
+                }
+            } else {
+                issues.append(issue(path: "\(agentPath).sessionIdSource", key: "invalidField", arguments: [phrase("nonBlankString", defaultValue: "a non-blank string")]))
+            }
+            guard let rawCWD = agent["cwd"], !isNull(rawCWD) else {
+                issues.append(issue(path: "\(agentPath).cwd", key: "invalidField", arguments: [phrase("string", defaultValue: "a string")]))
+                continue
+            }
+            guard let cwd = rawCWD as? String, ["preserve", "ignore", "none"].contains(cwd) else {
+                issues.append(issue(path: "\(agentPath).cwd", key: "invalidValue", arguments: []))
+                continue
+            }
+        }
+    }
+
+    private func validateWorkspaceGroups(
+        _ rawWorkspaceGroups: Any,
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        guard let workspaceGroups = rawWorkspaceGroups as? [String: Any] else {
+            issues.append(issue(path: path, key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+            return
+        }
+        guard let rawByCWD = workspaceGroups["byCwd"], !isNull(rawByCWD) else { return }
+        guard let byCWD = rawByCWD as? [String: Any] else {
+            issues.append(issue(path: "\(path).byCwd", key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+            return
+        }
+        for (cwd, rawEntry) in byCWD {
+            let entryPath = "\(path).byCwd.\(cwd)"
+            guard let entry = rawEntry as? [String: Any] else {
+                issues.append(issue(path: entryPath, key: "invalidField", arguments: [phrase("object", defaultValue: "an object")]))
+                continue
+            }
+            validateOptionalString(entry["color"], path: "\(entryPath).color", issues: &issues)
+            validateOptionalString(entry["icon"], path: "\(entryPath).icon", issues: &issues)
+            if let rawPlacement = entry["newWorkspacePlacement"], !isNull(rawPlacement) {
+                guard let placement = rawPlacement as? String,
+                      ["afterCurrent", "top", "end"].contains(placement) else {
+                    issues.append(issue(path: "\(entryPath).newWorkspacePlacement", key: "invalidValue", arguments: []))
+                    continue
+                }
+            }
+            if let rawContextMenu = entry["contextMenu"], !isNull(rawContextMenu) {
+                validateContextMenu(rawContextMenu, path: "\(entryPath).contextMenu", issues: &issues)
+            }
+        }
+    }
+
+    private func validateOptionalString(
+        _ value: Any?,
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        guard let value, !isNull(value) else { return }
+        guard value is String else {
+            issues.append(issue(path: path, key: "invalidField", arguments: [phrase("string", defaultValue: "a string")]))
+            return
+        }
+    }
+
+    private func validateNonBlankString(
+        _ value: Any?,
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        guard let value, !isNull(value), let string = value as? String,
+              !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            issues.append(issue(path: path, key: "invalidField", arguments: [phrase("nonBlankString", defaultValue: "a non-blank string")]))
+            return
+        }
+    }
+
+    private func validateOptionalBoolean(
+        _ value: Any?,
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        guard let value, !isNull(value) else { return }
+        guard isJSONBoolean(value) else {
+            issues.append(issue(path: path, key: "invalidField", arguments: [phrase("boolean", defaultValue: "a boolean")]))
+            return
+        }
+    }
+
+    private func validateArrayOfStrings(
+        _ value: Any,
+        path: String,
+        issues: inout [CmuxConfigTypeIssue]
+    ) {
+        guard let values = value as? [Any], values.allSatisfy({ $0 is String }) else {
+            issues.append(issue(path: path, key: "invalidField", arguments: [phrase("arrayOfStrings", defaultValue: "an array of strings")]))
+            return
+        }
     }
 
     func issues(in data: Data) throws -> [CmuxConfigTypeIssue] {

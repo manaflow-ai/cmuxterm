@@ -50,8 +50,8 @@ extension CmuxVaultAgentRegistry {
                 sanitizedData: sanitized,
                 workspaceColorPalette: workspaceColorPalette
             )
-            if isFirstLoader, let failureMessage = decoded.typeIssueMessage {
-                Self.logDecodeFailure(path: path, message: failureMessage, key: cacheKey)
+            if isFirstLoader, let issueMessage = decoded.typeIssueMessage {
+                Self.logDecodeIssue(path: path, message: issueMessage, key: cacheKey)
             }
             cache.insert(config: decoded.config, for: cacheKey)
             return decoded.config
@@ -65,10 +65,10 @@ extension CmuxVaultAgentRegistry {
         }
     }
 
-    private static func logDecodeFailure(path: String, message: String, key: String) {
+    private static func logDecodeIssue(path: String, message: String, key: String) {
         guard configFailureLogGate.claim(path: path, key: key) else { return }
-        configLogger.fault(
-            "Failed to decode config at \(path, privacy: .private(mask: .hash)): \(message, privacy: .private)"
+        configLogger.warning(
+            "Loaded config with ignored invalid entries at \(path, privacy: .private(mask: .hash)): \(message, privacy: .private)"
         )
     }
 
