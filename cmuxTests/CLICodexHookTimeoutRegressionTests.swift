@@ -206,8 +206,11 @@ struct CLICodexHookTimeoutRegressionTests {
             }
         })
         #expect(waitForConditionBlocking(timeout: 3) {
-            commands.snapshot().contains {
-                $0 == "notify_target_async \(workspaceId) \(surfaceId) Codex|Permission|Approval needed|c=needs-permission;p=0"
+            AgentJournalAppendCapture.captures(in: commands.snapshot()).contains { capture in
+                capture.kind == "agent.approval.requested"
+                    && capture.agentKey == "codex"
+                    && capture.workspaceId == workspaceId
+                    && capture.surfaceId == surfaceId
             }
         })
     }
