@@ -15,9 +15,19 @@ extension IrohPeerConnection {
         return (denials + closes).sorted { $0.count > $1.count }
     }()
 
-    /// Await only after observing a lane EOF: resolves once the connection's
-    /// close cause is known, and parses our reason bytes back out of it.
+    /// Resolves a native close cause for connection watchers.
     public func termination() async -> ConnectionTermination? {
+        await termination(afterLaneEOF: false)
+    }
+
+    /// Resolves a native close cause after a lane EOF. A lane can finish while
+    /// its QUIC connection remains live, so this path must not await the
+    /// connection's eventual close indefinitely.
+    public func terminationAfterLaneEOF() async -> ConnectionTermination? {
+        await termination(afterLaneEOF: true)
+    }
+
+    private func termination(afterLaneEOF: Bool) async -> ConnectionTermination? {
         if let local = localTermination { return local }
         let rendered: String
         if let reason = connection.closeReason() {
@@ -31,7 +41,7 @@ extension IrohPeerConnection {
                     """)
             }
             return nil
-        } else {
+        } else if afterLaneEOF {
             // A lane EOF is not proof that the QUIC connection itself closed:
             // peers can finish the control stream while retaining the session
             // for another lane. Waiting on `closed()` here would strand the
@@ -42,6 +52,8 @@ extension IrohPeerConnection {
                     "conn \(TransportDebugLog.id(self), privacy: .public) termination: lane EOF without close cause -> nil")
             }
             return nil
+        } else {
+            rendered = await connection.closed()
         }
         for code in Self.knownTerminationCodes where Self.renderedReasonContains(rendered, code: code) {
             if TransportDebugLog.enabled {

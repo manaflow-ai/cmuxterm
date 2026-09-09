@@ -39,7 +39,7 @@ struct IrohRemoteClosureTests {
         // the connection only to release a regressed implementation's wait.
         let timedOut = await withTaskGroup(of: Bool.self) { group in
             group.addTask {
-                _ = await acceptor.termination()
+                _ = await acceptor.terminationAfterLaneEOF()
                 return false
             }
             group.addTask {

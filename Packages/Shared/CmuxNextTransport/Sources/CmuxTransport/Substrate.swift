@@ -105,14 +105,26 @@ public protocol PeerConnection: AnyObject, Sendable {
     /// - Parameter reason: Optional stable close cause conveyed to the peer.
     func closeAll(reason: ConnectionTermination?) async
     /// Why this connection ended. Await only after observing the connection
-    /// end (a lane EOF); resolves once the termination cause is known.
+    /// end (a lane EOF); resolves once the termination cause is known. A
+    /// connection watcher may call this before a lane ends; that form waits
+    /// for the substrate's native close signal.
     /// - Returns: The substrate's attributed close cause, if available.
     func termination() async -> ConnectionTermination?
+    /// Classifies a lane EOF without waiting for the whole connection to
+    /// close. Substrates with an independent native close cause should return
+    /// it when already available and otherwise return nil promptly.
+    func terminationAfterLaneEOF() async -> ConnectionTermination?
     /// Whether this connection has reached its terminal closed state.
     var isClosed: Bool { get async }
 }
 
 extension PeerConnection {
+    /// Substrates without a distinct lane-EOF observation retain their
+    /// original termination behavior.
+    public func terminationAfterLaneEOF() async -> ConnectionTermination? {
+        await termination()
+    }
+
     /// Closes every lane without attaching an application close reason.
     public func closeAll() async {
         await closeAll(reason: nil)

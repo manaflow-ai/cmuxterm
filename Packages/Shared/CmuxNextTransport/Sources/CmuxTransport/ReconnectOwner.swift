@@ -448,7 +448,7 @@ public actor ReconnectOwner {
             }
             return
         }
-        let termination = await conn.termination()
+        let termination = await conn.terminationAfterLaneEOF()
         // `termination()` suspends. An explicit redial or shutdown may have
         // replaced/cleared the connection while the old watcher was waiting;
         // never let that stale watcher apply a remote-close transition to the
