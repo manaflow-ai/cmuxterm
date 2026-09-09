@@ -22,6 +22,7 @@ static bool cmux_test_needs_confirm_quit = false;
 static uint64_t cmux_test_foreground_pid = 0;
 static const char* cmux_test_tty_name = NULL;
 static uint32_t cmux_test_tty_name_call_count = 0;
+static bool cmux_test_process_exited = false;
 static void* cmux_test_renderer_realized_target = NULL;
 static bool cmux_test_renderer_realized_calls[16];
 static uint32_t cmux_test_renderer_realized_call_count = 0;
@@ -64,6 +65,11 @@ void cmux_test_ghostty_runtime_stubs_reset(void) {
     cmux_test_foreground_pid = 0;
     cmux_test_tty_name = NULL;
     cmux_test_tty_name_call_count = 0;
+    cmux_test_process_exited = false;
+}
+
+void cmux_test_ghostty_runtime_stubs_set_process_exited(bool exited) {
+    cmux_test_process_exited = exited;
 }
 
 void cmux_test_ghostty_surface_free_blocking_begin(void *surface) {
@@ -471,7 +477,7 @@ bool ghostty_surface_needs_confirm_quit(void *surface) {
 void ghostty_surface_new(void) {}
 bool ghostty_surface_process_exited(void *surface) {
     (void)surface;
-    return false;
+    return cmux_test_process_exited;
 }
 void ghostty_surface_process_output(void *surface, const char *data, uintptr_t len) {
     (void)data;

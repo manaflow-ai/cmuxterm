@@ -1,6 +1,7 @@
 import AppKit
 import CmuxTerminalCore
 import GhosttyKit
+import GhosttyRuntimeTestStubs
 import Testing
 @testable import CmuxTerminal
 
@@ -111,6 +112,31 @@ struct TerminalSurfaceExplicitInputTests {
         #expect(replayCount == 0)
         #expect(discardCount == 1)
         #expect(!nativeView.discardNextDeferredRuntimeInput())
+    }
+
+    @Test func queuedHumanPromptIsRetainedWhenProcessHasExited() {
+        let runtimeSurface = allocatedRuntimeSurface()
+        let fixture = makeFixture()
+        defer {
+            cmux_test_ghostty_runtime_stubs_set_process_exited(false)
+            fixture.surface.releaseSurfaceForTesting()
+            runtimeSurface.deallocate()
+        }
+
+        #expect(
+            fixture.surface.sendPromptSubmission(
+                "queued human prompt",
+                submitKey: "return",
+                recordHumanPromptInput: true
+            ) == .queued
+        )
+        fixture.surface.installRuntimeSurfaceForTesting(runtimeSurface)
+        cmux_test_ghostty_runtime_stubs_set_process_exited(true)
+
+        fixture.surface.flushPendingSocketInputIfNeeded()
+
+        #expect(fixture.surface.deferredPromptSubmissionRetries.count == 1)
+        #expect(!fixture.surface.hasUnconfirmedHumanPromptInput)
     }
 
     @Test func parsedInputChecksDeferralBetweenLiveEvents() {
