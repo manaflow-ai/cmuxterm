@@ -7,6 +7,7 @@ extension ContentView {
     fileprivate func pluginAndConfigPaletteContributions(
         defaultSubtitle: String
     ) -> [CommandPaletteCommandContribution] {
+        func constant(_ value: String) -> (CommandPaletteContextSnapshot) -> String { { _ in value } }
         var contributions: [CommandPaletteCommandContribution] = []
         let pluginContributions = pluginCommandPaletteContributions()
         let activePluginCommandIDs = Set(pluginContributions.map(\.commandId))
