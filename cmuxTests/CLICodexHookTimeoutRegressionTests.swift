@@ -164,7 +164,12 @@ struct CLICodexHookTimeoutRegressionTests {
             listenerFD: listenerFD,
             commands: commands,
             surfaceId: surfaceId,
-            connectionLimit: 16
+            connectionLimit: 16,
+            processBinding: CodexHookMockProcessBinding(
+                processID: 4242,
+                workspaceID: workspaceId,
+                surfaceID: surfaceId
+            )
         )
 
         let result = runCodexHookProcess(
@@ -179,6 +184,7 @@ struct CLICodexHookTimeoutRegressionTests {
                 "CMUX_SURFACE_ID": surfaceId,
                 "CMUX_AGENT_HOOK_STATE_DIR": root.path,
                 "CMUX_CLI_SENTRY_DISABLED": "1",
+                "CMUX_CODEX_PID": "4242",
             ],
             standardInput: #"{"session_id":"codex-permission-session","cwd":"\#(root.path)","hook_event_name":"PermissionRequest","message":"approval required"}"#,
             timeout: 5
