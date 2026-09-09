@@ -55,6 +55,13 @@ struct OwlNavigationStateTests {
         #expect(script.contains("--load-extension=\(extensionOne.path),\(extensionTwo.path)"))
     }
 
+    @Test("OWL statement evaluation preserves a trailing completion expression")
+    func statementBodyPreservesCompletionValue() {
+        let body = OwlFreshRuntime.owlStatementBody(for: "const answer = 21; answer;")
+        #expect(body.contains("const answer = 21;"))
+        #expect(body.contains("return await (answer);"))
+    }
+
     @Test("OWL history reports no-op traversal at either edge")
     func historyNoOps() {
         let first = URL(string: "https://one.example")!

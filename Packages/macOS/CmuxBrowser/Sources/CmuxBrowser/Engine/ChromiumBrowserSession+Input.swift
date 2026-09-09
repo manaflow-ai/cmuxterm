@@ -134,22 +134,31 @@ extension ChromiumBrowserSession {
 
         let token = "__cmux_owl_eval_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
         let quotedToken = "\"\(token)\""
-        guard let scriptData = try? JSONSerialization.data(
-            withJSONObject: script,
-            options: [.fragmentsAllowed]
-        ),
-        let scriptLiteral = String(data: scriptData, encoding: .utf8) else {
-            throw CDPError.commandFailed(ChromiumBrowserDiagnostic.javaScriptEvaluationFailed.message)
+        let isExpression: Bool
+        do {
+            // Parse in a short-circuited expression without executing the
+            // caller's source. This lets the await wrapper embed source
+            // directly, so page CSP never has to permit eval/new Function.
+            _ = try runtime.evaluate("0 && (\(script))")
+            isExpression = true
+        } catch {
+            isExpression = false
+        }
+
+        let body: String
+        if isExpression {
+            body = "return await (\n\(script)\n);"
+        } else {
+            body = Self.owlStatementBody(for: script)
         }
         let startScript = """
         (() => {
           const key = \(quotedToken);
-          const source = \(scriptLiteral);
+          globalThis[key] = { state: "pending" };
           try {
             const value = (async () => {
-              return await (0, eval)(source);
+              \(body)
             })();
-            globalThis[key] = { state: "pending" };
             Promise.resolve(value).then(
               resolved => { globalThis[key] = { state: "fulfilled", value: resolved }; },
               error => { globalThis[key] = { state: "rejected", error: String(error) }; }
@@ -187,6 +196,118 @@ extension ChromiumBrowserSession {
             }
         }
         throw ChromiumBrowserDiagnostic.javascriptTimedOut
+    }
+
+    /// Returns a direct async-function body for a statement program. JavaScript
+    /// has no syntax for reading a program's implicit completion value without
+    /// eval; when the final top-level statement is an expression, move that
+    /// expression into an explicit return so the common multi-statement form
+    /// keeps Runtime.evaluate's completion-value behavior without dynamic code
+    /// generation.
+    static func owlStatementBody(for source: String) -> String {
+        let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "return undefined;" }
+
+        var candidateEnd = trimmed.endIndex
+        while candidateEnd > trimmed.startIndex {
+            let previous = trimmed.index(before: candidateEnd)
+            guard trimmed[previous] == ";" else { break }
+            candidateEnd = previous
+            while candidateEnd > trimmed.startIndex,
+                  trimmed[trimmed.index(before: candidateEnd)].isWhitespace {
+                candidateEnd = trimmed.index(before: candidateEnd)
+            }
+        }
+        let candidate = String(trimmed[..<candidateEnd])
+        guard let semicolon = owlTopLevelSemicolon(in: candidate) else {
+            return candidate
+        }
+        let suffixStart = candidate.index(after: semicolon)
+        let suffix = candidate[suffixStart...].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !suffix.isEmpty,
+              !owlStartsWithStatementKeyword(suffix) else {
+            return candidate
+        }
+        let prefix = candidate[..<suffixStart]
+        return String(prefix) + "\nreturn await (" + suffix + ");"
+    }
+
+    private static func owlStartsWithStatementKeyword(_ source: String) -> Bool {
+        let first = source.split(whereSeparator: { $0.isWhitespace || $0 == ";" }).first.map(String.init) ?? ""
+        return [
+            "break", "case", "class", "const", "continue", "debugger", "default", "do", "else",
+            "finally", "for", "function", "if", "let", "return", "switch", "throw", "try", "var", "while",
+        ].contains(first)
+    }
+
+    private static func owlTopLevelSemicolon(in source: String) -> String.Index? {
+        var parentheses = 0
+        var brackets = 0
+        var braces = 0
+        var quote: Character?
+        var escaped = false
+        var lineComment = false
+        var blockComment = false
+        var last: String.Index?
+        var index = source.startIndex
+
+        while index < source.endIndex {
+            let character = source[index]
+            let nextIndex = source.index(after: index)
+            let next = nextIndex < source.endIndex ? source[nextIndex] : "\0"
+
+            if lineComment {
+                if character == "\n" { lineComment = false }
+                index = nextIndex
+                continue
+            }
+            if blockComment {
+                if character == "*" && next == "/" {
+                    blockComment = false
+                    index = source.index(after: nextIndex)
+                } else {
+                    index = nextIndex
+                }
+                continue
+            }
+            if let activeQuote = quote {
+                if escaped {
+                    escaped = false
+                } else if character == "\\" {
+                    escaped = true
+                } else if character == activeQuote {
+                    quote = nil
+                }
+                index = nextIndex
+                continue
+            }
+            if character == "/" && next == "/" {
+                lineComment = true
+                index = source.index(after: nextIndex)
+                continue
+            }
+            if character == "/" && next == "*" {
+                blockComment = true
+                index = source.index(after: nextIndex)
+                continue
+            }
+            switch character {
+            case "\"", "'", "`":
+                quote = character
+            case "(": parentheses += 1
+            case ")": parentheses = max(0, parentheses - 1)
+            case "[": brackets += 1
+            case "]": brackets = max(0, brackets - 1)
+            case "{": braces += 1
+            case "}": braces = max(0, braces - 1)
+            case ";" where parentheses == 0 && brackets == 0 && braces == 0:
+                last = index
+            default:
+                break
+            }
+            index = nextIndex
+        }
+        return last
     }
 
     private static func owlValue(from raw: String) -> CDPValue {
