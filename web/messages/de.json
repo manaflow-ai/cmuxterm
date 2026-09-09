@@ -434,7 +434,7 @@
   },
   "vault": {
     "overview": {
-      "eyebrow": "cmux-Tresor",
+      "eyebrow": "cmux Vault",
       "title": "Tresorübersicht",
       "description": "Speicher- und Upload-Aktivität für synchronisierte Sitzungen.",
       "emptyTitle": "Noch keine synchronisierten Sitzungen",
@@ -447,7 +447,7 @@
     },
     "cliAuth": {
       "section": "Gewölbe",
-      "eyebrow": "cmux-Tresor",
+      "eyebrow": "cmux Vault",
       "title": "Genehmigen Sie den CLI-Zugriff",
       "description": "Bestätigen Sie den von cmux-vault angezeigten Code, um dieses Gerät mit Ihrem angemeldeten cmux-Konto zu verbinden.",
       "coderouterEyebrow": "CodeRouter",
@@ -461,7 +461,7 @@
     },
     "sessions": {
       "section": "Gewölbe",
-      "eyebrow": "cmux-Tresor",
+      "eyebrow": "cmux Vault",
       "title": "Synchronisierte Sitzungen",
       "description": "Aktuelle Coding-Agent-Transkripte, die von Ihren lokalen Computern synchronisiert wurden.",
       "backToOverview": "Zurück zur Übersicht",
@@ -1521,7 +1521,7 @@
         "p5": "Erfordert cmux v0.64+."
       },
       "cmuxVault": {
-        "title": "cmux Vault vorgestellt",
+        "title": "cmux Vault",
         "summary": "Durchsuche Codex-, Claude Code-, OpenCode- und Pi-Sitzungen im Vault-Bereich und ziehe sie in deinen Workspace.",
         "date": "22. Mai 2026",
         "p1": "cmux hat jetzt einen Vault-Bereich in der rechten Seitenleiste für alte Agent-Sitzungen.",
@@ -1604,10 +1604,10 @@
       ]
     },
     "cmuxVault": {
-      "metaTitle": "cmux Vault vorgestellt",
+      "metaTitle": "cmux Vault",
       "metaDescription": "cmux v0.64+ ergänzt einen Vault-Bereich zum Durchsuchen von Codex-, Claude Code-, OpenCode- und Pi-Sitzungen, die du in den Workspace ziehen kannst.",
       "metaKeywords": [
-        "cmux-Tresor",
+        "cmux Vault",
         "Codex-Sitzungen",
         "Claude Code-Sitzungen",
         "OpenCode-Sitzungen",
@@ -2625,7 +2625,7 @@
       "suggestCloudVmName": "cmux Cloud-VM",
       "suggestCloudVmUse": "Betreiben Sie Cloud-VM-Erstellungs-, Anhänge-, Ausführungs-, SSH-Endpunkt-, Abrechnungs- und Anbieter-Fehlerbehebungsabläufe.",
       "suggestCloudVmWhy": "Die Cloud-VM-Arbeit erstreckt sich über die Web-App, die Datenbank, die Anbieter-APIs und Smoke-Tests.",
-      "suggestVaultName": "cmux-Tresor",
+      "suggestVaultName": "cmux Vault",
       "suggestVaultUse": "Verwalten Sie die Konfiguration, Anmeldeinformationen und das Wiederherstellungsverhalten von Tresor-gestützten Agenten, ohne Geheimnisse in Eingabeaufforderungen preiszugeben.",
       "suggestVaultWhy": "Vault-Workflows erfordern eine strengere Handhabung als normale Einstellungen, da sie sich auf Geheimnisse und den Agentenstart auswirken.",
       "suggestionsCallout": "Konzentrieren Sie zukünftige Fähigkeiten auf wiederholbare Arbeitsabläufe mit echten Befehlssequenzen. Wenn ein Skill nur Produktdokumente umbenennen würde, fügen Sie ihn stattdessen zu den Dokumenten hinzu.",
