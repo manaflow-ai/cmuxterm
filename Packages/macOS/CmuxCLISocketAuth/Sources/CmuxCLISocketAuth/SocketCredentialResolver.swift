@@ -137,7 +137,7 @@ public final class SocketCredentialResolver: @unchecked Sendable {
 
     /// The source selected so far, or the immediate source without forcing a deferred read.
     public var source: SocketCredentialSource? {
-        resolutionState.withLock { (state: inout ResolutionState) -> String? in
+        resolutionState.withLock { (state: inout ResolutionState) -> SocketCredentialSource? in
             switch state {
             case .unresolved:
                 if explicitPassword != nil { return .explicit }
