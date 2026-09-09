@@ -570,6 +570,28 @@ describe("mint_request proxying", () => {
     expect(mint[0]?.init.headers.authorization).toBe("Bearer token-s2");
   });
 
+  it("isolates mint cooldowns by endpoint and namespace across object recreation", async () => {
+    const harness = new Harness();
+    seed(harness);
+    harness.serveMint(() => ({ status: 429, json: {}, retryAfterSeconds: 120 }));
+    const first = await harness.connect("limited", "mac:dev.cmux.app");
+    const same = await harness.connect("same", "mac:dev.cmux.app");
+    const other = await harness.connect("other", "ios:dev.cmux.app");
+    const mint = (endpointId: string) => ({ v: 1, type: "mint_request", payload: { endpointId } });
+    await harness.send(first, mint(ENDPOINT_A));
+    const restored = new Harness();
+    for (const [key, value] of harness.map) restored.map.set(key, value);
+    restored.socketList = harness.socketList;
+    restored.serveMint(init => ({ status: 200, json: mintResponse(JSON.parse(init.body!).endpointId) }));
+    await restored.send(same, mint(ENDPOINT_A.toUpperCase()));
+    expect(restored.mintCalls()).toHaveLength(0);
+    await restored.send(same, mint(ENDPOINT_B));
+    await restored.send(other, mint(ENDPOINT_A));
+    expect(restored.mintCalls()).toHaveLength(2);
+    await restored.send(first, mint(ENDPOINT_A));
+    expect(restored.mintCalls()).toHaveLength(2);
+  });
+
   it("bumps the per-endpoint generation on every successful mint", async () => {
     const harness = new Harness();
     seed(harness);

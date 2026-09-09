@@ -90,6 +90,24 @@ function request(
 }
 
 describe("POST /api/relay/token", () => {
+  test("rate limits invalid binding proofs before database and signature work", async () => {
+    let authorizations = 0;
+    let policyReads = 0;
+    const response = await handleRelayTokenRequest(
+      request({ endpointId: ENDPOINT_ID }, "dev.cmux.app.beta", true),
+      deps({
+        isVercel: () => true,
+        rateLimitRuleId: () => "relay-token",
+        checkRateLimit: async () => ({ rateLimited: true }),
+        isEndpointAuthorized: async () => { authorizations += 1; return false; },
+        signedPolicy: async () => { policyReads += 1; throw new Error("unexpected policy read"); },
+      }),
+    );
+    expect(response.status).toBe(429);
+    expect(authorizations).toBe(0);
+    expect(policyReads).toBe(0);
+  });
+
   test("keeps legacy token fields and adds policy plus separate preference metadata", async () => {
     const response = await handleRelayTokenRequest(
       request({ endpointId: ENDPOINT_ID }),

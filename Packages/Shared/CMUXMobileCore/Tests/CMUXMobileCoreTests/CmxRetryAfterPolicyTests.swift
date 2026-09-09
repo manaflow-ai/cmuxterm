@@ -38,6 +38,41 @@ import Testing
         #expect(time.now == 45)
         #expect(await gate.remainingSeconds() == nil)
     }
+
+    @Test func oversizedCooldownDoesNotOverflowOrLoseTheDeadline() async {
+        let gate = CmxRetryAfterGate(now: { 0 }, sleep: { _ in })
+        await gate.extend(by: Int.max)
+        #expect(await gate.remainingSeconds() == Int.max)
+    }
+
+    @Test func sendsWaitForThePreviousResponseAndItsCooldown() async throws {
+        let time = RetryAfterTestTime()
+        let gate = CmxRetryAfterGate(now: { time.now }, sleep: { time.advance(by: $0) })
+        let started = AsyncStream<Void>.makeStream()
+        let release = AsyncStream<Void>.makeStream()
+        let first = Task {
+            try await gate.perform {
+                started.continuation.yield(())
+                for await _ in release.stream { break }
+                await gate.extend(by: 45)
+                return 1
+            }
+        }
+        for await _ in started.stream { break }
+        let second = Task { try await gate.perform { time.now } }
+        release.continuation.yield(())
+        #expect(try await first.value == 1)
+        #expect(try await second.value == 45)
+    }
+
+    @Test func oversizedSleepUsesSafeChunksWithoutShorteningTheWait() async throws {
+        let time = RetryAfterTestTime()
+        try await CmxRetryAfterPolicy.sleep(seconds: 18_446_744_074) { chunk in
+            #expect(chunk > 0 && chunk <= 86_400)
+            time.advance(by: chunk)
+        }
+        #expect(time.now == 18_446_744_074)
+    }
 }
 
 private final class RetryAfterTestTime: @unchecked Sendable {
