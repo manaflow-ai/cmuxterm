@@ -1,7 +1,8 @@
-import XCTest
 import Darwin
+import Foundation
+import Testing
 
-final class OpenCodeHookRegressionTests: XCTestCase {
+@Suite final class OpenCodeHookRegressionTests {
     private struct ProcessRunResult {
         let status: Int32
         let stdout: String
@@ -9,21 +10,24 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         let timedOut: Bool
     }
 
-    func testOpenCodeFeedPluginEmitsCompletionForBothIdleEventShapes() throws {
+    @Test func testOpenCodeFeedPluginEmitsCompletionForBothIdleEventShapes() throws {
         let fileManager = FileManager.default
         let repoRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let pluginURL = repoRoot.appendingPathComponent("Resources/opencode-plugin.js", isDirectory: false)
-        XCTAssertTrue(fileManager.fileExists(atPath: pluginURL.path))
+        #expect(fileManager.fileExists(atPath: pluginURL.path))
 
-        let root = fileManager.temporaryDirectory.appendingPathComponent(
-            "cmux-opencode-feed-\(UUID().uuidString)", isDirectory: true
+        // Darwin's Unix-domain socket path must fit in sun_path. The runner's
+        // /var/folders temporary root plus the old fixture name exceeded it.
+        let root = URL(fileURLWithPath: "/tmp", isDirectory: true).appendingPathComponent(
+            "cmux-oc-\(UUID().uuidString)", isDirectory: true
         )
-        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         defer { try? fileManager.removeItem(at: root) }
 
         let socketPath = root.appendingPathComponent("cmux.sock").path
+        try #require(socketPath.utf8.count < MemoryLayout.size(ofValue: sockaddr_un().sun_path))
         let harnessURL = root.appendingPathComponent("harness.js")
         try Self.openCodeFeedEventHarness.write(to: harnessURL, atomically: true, encoding: .utf8)
 
@@ -33,11 +37,11 @@ final class OpenCodeHookRegressionTests: XCTestCase {
             environment: ProcessInfo.processInfo.environment,
             timeout: 5
         )
-        XCTAssertFalse(result.timedOut, result.stderr)
-        XCTAssertEqual(result.status, 0, result.stderr)
+        #expect(!result.timedOut, "\(result.stderr)")
+        #expect(result.status == 0, "\(result.stderr)")
 
-        let data = try XCTUnwrap(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8))
-        let frames = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
+        let data = try #require(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8))
+        let frames = try #require(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
         let stopEvents = frames.compactMap { frame -> [String: Any]? in
             guard frame["method"] as? String == "feed.push",
                   let params = frame["params"] as? [String: Any],
@@ -45,13 +49,13 @@ final class OpenCodeHookRegressionTests: XCTestCase {
                   event["hook_event_name"] as? String == "Stop" else { return nil }
             return event
         }
-        XCTAssertEqual(stopEvents.count, 3, "Expected all OpenCode idle forms to emit Stop: \(frames)")
-        XCTAssertTrue(stopEvents.allSatisfy { $0["session_id"] as? String == "opencode-ses-feed-shape" })
+        #expect(stopEvents.count == 3, "Expected all OpenCode idle forms to emit Stop: \(frames)")
+        #expect(stopEvents.allSatisfy { $0["session_id"] as? String == "opencode-ses-feed-shape" })
         let requestIDs = frames.compactMap { $0["id"] as? String }
-        XCTAssertEqual(requestIDs.count, Set(requestIDs).count, "OpenCode telemetry request IDs must not collide: \(frames)")
+        #expect(requestIDs.count == Set(requestIDs).count, "OpenCode telemetry request IDs must not collide: \(frames)")
     }
 
-    func testOpenCodeInstallHooksIsIdempotentForLegacySetupAlias() throws {
+    @Test func testOpenCodeInstallHooksIsIdempotentForLegacySetupAlias() throws {
         let cliPath = try bundledCLIPath()
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("cmux-opencode-hooks-\(UUID().uuidString)", isDirectory: true)
         let configDir = root.appendingPathComponent("opencode", isDirectory: true)
@@ -72,39 +76,41 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
         let result = runProcess(executablePath: cliPath, arguments: ["hooks", "opencode", "install", "--yes"], environment: environment, timeout: 5)
 
-        XCTAssertFalse(result.timedOut, result.stderr)
-        XCTAssertEqual(result.status, 0, result.stderr)
+        #expect(!result.timedOut, "\(result.stderr)")
+        #expect(result.status == 0, "\(result.stderr)")
         let pluginURL = configDir.appendingPathComponent("plugins", isDirectory: true).appendingPathComponent("cmux-session.js", isDirectory: false)
         let pluginSource = try String(contentsOf: pluginURL, encoding: .utf8)
-        XCTAssertTrue(pluginSource.contains("cmux-opencode-session-plugin-marker"))
-        XCTAssertTrue(pluginSource.contains("\"hooks\", \"opencode\""))
+        #expect(pluginSource.contains("cmux-opencode-session-plugin-marker"))
+        #expect(pluginSource.contains("\"hooks\", \"opencode\""))
 
         let secondResult = runProcess(executablePath: cliPath, arguments: ["setup-hooks", "--agent", "opencode"], environment: environment, timeout: 5)
-        XCTAssertFalse(secondResult.timedOut, secondResult.stderr)
-        XCTAssertEqual(secondResult.status, 0, secondResult.stderr)
-        XCTAssertFalse(secondResult.stdout.contains("Will write OpenCode cmux plugin"), secondResult.stdout)
-        XCTAssertTrue(secondResult.stdout.contains("OpenCode hooks already up to date"), secondResult.stdout)
-        XCTAssertTrue(try String(contentsOf: configDir.appendingPathComponent("plugins/cmux-feed.js"), encoding: .utf8).contains("cmux-feed-plugin-marker"))
+        #expect(!secondResult.timedOut, "\(secondResult.stderr)")
+        #expect(secondResult.status == 0, "\(secondResult.stderr)")
+        #expect(!secondResult.stdout.contains("Will write OpenCode cmux plugin"), "\(secondResult.stdout)")
+        #expect(secondResult.stdout.contains("OpenCode hooks already up to date"), "\(secondResult.stdout)")
+        let feedPluginSource = try String(contentsOf: configDir.appendingPathComponent("plugins/cmux-feed.js"), encoding: .utf8)
+        #expect(feedPluginSource.contains("cmux-feed-plugin-marker"))
 
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: try Data(contentsOf: configURL), options: []) as? [String: Any])
-        XCTAssertEqual(try XCTUnwrap(json["plugin"] as? [String]), ["other-plugin", "./plugins/cmux-session.js"])
+        let json = try #require(JSONSerialization.jsonObject(with: try Data(contentsOf: configURL), options: []) as? [String: Any])
+        let plugins = try #require(json["plugin"] as? [String])
+        #expect(plugins == ["other-plugin", "./plugins/cmux-session.js"])
     }
 
-    func testLegacyHookAliasesAreHiddenFromHelp() throws {
+    @Test func testLegacyHookAliasesAreHiddenFromHelp() throws {
         let cliPath = try bundledCLIPath()
         var environment = ProcessInfo.processInfo.environment
         environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
 
         let result = runProcess(executablePath: cliPath, arguments: ["help"], environment: environment, timeout: 5)
 
-        XCTAssertFalse(result.timedOut, result.stderr)
-        XCTAssertEqual(result.status, 0, result.stderr)
-        XCTAssertFalse(result.stdout.contains("codex <install-hooks|uninstall-hooks>"), result.stdout)
-        XCTAssertFalse(result.stdout.contains("claude-hook <session-start|stop|notification>"), result.stdout)
-        XCTAssertFalse(result.stdout.contains("codex-hook"), result.stdout)
-        XCTAssertFalse(result.stdout.contains("feed-hook"), result.stdout)
-        XCTAssertFalse(result.stdout.contains("setup-hooks"), result.stdout)
-        XCTAssertFalse(result.stdout.contains("uninstall-hooks"), result.stdout)
+        #expect(!result.timedOut, "\(result.stderr)")
+        #expect(result.status == 0, "\(result.stderr)")
+        #expect(!result.stdout.contains("codex <install-hooks|uninstall-hooks>"), "\(result.stdout)")
+        #expect(!result.stdout.contains("claude-hook <session-start|stop|notification>"), "\(result.stdout)")
+        #expect(!result.stdout.contains("codex-hook"), "\(result.stdout)")
+        #expect(!result.stdout.contains("feed-hook"), "\(result.stdout)")
+        #expect(!result.stdout.contains("setup-hooks"), "\(result.stdout)")
+        #expect(!result.stdout.contains("uninstall-hooks"), "\(result.stdout)")
     }
 
     private func bundledCLIPath() throws -> String {

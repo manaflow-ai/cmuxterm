@@ -25,7 +25,7 @@ final class VaultHistoryEventLog {
 
     /// Whether accepted records are still queued or being persisted.
     var hasPendingRecords: Bool {
-        pendingRecordCount > 0
+        pendingRecordCount > 0 || !pendingLaunchCommittedEvents.isEmpty
     }
 
     init(
@@ -38,11 +38,13 @@ final class VaultHistoryEventLog {
 
     func transition(to phase: VaultHistoryRecordingPhase) {
         self.phase = phase
-        guard phase == .active, !pendingLaunchCommittedEvents.isEmpty else { return }
+        guard phase == .active || phase == .terminating else { return }
         let events = pendingLaunchCommittedEvents
         pendingLaunchCommittedEvents.removeAll(keepingCapacity: true)
         for event in events {
-            record(event)
+            // These snapshots were accepted when their windows committed.
+            // Termination closes the gate to new events, not to this queue.
+            enqueueAcceptedRecord(event)
         }
     }
 
@@ -52,6 +54,10 @@ final class VaultHistoryEventLog {
             return
         }
         guard phase == .active else { return }
+        enqueueAcceptedRecord(event)
+    }
+
+    private func enqueueAcceptedRecord(_ event: VaultHistoryEvent) {
         let store = store
         let previous = pendingRecordTask
         pendingRecordCount += 1
@@ -113,7 +119,11 @@ final class VaultHistoryEventLog {
         await store.recentEvents(limit: limit)
     }
 
+    /// Drains all scheduled appends, including ones accepted during suspension.
+    /// Launch commits stay staged until recording becomes active or terminates.
     func flushPendingRecords() async {
-        await pendingRecordTask?.value
+        while let task = pendingRecordTask {
+            await task.value
+        }
     }
 }
