@@ -27,7 +27,8 @@ struct OnboardingConnectionView: View {
             OnboardingSceneContent(
                 title: title,
                 message: message,
-                visual: visual
+                visual: visual,
+                bodyLineReservation: 3
             )
         }
     }

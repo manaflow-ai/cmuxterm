@@ -5,6 +5,7 @@ struct OnboardingSceneCopy: View {
     let title: String
     let message: String
     let alignment: TextAlignment
+    let bodyLineReservation: Int
 
     var body: some View {
         VStack(alignment: alignment == .leading ? .leading : .center, spacing: 12) {
@@ -25,7 +26,7 @@ struct OnboardingSceneCopy: View {
                 message,
                 role: .body,
                 alignment: alignment,
-                maximumNumberOfLines: 3,
+                maximumNumberOfLines: bodyLineReservation,
                 reservesMaximumLines: true
             )
         }
