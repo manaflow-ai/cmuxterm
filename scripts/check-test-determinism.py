@@ -241,7 +241,7 @@ _DURATION_COMPARE = re.compile(
 _SLEEP_CALL = re.compile(
     r"""(?x)
     \btime\.sleep\s*\(
-  | \bsleep\s*\(                            # sleep(...) call (C/shell function form)
+  | (?<!CmxRetryAfterPolicy\.)\bsleep\s*\( # generic sleep(...) call; injected retry-policy clocks are deterministic
   | \busleep\s*\(
   | \bnanosleep\s*\(
   | Thread\.sleep\s*\(
@@ -5459,6 +5459,16 @@ def _self_test() -> int:
         (
             "tests/n20.py",
             'proc.send("sleep 5\\n")\nassert proc.alive\n',
+        ),
+        # The retry policy exposes an injected-clock sleep helper; it never waits
+        # on wall time, so a following assertion is deterministic.
+        (
+            "Packages/Shared/CMUXMobileCore/Tests/CMUXMobileCoreTests/retry_policy.swift",
+            (
+                "try await CmxRetryAfterPolicy.sleep(seconds: 172_801) { chunk in\n"
+                "    #expect(chunk > 0 && chunk <= 86_400)\n"
+                "}\n"
+            ),
         ),
         # Deadline-bounded poll whose loop body is several statements deep and the
         # trailing sleep is the LAST statement of the loop (the assert is after the
