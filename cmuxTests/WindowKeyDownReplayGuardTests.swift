@@ -199,6 +199,44 @@ struct WindowKeyDownReplayGuardTests {
         #expect(appDelegate.prefixChordWindowNumber(for: event) == eventWindowNumber)
     }
 
+    @Test
+    func prefixPassThroughPrefersEventIdentityOverDispatchFallback() throws {
+        _ = NSApplication.shared
+        let appDelegate = try #require(AppDelegate.shared)
+        let fallbackWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        fallbackWindow.isReleasedWhenClosed = false
+        defer { fallbackWindow.close() }
+
+        let eventWindowNumber = 987_655
+        let event = try #require(
+            NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: [.command],
+                timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: eventWindowNumber,
+                context: nil,
+                characters: "w",
+                charactersIgnoringModifiers: "w",
+                isARepeat: false,
+                keyCode: UInt16(kVK_ANSI_W)
+            )
+        )
+
+        #expect(event.window == nil)
+        #expect(
+            appDelegate.prefixChordWindowNumber(
+                for: event,
+                fallbackWindow: fallbackWindow
+            ) == eventWindowNumber
+        )
+    }
+
     private func installMenuWithoutCopy() -> NSMenu? {
         let previousMenu = NSApp.mainMenu
         // A disabled synthetic key equivalent is still reported as handled by

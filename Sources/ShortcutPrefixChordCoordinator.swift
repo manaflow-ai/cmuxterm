@@ -33,6 +33,11 @@ final class ShortcutPrefixChordCoordinator {
 
     var isArmed: Bool { router.isArmed }
 
+    /// Window that owns the currently armed prefix, when the event did not
+    /// carry a usable AppKit window identity and the host must preserve the
+    /// pending chord's scope across a synthetic or media suffix.
+    var pendingWindowID: Int? { router.pendingWindowID }
+
     /// Whether the configured leader layer needs to inspect key events.
     ///
     /// This remains false for the default-off configuration so AppKit's normal
@@ -53,7 +58,10 @@ final class ShortcutPrefixChordCoordinator {
         hud.hide()
     }
 
-    func offer(_ event: NSEvent) -> OfferResult {
+    func offer(
+        _ event: NSEvent,
+        dispatchWindow: NSWindow? = nil
+    ) -> OfferResult {
         guard let owner else {
             return .passThrough
         }
@@ -61,7 +69,10 @@ final class ShortcutPrefixChordCoordinator {
             return .passThrough
         }
 
-        let eventWindowID = windowID(for: event)
+        let eventWindowID = windowID(
+            for: event,
+            fallbackWindow: dispatchWindow
+        )
         let eventID = eventIdentity(for: event, windowID: eventWindowID)
         let now = ProcessInfo.processInfo.systemUptime
 
@@ -137,9 +148,19 @@ final class ShortcutPrefixChordCoordinator {
     /// The first event continues through the ordinary dispatcher; an AppKit
     /// replay is reported as a duplicate pass-through so it cannot dispatch a
     /// second cmux action.
-    func offerBypassed(_ event: NSEvent) -> OfferResult {
+    func offerBypassed(
+        _ event: NSEvent,
+        dispatchWindow: NSWindow? = nil
+    ) -> OfferResult {
         guard event.type == .keyDown, isEnabled else { return .passThrough }
-        let identity = eventIdentity(for: event, windowID: windowID(for: event))
+        let eventWindowID = windowID(
+            for: event,
+            fallbackWindow: dispatchWindow
+        )
+        let identity = eventIdentity(
+            for: event,
+            windowID: eventWindowID
+        )
         let result: ShortcutPrefixChordRouter.HandleResult
         if router.isArmed {
             // An ownership boundary arriving while armed cancels the pending
@@ -147,7 +168,7 @@ final class ShortcutPrefixChordCoordinator {
             // continues to the focused responder.
             result = router.handleUnsupportedOnce(
                 now: ProcessInfo.processInfo.systemUptime,
-                windowID: windowID(for: event),
+                windowID: eventWindowID,
                 eventID: identity
             )
         } else {
@@ -354,10 +375,13 @@ final class ShortcutPrefixChordCoordinator {
         return result
     }
 
-    private func windowID(for event: NSEvent) -> Int? {
+    private func windowID(
+        for event: NSEvent,
+        fallbackWindow: NSWindow? = nil
+    ) -> Int? {
         let number = owner?.prefixChordWindowNumber(
             for: event,
-            fallbackWindow: owner?.resolvedShortcutEventWindow(event)
+            fallbackWindow: fallbackWindow ?? owner?.resolvedShortcutEventWindow(event)
         ) ?? event.windowNumber
         return number > 0 ? number : nil
     }

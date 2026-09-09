@@ -3,21 +3,26 @@ import CmuxSettings
 
 extension AppDelegate {
     /// Resolves the window identity shared by every prefix pass-through seam.
-    /// AppKit can omit `event.window` while still carrying a valid event number;
-    /// prefer that event identity before falling back to the configured
-    /// shortcut resolver's main-window context.
+    /// A real event/window identity is authoritative; the dispatch window is
+    /// the next-best source for synthetic events. While a prefix is armed,
+    /// retain its captured window before falling back to the active shortcut
+    /// context so a windowless media/synthetic suffix cannot disarm it.
     func prefixChordWindowNumber(
         for event: NSEvent,
         fallbackWindow: NSWindow? = nil
     ) -> Int {
-        if let fallbackWindow, fallbackWindow.windowNumber > 0 {
-            return fallbackWindow.windowNumber
-        }
-        if let window = event.window {
+        if let window = event.window, window.windowNumber > 0 {
             return window.windowNumber
         }
         if event.windowNumber > 0 {
             return event.windowNumber
+        }
+        if let fallbackWindow, fallbackWindow.windowNumber > 0 {
+            return fallbackWindow.windowNumber
+        }
+        if let pendingWindow = shortcutPrefixChordCoordinator.pendingWindowID,
+           pendingWindow > 0 {
+            return pendingWindow
         }
         if let configured = configuredShortcutChordWindowNumber(for: event) {
             return configured
@@ -63,6 +68,18 @@ extension AppDelegate {
         _ event: NSEvent,
         dispatchWindow: NSWindow? = nil
     ) -> Bool? {
+        let preOfferWindowNumber: Int?
+        if event.type == .keyDown,
+           (prefixChordPassThroughCoordinator.hasMarkers
+               || shortcutPrefixChordCoordinator.isArmed) {
+            preOfferWindowNumber = prefixChordWindowNumber(
+                for: event,
+                fallbackWindow: dispatchWindow
+            )
+        } else {
+            preOfferWindowNumber = nil
+        }
+
         // A mismatch marker outlives the first local-monitor offer until the
         // complete AppKit sendEvent/key-equivalent stack unwinds. Check it
         // before the cached prefix state: a settings edit can disable the
@@ -70,9 +87,13 @@ extension AppDelegate {
         // must still prevent a later cmux matcher from stealing the byte.
         let hasPassThroughMarker = event.type == .keyDown
             && prefixChordPassThroughCoordinator.hasMarkers
-            && shouldBypassPrefixChordPassThrough(
+            && prefixChordPassThroughCoordinator.shouldBypass(
                 event,
-                fallbackWindow: dispatchWindow
+                windowNumber: preOfferWindowNumber
+                    ?? prefixChordWindowNumber(
+                        for: event,
+                        fallbackWindow: dispatchWindow
+                    )
             )
         guard shortcutPrefixChordCoordinator.isEnabled else {
             return hasPassThroughMarker ? false : nil
@@ -86,12 +107,19 @@ extension AppDelegate {
         }
 
         if prefixChordEventShouldBypass(event) {
-            switch shortcutPrefixChordCoordinator.offerBypassed(event) {
+            switch shortcutPrefixChordCoordinator.offerBypassed(
+                event,
+                dispatchWindow: dispatchWindow
+            ) {
             case .consume:
                 return true
             case .mismatchPassThrough:
                 if event.type == .keyDown {
-                    markPrefixChordPassThrough(event, dispatchWindow: dispatchWindow)
+                    markPrefixChordPassThrough(
+                        event,
+                        dispatchWindow: dispatchWindow,
+                        windowNumber: preOfferWindowNumber
+                    )
                 }
                 return false
             case .duplicatePassThrough:
@@ -101,12 +129,19 @@ extension AppDelegate {
             }
         }
 
-        switch shortcutPrefixChordCoordinator.offer(event) {
+        switch shortcutPrefixChordCoordinator.offer(
+            event,
+            dispatchWindow: dispatchWindow
+        ) {
         case .consume:
             return true
         case .mismatchPassThrough:
             if event.type == .keyDown {
-                markPrefixChordPassThrough(event, dispatchWindow: dispatchWindow)
+                markPrefixChordPassThrough(
+                    event,
+                    dispatchWindow: dispatchWindow,
+                    windowNumber: preOfferWindowNumber
+                )
             }
             return false
         case .duplicatePassThrough:
@@ -137,13 +172,18 @@ extension AppDelegate {
 
     private func markPrefixChordPassThrough(
         _ event: NSEvent,
-        dispatchWindow: NSWindow? = nil
+        dispatchWindow: NSWindow? = nil,
+        windowNumber: Int? = nil
     ) {
-        let windowNumber = prefixChordWindowNumber(
-            for: event,
-            fallbackWindow: dispatchWindow
+        let resolvedWindowNumber = windowNumber
+            ?? prefixChordWindowNumber(
+                for: event,
+                fallbackWindow: dispatchWindow
+            )
+        prefixChordPassThroughCoordinator.mark(
+            event,
+            windowNumber: resolvedWindowNumber
         )
-        prefixChordPassThroughCoordinator.mark(event, windowNumber: windowNumber)
     }
 
     /// Prefix routing must stand down for modal interaction and active IME
