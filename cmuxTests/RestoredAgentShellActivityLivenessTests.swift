@@ -201,7 +201,7 @@ struct RestoredAgentShellActivityLivenessTests {
     }
 
     @Test
-    func workspaceStillRetiresExitedBindingWithoutDeferredRestore() throws {
+    func workspacePreservesBindingWhenCompletedIndexHasNoMatchingSession() throws {
         let workspace = Workspace()
         defer { workspace.teardownAllPanels() }
         let panelId = try #require(workspace.focusedPanelId)
@@ -211,7 +211,11 @@ struct RestoredAgentShellActivityLivenessTests {
             using: .empty,
             restorableAgentIndex: Self.emptyLiveIndex()
         )
-        #expect(workspace.surfaceResumeBinding(panelId: panelId)?.allowsAutomaticResume == false)
+        // A completed scan with no matching session entry is inconclusive: the
+        // hook record may have landed after that scan. Retiring here would make
+        // the next relaunch lose the agent; a later matching process record or
+        // explicit exit event performs the retirement.
+        #expect(workspace.surfaceResumeBinding(panelId: panelId)?.allowsAutomaticResume == true)
     }
 
     /// A completed scan that found no live process for any panel.
