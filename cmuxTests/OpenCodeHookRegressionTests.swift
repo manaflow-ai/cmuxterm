@@ -27,10 +27,12 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         let harnessURL = root.appendingPathComponent("harness.js")
         try Self.openCodeFeedEventHarness.write(to: harnessURL, atomically: true, encoding: .utf8)
 
+        let environment = ProcessInfo.processInfo.environment
+        let jsRuntime = try Self.javascriptRuntime(in: environment)
         let result = runProcess(
             executablePath: "/usr/bin/env",
-            arguments: ["node", harnessURL.path, pluginURL.path, socketPath],
-            environment: ProcessInfo.processInfo.environment,
+            arguments: [jsRuntime, harnessURL.path, pluginURL.path, socketPath],
+            environment: environment,
             timeout: 5
         )
         XCTAssertFalse(result.timedOut, result.stderr)
@@ -109,6 +111,18 @@ final class OpenCodeHookRegressionTests: XCTestCase {
 
     private func bundledCLIPath() throws -> String {
         try BundledCLITestSupport.bundledCLIPath(for: Self.self)
+    }
+
+    private static func javascriptRuntime(in environment: [String: String]) throws -> String {
+        let searchPaths = (environment["PATH"] ?? "").split(separator: ":").map(String.init)
+        for runtime in ["bun", "node"] {
+            if searchPaths.contains(where: { FileManager.default.isExecutableFile(atPath: "\($0)/\(runtime)") }) {
+                return runtime
+            }
+        }
+        throw NSError(domain: "OpenCodeHookRegressionTests", code: 1, userInfo: [
+            NSLocalizedDescriptionKey: "Neither bun nor node is available on PATH"
+        ])
     }
 
     private static let openCodeFeedEventHarness = #"""
