@@ -456,6 +456,113 @@ extension CLINotifyProcessIntegrationRegressionTests {
         }
     }
 
+    func testAntigravityConcurrentStopsRetainSamePromptRevision() throws {
+        let context = try makeClaudeHookContext(name: "antigravity-concurrent-completions")
+        defer { context.cleanup() }
+
+        startAgentHookMockServerAccepting(context: context)
+        let sessionId = "antigravity-concurrent-completions-session"
+        func run(
+            _ subcommand: String,
+            payload: String,
+            extraEnvironment: [String: String] = [:]
+        ) -> ProcessRunResult {
+            runAgentHook(
+                context: context,
+                agent: "antigravity",
+                subcommand: subcommand,
+                standardInput: payload,
+                extraEnvironment: extraEnvironment
+            )
+        }
+
+        let sessionStart = run(
+            "session-start",
+            payload: #"{"conversationId":"\#(sessionId)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"SessionStart"}"#
+        )
+        XCTAssertEqual(sessionStart.status, 0, sessionStart.stderr)
+        let prompt = run(
+            "prompt-submit",
+            payload: #"{"conversationId":"\#(sessionId)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"PreInvocation"}"#
+        )
+        XCTAssertEqual(prompt.status, 0, prompt.stderr)
+        let initialRecord = try readAntigravityHookSession(sessionId, context: context)
+        assertActivePromptState(initialRecord)
+        let initialRevision = try XCTUnwrap(
+            (initialRecord["promptLifecycleRevision"] as? NSNumber)?.int64Value
+        )
+
+        let intermediateBarrier = context.root.appendingPathComponent("intermediate-stop.barrier").path
+        let completionBarrier = context.root.appendingPathComponent("completion-stop.barrier").path
+        FileManager.default.createFile(atPath: intermediateBarrier, contents: Data())
+        FileManager.default.createFile(atPath: completionBarrier, contents: Data())
+        let intermediateFinished = expectation(description: "intermediate stop finishes")
+        let completionFinished = expectation(description: "completion stop finishes")
+        let stopPayload = { (fullyIdle: Bool) in
+            #"{"conversationId":"\#(sessionId)","fullyIdle":\#(fullyIdle),"terminationReason":"model_stop","workspacePaths":["\#(context.root.path)"],"hook_event_name":"Stop"}"#
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = self.runAgentHook(
+                context: context,
+                agent: "antigravity",
+                subcommand: "stop",
+                standardInput: stopPayload(false),
+                extraEnvironment: ["CMUX_TEST_AGENT_HOOK_STOP_BARRIER": intermediateBarrier]
+            )
+            intermediateFinished.fulfill()
+        }
+        let intermediateReadyPath = intermediateBarrier + ".ready"
+        let intermediateReadyDeadline = Date().addingTimeInterval(5)
+        while !FileManager.default.fileExists(atPath: intermediateReadyPath), Date() < intermediateReadyDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+        }
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: intermediateReadyPath),
+            "Intermediate Stop must reach the post-lookup barrier"
+        )
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = self.runAgentHook(
+                context: context,
+                agent: "antigravity",
+                subcommand: "stop",
+                standardInput: stopPayload(true),
+                extraEnvironment: ["CMUX_TEST_AGENT_HOOK_STOP_BARRIER": completionBarrier]
+            )
+            completionFinished.fulfill()
+        }
+        let completionReadyPath = completionBarrier + ".ready"
+        let completionReadyDeadline = Date().addingTimeInterval(5)
+        while !FileManager.default.fileExists(atPath: completionReadyPath), Date() < completionReadyDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+        }
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: completionReadyPath),
+            "Completion Stop must reach the post-lookup barrier"
+        )
+
+        try FileManager.default.removeItem(atPath: intermediateBarrier)
+        wait(for: [intermediateFinished], timeout: 5)
+        let intermediateRecord = try readAntigravityHookSession(sessionId, context: context)
+        XCTAssertNil(intermediateRecord["activePromptDepth"])
+        XCTAssertEqual(intermediateRecord["runtimeStatus"] as? String, "running")
+
+        try FileManager.default.removeItem(atPath: completionBarrier)
+        wait(for: [completionFinished], timeout: 5)
+
+        let finalRecord = try readAntigravityHookSession(sessionId, context: context)
+        XCTAssertNil(finalRecord["activePromptDepth"])
+        XCTAssertEqual(finalRecord["agentLifecycle"] as? String, "idle")
+        XCTAssertEqual(finalRecord["runtimeStatus"] as? String, "idle")
+        XCTAssertEqual(finalRecord["lastNotificationStatus"] as? String, "idle")
+        XCTAssertEqual(
+            (finalRecord["promptLifecycleRevision"] as? NSNumber)?.int64Value,
+            initialRevision,
+            "Terminal completion must not advance the prompt generation"
+        )
+    }
+
     private func readAntigravityHookSession(
         _ sessionId: String,
         context: ClaudeHookContext

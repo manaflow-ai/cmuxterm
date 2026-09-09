@@ -32,11 +32,13 @@ extension ClaudeHookSessionRecord {
     }
 
     /// Closes all active prompt state while retaining the most recent turn id.
+    /// The prompt revision identifies the prompt generation, so terminal
+    /// callbacks that captured it before this close must remain valid when
+    /// they are concurrent same-turn completions.
     mutating func endAuthoritativePrompt() {
         var state = promptLifecycleState
         state.endAuthoritativePrompt()
         promptLifecycleState = state
-        advancePromptLifecycleRevision()
     }
 
     /// Clears active prompt fields while retaining the most recently observed turn identifier.
