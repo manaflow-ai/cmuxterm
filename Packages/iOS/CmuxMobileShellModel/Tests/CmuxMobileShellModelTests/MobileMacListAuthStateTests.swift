@@ -176,8 +176,7 @@ struct MobileMacListAuthStateTests {
             status: "active",
             revoked: false,
             isFresh: true,
-            appVersion: "0.64.20",
-            minimumSupportedVersion: "0.64.23"
+            appVersion: "0.64.20"
         )
         state.replace(
             entriesByEndpointID: ["endpoint": stable],
@@ -198,6 +197,7 @@ struct MobileMacListAuthStateTests {
             entriesByDeviceID: ["nightly-device": nightly],
             minimumSupportedNightlyMacVersion: "0.64.22-nightly.3345650013202"
         )
+        #expect(state.minimumSupportedMacVersion == "0.64.23")
         // A subsequent snapshot carrying only the Nightly floor must not
         // erase the Stable floor on its rows when a Stable entry is present.
         state.replace(

@@ -490,7 +490,7 @@ public actor MobileIrxRuntimeComposition {
                 isFresh: fresh,
                 appVersion: entry.appVersion,
                 minimumSupportedVersion: snapshot.minimumSupportedMacVersion,
-                releaseTrack: entry.releaseTrack ?? entry.tag
+                releaseTrack: entry.releaseTrack
             )
             byEndpoint[endpointIDHex] = projected
             if let deviceID = entry.deviceID {

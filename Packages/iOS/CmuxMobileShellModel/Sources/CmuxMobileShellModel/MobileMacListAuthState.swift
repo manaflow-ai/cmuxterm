@@ -168,14 +168,14 @@ public final class MobileMacListAuthState {
     ) {
         let effectiveStableMinimum = hasPolicyMinimumSupportedMacVersion
             ? policyMinimumSupportedMacVersion
-            : minimumSupportedMacVersion
+            : minimumSupportedMacVersion ?? self.minimumSupportedMacVersion
         let effectiveNightlyMinimum = hasPolicyMinimumSupportedMacVersion
             ? policyMinimumSupportedNightlyMacVersion
-            : minimumSupportedNightlyMacVersion
+            : minimumSupportedNightlyMacVersion ?? self.minimumSupportedNightlyMacVersion
         let overrideStable = hasPolicyMinimumSupportedMacVersion
-            || minimumSupportedMacVersion != nil
+            || effectiveStableMinimum != nil
         let overrideNightly = hasPolicyMinimumSupportedMacVersion
-            || minimumSupportedNightlyMacVersion != nil
+            || effectiveNightlyMinimum != nil
         self.entriesByEndpointID = entriesWithMinimumSupportedVersions(
             entriesByEndpointID,
             stableMinimum: effectiveStableMinimum,
