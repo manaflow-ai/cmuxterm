@@ -1,0 +1,83 @@
+BEFORE_QUIT_SHA256=5bd0a55850b9bea14c58bb89a6e3a5c3e9433e81ac89e49d5d79ec3cdf527502
+AFTER_QUIT_SHA256=5bd0a55850b9bea14c58bb89a6e3a5c3e9433e81ac89e49d5d79ec3cdf527502
+{
+  "window_ref" : "window:1",
+  "workspaces" : [
+    {
+      "current_directory" : "/Users/cmux",
+      "custom_color" : null,
+      "custom_title" : null,
+      "description" : null,
+      "has_custom_title" : false,
+      "id" : "2AFB8373-2CDD-4E8A-B6B3-0CDB6438DE4E",
+      "index" : 0,
+      "latest_conversation_message" : null,
+      "latest_submitted_at" : null,
+      "latest_submitted_message" : null,
+      "listening_ports" : [
+
+      ],
+      "pinned" : false,
+      "ref" : "workspace:1",
+      "remote" : {
+        "active_terminal_sessions" : 0,
+        "cloud_vm_base" : null,
+        "cloud_vm_id" : null,
+        "cloud_vm_transport" : null,
+        "conflicted_ports" : [
+
+        ],
+        "connected" : false,
+        "daemon" : {
+          "capabilities" : [
+
+          ],
+          "detail" : null,
+          "name" : null,
+          "remote_path" : null,
+          "state" : "unavailable",
+          "version" : null
+        },
+        "destination" : null,
+        "detail" : null,
+        "detected_ports" : [
+
+        ],
+        "enabled" : false,
+        "forwarded_ports" : [
+
+        ],
+        "has_identity_file" : false,
+        "has_ssh_options" : false,
+        "heartbeat" : {
+          "age_seconds" : null,
+          "count" : 0,
+          "last_seen_at" : null
+        },
+        "local_proxy_port" : null,
+        "persistent_daemon_slot" : null,
+        "port" : null,
+        "proxy" : {
+          "error_code" : null,
+          "host" : null,
+          "port" : null,
+          "schemes" : [
+            "socks5",
+            "http_connect"
+          ],
+          "state" : "unavailable",
+          "url" : null
+        },
+        "state" : "disconnected",
+        "terminal_profile" : null,
+        "terminal_tmux_session" : null,
+        "terminal_transport" : null,
+        "transport" : null
+      },
+      "selected" : true,
+      "title" : "Vault"
+    }
+  ]
+}
+AFTER_RELAUNCH_SHA256=5bd0a55850b9bea14c58bb89a6e3a5c3e9433e81ac89e49d5d79ec3cdf527502
+PASS: normal quit and relaunch preserved History byte-for-byte without synthetic lifecycle events

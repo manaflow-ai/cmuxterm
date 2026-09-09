@@ -1,0 +1,84 @@
+Building for debugging...
+[0/7] /tmp/cmux-verify-20260908170330-19681-7317/vault-build-e8fda62191/arm64-apple-macosx/debug/CmuxVaultHistoryPackageTests.derived/runner.swift
+[1/7] Write sources
+[4/7] Write swift-version--58304C5D6DBC2206.txt
+[6/18] Compiling CmuxVaultHistory VaultHistoryGroup.swift
+[7/18] Compiling CmuxVaultHistory VaultHistoryGroupIdentity.swift
+[8/18] Compiling CmuxVaultHistory VaultHistoryRetentionPolicy.swift
+[9/18] Compiling CmuxVaultHistory VaultHistoryGroupKey.swift
+[10/18] Compiling CmuxVaultHistory VaultHistoryGrouper.swift
+[11/19] Compiling CmuxVaultHistory VaultHistoryEventStoring.swift
+[12/19] Compiling CmuxVaultHistory VaultHistoryEventKind.swift
+[13/19] Compiling CmuxVaultHistory VaultHistoryDateBucket.swift
+[14/19] Compiling CmuxVaultHistory VaultHistoryEvent.swift
+[15/19] Emitting module CmuxVaultHistory
+[16/19] Compiling CmuxVaultHistory VaultHistoryEventStore.swift
+[17/19] Compiling CmuxVaultHistory VaultHistorySubject.swift
+[18/23] Compiling CmuxVaultHistoryTests VaultHistoryEventStoreTests.swift
+[19/23] Emitting module CmuxVaultHistoryTests
+[20/23] Compiling CmuxVaultHistoryTests VaultHistoryDateBucketTests.swift
+[21/23] Compiling CmuxVaultHistoryTests VaultHistoryGrouperTests.swift
+[22/25] Emitting module CmuxVaultHistoryPackageTests
+[23/25] Compiling CmuxVaultHistoryPackageTests runner.swift
+[23/25] Write Objects.LinkFileList
+[24/25] Linking CmuxVaultHistoryPackageTests
+Build complete! (5.12s)
+Test Suite 'All tests' started at 2026-09-09 01:00:15.335.
+Test Suite 'All tests' passed at 2026-09-09 01:00:15.336.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 1501
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite VaultHistoryGrouperTests started.
+◇ Suite VaultHistoryEventStoreTests started.
+◇ Suite VaultHistoryDateBucketTests started.
+◇ Test dateGroupingOrdersBucketsAndSkipsEmptyBuckets() started.
+◇ Test newestFirstMergeIsLinearOrderedAndBounded() started.
+◇ Test preorderedGroupingMatchesTheSortingEntryPoint() started.
+◇ Test dateBucketCalendarBoundaries() started.
+◇ Test corruptLinesAreSkippedOnLoad() started.
+◇ Test dateBucketBoundariesAroundLast24Hours() started.
+◇ Test oversizedEventIsRejectedWithoutDisplacingReadableHistory() started.
+◇ Test failedInitialLoadNeverRewritesAnExistingUnreadablePath() started.
+◇ Test loadIsBoundedAndSkipsPartialLeadingLine() started.
+◇ Test appendedEventsRoundTripThroughDisk() started.
+◇ Test workspaceGroupingClustersByIdentityAndKeepsOtherLast() started.
+◇ Test retentionKeepsNewestTimestampsAfterOutOfOrderAppends() started.
+◇ Test retainedFileRoundTripsBeyondRequestedLoadBudget(useDefaultPolicy:) started.
+◇ Test windowAgentAndKindGroupingUseOneGenericPass() started.
+◇ Test failedPersistenceDoesNotEnterTheReadableSnapshot() started.
+◇ Test weekGroupingSpansNewYear(identifier:timeZoneIdentifier:) started.
+◇ Test weekGroupingHonorsSundayFirstCalendarAtNewYear() started.
+◇ Test recentEventsReturnsNewestFirstWithStableTieBreakAndLimit() started.
+◇ Test retentionCompactsFileAndKeepsNewestEvents() started.
+◇ Test case passing 1 argument useDefaultPolicy → false to retainedFileRoundTripsBeyondRequestedLoadBudget(useDefaultPolicy:) started.
+◇ Test case passing 1 argument useDefaultPolicy → true to retainedFileRoundTripsBeyondRequestedLoadBudget(useDefaultPolicy:) started.
+◇ Test case passing 2 arguments identifier → gregorian, timeZoneIdentifier → "UTC" to weekGroupingSpansNewYear(identifier:timeZoneIdentifier:) started.
+◇ Test case passing 2 arguments identifier → gregorian, timeZoneIdentifier → "America/Los_Angeles" to weekGroupingSpansNewYear(identifier:timeZoneIdentifier:) started.
+◇ Test case passing 2 arguments identifier → gregorian, timeZoneIdentifier → "Asia/Tokyo" to weekGroupingSpansNewYear(identifier:timeZoneIdentifier:) started.
+◇ Test case passing 2 arguments identifier → iso8601, timeZoneIdentifier → "UTC" to weekGroupingSpansNewYear(identifier:timeZoneIdentifier:) started.
+◇ Test case passing 2 arguments identifier → iso8601, timeZoneIdentifier → "America/Los_Angeles" to weekGroupingSpansNewYear(identifier:timeZoneIdentifier:) started.
+◇ Test case passing 2 arguments identifier → iso8601, timeZoneIdentifier → "Asia/Tokyo" to weekGroupingSpansNewYear(identifier:timeZoneIdentifier:) started.
+✔ Test newestFirstMergeIsLinearOrderedAndBounded() passed after 0.001 seconds.
+✔ Test dateBucketBoundariesAroundLast24Hours() passed after 0.001 seconds.
+✔ Test preorderedGroupingMatchesTheSortingEntryPoint() passed after 0.001 seconds.
+✔ Test dateBucketCalendarBoundaries() passed after 0.001 seconds.
+✔ Test workspaceGroupingClustersByIdentityAndKeepsOtherLast() passed after 0.001 seconds.
+✔ Test dateGroupingOrdersBucketsAndSkipsEmptyBuckets() passed after 0.001 seconds.
+✔ Test windowAgentAndKindGroupingUseOneGenericPass() passed after 0.001 seconds.
+✔ Test weekGroupingHonorsSundayFirstCalendarAtNewYear() passed after 0.001 seconds.
+✔ Test recentEventsReturnsNewestFirstWithStableTieBreakAndLimit() passed after 0.001 seconds.
+✔ Test failedPersistenceDoesNotEnterTheReadableSnapshot() passed after 0.001 seconds.
+✔ Test weekGroupingSpansNewYear(identifier:timeZoneIdentifier:) with 6 test cases passed after 0.001 seconds.
+✔ Suite VaultHistoryGrouperTests passed after 0.002 seconds.
+✔ Suite VaultHistoryDateBucketTests passed after 0.002 seconds.
+✔ Test failedInitialLoadNeverRewritesAnExistingUnreadablePath() passed after 0.002 seconds.
+✔ Test appendedEventsRoundTripThroughDisk() passed after 0.002 seconds.
+✔ Test corruptLinesAreSkippedOnLoad() passed after 0.003 seconds.
+✔ Test retentionKeepsNewestTimestampsAfterOutOfOrderAppends() passed after 0.003 seconds.
+✔ Test oversizedEventIsRejectedWithoutDisplacingReadableHistory() passed after 0.004 seconds.
+✔ Test retentionCompactsFileAndKeepsNewestEvents() passed after 0.008 seconds.
+✔ Test loadIsBoundedAndSkipsPartialLeadingLine() passed after 0.011 seconds.
+✔ Test retainedFileRoundTripsBeyondRequestedLoadBudget(useDefaultPolicy:) with 2 test cases passed after 0.090 seconds.
+✔ Suite VaultHistoryEventStoreTests passed after 0.090 seconds.
+✔ Test run with 19 tests in 3 suites passed after 0.091 seconds.
