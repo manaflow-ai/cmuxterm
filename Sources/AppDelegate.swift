@@ -10129,7 +10129,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     /// Returns the readiness gate for the app-lifetime terminal configuration.
     private func terminalConfigurationReadinessForNewWindow() -> (@MainActor @Sendable () async -> Void)? {
-        guard let model = settingsRuntime?.declarativeTerminalConfigurationModel else { return nil }
+        guard let model = settingsRuntime?.declarativeTerminalConfigurationModel,
+              !model.hasInitialSnapshot else { return nil }
         return { await model.waitForInitialSnapshot() }
     }
 
@@ -10416,35 +10417,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
         publishCmuxWindowLifecycle(name: "window.created", windowId: windowId, origin: "create")
         installFileDropOverlay(on: window, tabManager: tabManager)
-        if !shouldActivate || TerminalController.shouldSuppressSocketCommandActivation() {
-            window.orderFront(nil)
-            if shouldActivate, TerminalController.socketCommandAllowsInAppFocusMutations() {
-                setActiveMainWindow(window)
+        let suppressActivation = !shouldActivate || TerminalController.shouldSuppressSocketCommandActivation()
+        let allowsFocusMutation = shouldActivate && TerminalController.socketCommandAllowsInAppFocusMutations()
+        let presentWindow: @MainActor () -> Void = { [weak self, weak window, weak tabManager] in
+            guard let self, let window, let tabManager,
+                  self.mainWindowContexts[windowId]?.tabManager === tabManager else { return }
+            if suppressActivation {
+                window.orderFront(nil)
+                if allowsFocusMutation {
+                    self.setActiveMainWindow(window)
+                }
+            } else {
+                self.mainWindowVisibilityController.focus(
+                    window,
+                    reason: .createMainWindow,
+                    activation: .runningApplication([.activateAllWindows]),
+                    respectActivationSuppression: false
+                )
             }
-        } else {
-            mainWindowVisibilityController.focus(
-                window,
-                reason: .createMainWindow,
-                activation: .runningApplication([.activateAllWindows]),
-                respectActivationSuppression: false
-            )
-        }
-        if shouldTemporarilyDisallowFullScreenTiling {
-            let clearFullScreenTilingOptOut: () -> Void = { [weak window] in
-                guard let window else { return }
-                window.collectionBehavior.remove(.fullScreenDisallowsTiling)
-                if window.collectionBehavior.contains(.fullScreenDisallowsTiling) {
-                    var behavior = window.collectionBehavior
-                    behavior.remove(.fullScreenDisallowsTiling)
-                    window.collectionBehavior = behavior
+            if shouldTemporarilyDisallowFullScreenTiling {
+                let clearFullScreenTilingOptOut: () -> Void = { [weak window] in
+                    guard let window else { return }
+                    window.collectionBehavior.remove(.fullScreenDisallowsTiling)
+                    if window.collectionBehavior.contains(.fullScreenDisallowsTiling) {
+                        var behavior = window.collectionBehavior
+                        behavior.remove(.fullScreenDisallowsTiling)
+                        window.collectionBehavior = behavior
+                    }
+                }
+                RunLoop.main.perform {
+                    clearFullScreenTilingOptOut()
+                }
+                DispatchQueue.main.async {
+                    clearFullScreenTilingOptOut()
                 }
             }
-            RunLoop.main.perform {
-                clearFullScreenTilingOptOut()
+        }
+        if tabManager.tabs.isEmpty {
+            Task { @MainActor [weak tabManager] in
+                guard let tabManager else { return }
+                await tabManager.waitForInitialWorkspace()
+                guard !Task.isCancelled, !tabManager.tabs.isEmpty else { return }
+                presentWindow()
             }
-            DispatchQueue.main.async {
-                clearFullScreenTilingOptOut()
-            }
+        } else {
+            presentWindow()
         }
         if let explicitInitialFrame {
             window.setFrame(explicitInitialFrame, display: true)

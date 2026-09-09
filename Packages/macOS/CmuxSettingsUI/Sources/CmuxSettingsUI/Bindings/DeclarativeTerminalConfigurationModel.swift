@@ -19,7 +19,7 @@ public final class DeclarativeTerminalConfigurationModel:
     private let catalog: SettingCatalog
     private let errorLog: SettingsErrorLog
     private let reader: DeclarativeTerminalConfigurationReader
-    private var hasInitialSnapshot = false
+    public private(set) var hasInitialSnapshot = false
     private var initialSnapshotWaiters: [CheckedContinuation<Void, Never>] = []
     private var observationTasks = MainActorTaskStore<String>()
     private var saveTasks = MainActorTaskStore<String>()
