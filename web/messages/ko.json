@@ -1294,7 +1294,7 @@
     },
     "introducingCmux": {
       "metaTitle": "cmux를 소개합니다",
-      "metaDescription": "macOS용 새 터미널 cmux를 만든 이유."
+      "metaDescription": "여러 AI 코딩 에이전트를 나란히 실행하도록 설계된 Ghostty 기반 macOS 네이티브 터미널입니다."
     },
     "posts": {
       "tokenMultitasking": {
@@ -1453,7 +1453,7 @@
         "title": "Claude Code는 최고의 Worktree 관리자입니다",
         "summary": "Claude Code, Codex, 스크립트 및 cmux 기본 요소를 사용하여 코드베이스에 실제로 필요한 작업 트리 워크플로를 구축하세요.",
         "date": "2026년 7월 3일",
-        "p1": "내장된 작업 트리 관리자는 제한적입니다. 그들은 일반적으로 하나의 저장소, Git, 축복받은 분기 흐름 및 설정이 무엇을 의미하는지에 대한 제품 팀의 아이디어를 가정합니다. 실제 코드베이스는 해당 라인 안에 머물지 않습니다.",
+        "p1": "작업에 따라 필요한 병렬 처리 방식도 다릅니다. 일반적인 Git 변경에는 워크트리가 적합합니다. 하위 모듈이나 빌드 도구가 워크트리와 잘 맞지 않는다면 저장소를 여러 번 체크아웃하는 편이 낫습니다. Freestyle과 Modal은 원격 샌드박스를 제공하며, GitHub Actions도 같은 용도로 활용할 수 있습니다. Docker, UTM, Lima, OrbStack은 로컬 격리를 담당합니다. Mac mini나 Linux 장비를 사용하는 팀도 있습니다. 머신 러닝 실험에는 Ray, Modal, Slurm이 더 적합한 경우가 많습니다. 때로는 위험을 감수하고 모든 작업을 main에서 바로 실행하는 것이 가장 빠릅니다.",
         "p2": "<zen>cmux의 Zen</zen>은 개발자가 직접 도구를 만들고 코드와 함께 일하는 방식의 탐색 공간을 넓혀야 한다는 뜻입니다. 워크트리는 유용한 프리미티브지만, 여러 체크아웃, 서로 다른 폴더에 있는 백엔드/프런트엔드 저장소, 원격 머신, git이 없는 프로젝트, 로컬 스크립트, 때로는 그 작업에 가장 빠르기 때문에 main에서 바로 코딩하는 방식도 프리미티브입니다.",
         "superRepoTitle": "슈퍼 레포 패턴",
         "superRepoP1": "슈퍼 저장소는 모든 실제 저장소가 어디에 있는지, 작업 트리가 어떻게 생성되는지, 관련 저장소가 어떻게 쌍을 이루는지, 어떤 스크립트가 각 작업공간을 준비하는지, PR이 어떻게 검토되고 병합되는지를 아는 하나의 제어 체크아웃입니다. cmuxterm-hq는 슈퍼 저장소입니다. 여기에는 기본 cmux 체크아웃, 작업별 cmux 작업 트리, Zed 체크아웃, hq 스크립트, 재사용 가능한 기술 및 에이전트가 서로 밟지 않기 위해 따르는 규칙이 포함되어 있습니다.",
@@ -1742,7 +1742,7 @@
       "moshContrast": "네트워크 간 로밍에는 cmux mosh-tmux를 사용하세요. 이름 있는 tmux 세션에 연결된 완전한 Mosh 터미널을 열며, SSH tmux 제어 모드가 제공하는 네이티브 워크스페이스·탭·분할 미러를 대체하지는 않습니다.",
       "mappingTitle": "tmux가 cmux에 매핑되는 방식",
       "mappingIntro": "cmux와 tmux는 레이아웃을 반대 방향으로 중첩합니다. cmux에서 창에는 탭 행이 포함됩니다(각 탭은 하나의 터미널임). tmux에서 창은 분할된 창을 보유합니다. 원격 tmux는 tmux의 구조를 cmux에 투영하여 둘을 연결합니다.",
-      "mapTmux": "티먹스",
+      "mapTmux": "tmux",
       "mapCmux": "cmux",
       "rowSession": "사이드바의 전용 작업 공간.",
       "rowWindow": "해당 작업공간의 탭입니다.",
@@ -1807,7 +1807,7 @@
       "install": "설치",
       "dmgRecommended": "DMG (권장)",
       "dmgDesc": ".dmg 파일을 열고 cmux를 응용 프로그램 폴더로 드래그하세요. cmux는 Sparkle을 통해 자동 업데이트되므로 한 번만 다운로드하면 됩니다.",
-      "homebrew": "홈브류",
+      "homebrew": "Homebrew",
       "updateLater": "나중에 업데이트하려면:",
       "firstLaunchCallout": "처음 실행할 때 macOS가 확인된 개발자의 앱을 열지 확인할 수 있습니다. <strong>열기</strong>를 클릭하여 진행하세요.",
       "verifyTitle": "설치 확인",
@@ -2461,7 +2461,7 @@
       "createHookScript": "1. 훅 스크립트 생성",
       "configureClaude": "2. Claude Code 설정",
       "restartNote": "hooks를 적용하려면 Claude Code를 재시작하세요.",
-      "copilotCliHooks": "GitHub 코파일럿 CLI",
+      "copilotCliHooks": "GitHub Copilot CLI",
       "copilotCliHooksDesc": "Copilot CLI는 프롬프트 제출, 에이전트 중지, 오류 등 라이프사이클 이벤트에서 셸 명령을 실행하는 <link>hooks</link>를 지원합니다.",
       "copilotCliRepoHooks": "저장소 수준 hooks의 경우, 같은 구조로 .github/hooks/notify.json 파일을 생성하세요:",
       "integrationExamples": "통합 예시",
@@ -2837,8 +2837,8 @@
       "envSocket": "심을 연결할 cmux 제어 소켓의 경로"
     },
     "ohMyPi": {
-      "title": "오 마이 파이",
-      "metaTitle": "오마이피 - cmux",
+      "title": "oh-my-pi",
+      "metaTitle": "oh-my-pi - cmux",
       "metaDescription": "상태, 알림, 세션 복원, 자동 이름 지정 및 작업 관리자 속성에 대한 후크를 사용하여 oh-my-pi(omp)를 cmux에 연결합니다.",
       "intro": "oh-my-pi는 코딩 우선 에이전트로 재작성된 Pi의 포크입니다. 해당 바이너리는 omp이고 cmux는 omp 후크 확장을 통해 이 바이너리와 통합됩니다.",
       "setupUsage": "설정 및 사용법",
@@ -2917,7 +2917,7 @@
       "claudeCodeTeams": "클로드 코드 팀",
       "ohMyOpenCode": "oh-my-opencode",
       "ohMyCodex": "oh-my-codex",
-      "ohMyPi": "오 마이 파이",
+      "ohMyPi": "oh-my-pi",
       "ohMyClaudeCode": "오 마이 클로드코드",
       "changelog": "변경 로그",
       "dock": "독",
@@ -3270,7 +3270,7 @@
       "terminalAppBody": "macOS 내장 터미널입니다. 늘 그 자리에 있고 설정이 필요 없습니다. 가벼운 사용에는 괜찮지만, 대부분의 파워 유저는 결국 더 많은 것을 원하게 됩니다.",
       "otherTitle": "Alacritty, kitty, WezTerm",
       "otherBody": "모든 것을 파일에서 설정하기를 좋아하는 사람들을 위한 빠른 GPU 터미널입니다. Alacritty는 의도적으로 미니멀하고, kitty는 기능이 풍부하며 스크립트 가능하고, WezTerm은 자체 멀티플렉서를 번들로 제공합니다. 모두 크로스 플랫폼이며, 하나의 세심하게 튜닝된 터미널을 원한다면 잘 맞습니다.",
-      "tmuxTitle": "티먹스",
+      "tmuxTitle": "tmux",
       "tmuxBody": "터미널이 아니라 터미널 안에서 실행하는 멀티플렉서입니다. 원격 서버에서 SSH로 지속되는 세션을 유지하는 데 있어 타의 추종을 불허합니다. 필요할 때 cmux는 원격 tmux 세션에 연결할 수 있습니다.",
       "rGpuLib": "GPU(libghostty)",
       "rGpu": "GPU",
@@ -3498,7 +3498,7 @@
                 "에이전트 주의 관리는 여전히 custom wiring 필요"
               ],
               [
-                "티먹스",
+                "tmux",
                 "SSH 위의 터미널 멀티플렉싱",
                 "모든 CLI 에이전트",
                 "prefix key 워크플로와 네이티브 앱 UI 없음"
@@ -4341,7 +4341,7 @@
             "headers": [
               "차원",
               "cmux",
-              "티먹스"
+              "tmux"
             ],
             "rows": [
               [
@@ -4808,7 +4808,7 @@
         "cmuxVsGhostty": {
           "metaTitle": "코딩 에이전트를 위한 cmux vs Ghostty — cmux",
           "metaDescription": "macOS 터미널 워크플로, 코딩 에이전트, libghostty 성능, 세로 탭, 알림, 프로그래밍 가능성 측면에서 cmux와 Ghostty를 비교합니다.",
-          "title": "cmux 대 고스트티",
+          "title": "cmux와 Ghostty 비교",
           "intro": "Ghostty는 빠른 터미널 에뮬레이터입니다. cmux는 libghostty 위에 구축된 별도의 네이티브 macOS 앱이며, 코딩 에이전트 워크플로를 위해 워크스페이스, 세로 탭, 알림 링, 브라우저 패널, socket API를 더합니다.",
           "summaryTitle": "같은 렌더링 엔진 계열, 다른 역할",
           "summaryBody": "집중된 터미널 에뮬레이터를 원하면 Ghostty를 사용하세요. 지속적인 읽지 않음 상태, 브라우저 패널, 에이전트가 패널 생성, 터미널 읽기, 스크린샷 캡처, 웹 검사 실행을 할 수 있게 하는 Unix 소켓이 있는 에이전트 워크스페이스 안에서 libghostty 렌더링을 원하면 cmux를 사용하세요.",
