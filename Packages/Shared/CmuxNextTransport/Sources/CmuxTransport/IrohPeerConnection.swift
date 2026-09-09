@@ -167,6 +167,7 @@ public actor IrohPeerConnection: PeerConnection {
     /// - Parameter name: Logical lane name, subject to the per-connection lane cap.
     /// - Returns: The named lane, or an ended lane after failure, timeout, or closure.
     public func lane(_ name: String) async -> any TransportLane {
+        guard !Task.isCancelled else { return DeadLane(name: name) }
         if let existing = lanes[name] { return existing }
         if closedFlag {
             if TransportDebugLog.enabled {
@@ -196,9 +197,11 @@ public actor IrohPeerConnection: PeerConnection {
         case .acceptor:
             laneWaiterCounter &+= 1
             let waiterID = laneWaiterCounter
-            return await withTaskCancellationHandler(operation: {
+            let lane: any TransportLane = await withTaskCancellationHandler(operation: {
                 await withCheckedContinuation { continuation in
-                    if let existing = lanes[name] {
+                    if Task.isCancelled {
+                        continuation.resume(returning: DeadLane(name: name))
+                    } else if let existing = lanes[name] {
                         continuation.resume(returning: existing)
                     } else if closedFlag {
                         if TransportDebugLog.enabled {
@@ -237,6 +240,9 @@ public actor IrohPeerConnection: PeerConnection {
                     await self?.cancelLaneWaiter(name: name, id: waiterID)
                 }
             })
+            // A live arrival can race cancellation after the continuation is
+            // resumed. Leave the shared lane for an active, single consumer.
+            return Task.isCancelled ? DeadLane(name: name) : lane
         }
     }
 

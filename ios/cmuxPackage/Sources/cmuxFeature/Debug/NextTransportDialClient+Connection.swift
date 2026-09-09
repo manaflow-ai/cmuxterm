@@ -122,9 +122,6 @@ extension NextTransportDialClient {
                         }
                         switch outcome {
                         case .admitted(let sessionID):
-                            await self.noteAdmitted(sessionID: sessionID, generation: gen)
-                            await self.log(
-                                "admitted as \(sessionID) in \(Self.elapsedMs(since: dialStart))ms")
                             return .admitted(conn, sessionID: sessionID)
                         case .denied(let code):
                             await self.log(
@@ -139,6 +136,11 @@ extension NextTransportDialClient {
                         await self.log(
                             "dial TIMEOUT after \(Self.elapsedMs(since: dialStart))ms")
                     })
+                if case .admitted(_, let sessionID) = result {
+                    await self.noteAdmitted(sessionID: sessionID, generation: gen)
+                    await self.log(
+                        "admitted as \(sessionID) in \(Self.elapsedMs(since: dialStart))ms")
+                }
                 await self.noteAttemptEnded(failed: false, relayOnly: relayOnly)
                 return result
             } catch {
