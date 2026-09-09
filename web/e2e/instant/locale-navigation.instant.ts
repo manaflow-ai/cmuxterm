@@ -14,6 +14,15 @@ const suffix = "?ref=locale-test#locale-check";
 
 test.use({ extraHTTPHeaders: { "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8" } });
 
+test("keeps Arabic docs commands left-to-right and content spacing mirrored", async ({ page }) => {
+  await page.goto("/ar/docs/getting-started");
+  await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+  await expect(page.locator(".docs-content pre").first()).toHaveCSS("direction", "ltr");
+  await expect(page.getByRole("heading", { name: "Homebrew", exact: true })).toBeVisible();
+  await expect(page.locator(".docs-content ul").first()).toHaveCSS("padding-right", "24px");
+  await expect(page.getByRole("note").first()).toHaveCSS("border-right-width", "2px");
+});
+
 for (const width of [390, 1440]) {
   test(`keeps the Arabic home screenshot within the ${width}px viewport`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });

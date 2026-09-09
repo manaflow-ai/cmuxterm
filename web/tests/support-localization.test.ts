@@ -177,6 +177,19 @@ describe("support page localization", () => {
 });
 
 describe("website message catalog parity", () => {
+  test("preserves product names instead of translating their literal meanings", async () => {
+    for (const [source, translation] of [
+      ["Homebrew", "البيرة المنزلية"],
+      ["Ghostty", "幽靈般的"],
+      ["oh-my-pi", "Oh mein Pi"],
+      ["tmux", "多路复用器"],
+    ]) {
+      const issues = await validateCatalog("ar", { name: source }, { name: translation });
+      expect(issues.map(({ message }) => message)).toEqual(["translated product name"]);
+      expect(await validateCatalog("ar", { name: source }, { name: source })).toEqual([]);
+    }
+  });
+
   test("rejects non-text replacements and changes to catalog flags", async () => {
     for (const value of [42, true, null]) {
       const issues = await validateCatalog(
