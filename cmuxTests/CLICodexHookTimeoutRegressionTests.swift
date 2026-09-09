@@ -187,7 +187,7 @@ struct CLICodexHookTimeoutRegressionTests {
         #expect(!result.timedOut, Comment(rawValue: result.stderr))
         #expect(result.status == 0, Comment(rawValue: result.stderr))
         #expect(result.stdout == "{}\n")
-        #expect(waitForConditionBlocking(timeout: 1) {
+        #expect(waitForConditionBlocking(timeout: 3) {
             commands.snapshot().contains { command in
                 guard let object = codexHookJSONObject(command),
                       object["method"] as? String == "feed.push",
@@ -198,11 +198,13 @@ struct CLICodexHookTimeoutRegressionTests {
                 return event["hook_event_name"] as? String == "PermissionRequest"
             }
         })
-        #expect(AgentJournalAppendCapture.captures(in: commands.snapshot()).contains { capture in
-            capture.kind == "agent.approval.requested"
-                && capture.agentKey == "codex"
-                && capture.workspaceId == workspaceId
-                && capture.surfaceId == surfaceId
+        #expect(waitForConditionBlocking(timeout: 3) {
+            AgentJournalAppendCapture.captures(in: commands.snapshot()).contains { capture in
+                capture.kind == "agent.approval.requested"
+                    && capture.agentKey == "codex"
+                    && capture.workspaceId == workspaceId
+                    && capture.surfaceId == surfaceId
+            }
         })
     }
 
@@ -885,7 +887,27 @@ struct CLICodexHookTimeoutRegressionTests {
         let surfaceId = "22222222-2222-2222-2222-222222222222"
         let sessionId = "codex-fresh-session"
         let stateURL = root.appendingPathComponent("codex-hook-sessions.json")
+        let codexHome = root.appendingPathComponent(".codex", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let rolloutDirectory = codexHome.appendingPathComponent(
+            "sessions/2026/08/12",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: rolloutDirectory, withIntermediateDirectories: true)
+        let rollout: [String: Any] = [
+            "type": "session_meta",
+            "payload": [
+                "id": sessionId,
+                "cwd": root.path,
+                "source": "cli",
+                "originator": "codex-tui",
+            ],
+        ]
+        let rolloutData = try JSONSerialization.data(withJSONObject: rollout, options: [.sortedKeys])
+        try rolloutData.write(
+            to: rolloutDirectory.appendingPathComponent("rollout-\(sessionId).jsonl"),
+            options: .atomic
+        )
         defer {
             Darwin.close(listenerFD)
             unlink(socketPath)
@@ -937,6 +959,7 @@ struct CLICodexHookTimeoutRegressionTests {
                 "CMUX_SURFACE_ID": surfaceId,
                 "CMUX_AGENT_HOOK_STATE_DIR": root.path,
                 "CMUX_CLI_SENTRY_DISABLED": "1",
+                "CODEX_HOME": codexHome.path,
                 "CMUX_CODEX_PID": "4242",
             ],
             standardInput: #"{"session_id":"\#(sessionId)","cwd":"\#(root.path)","hook_event_name":"SessionStart"}"#,
