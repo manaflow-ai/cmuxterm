@@ -27,9 +27,10 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         let harnessURL = root.appendingPathComponent("harness.js")
         try Self.openCodeFeedEventHarness.write(to: harnessURL, atomically: true, encoding: .utf8)
 
+        let javascriptRuntime = Self.javascriptRuntimeExecutable()
         let result = runProcess(
             executablePath: "/usr/bin/env",
-            arguments: ["node", harnessURL.path, pluginURL.path, socketPath],
+            arguments: [javascriptRuntime, harnessURL.path, pluginURL.path, socketPath],
             environment: ProcessInfo.processInfo.environment,
             timeout: 5
         )
@@ -109,6 +110,24 @@ final class OpenCodeHookRegressionTests: XCTestCase {
 
     private func bundledCLIPath() throws -> String {
         try BundledCLITestSupport.bundledCLIPath(for: Self.self)
+    }
+
+    private static func javascriptRuntimeExecutable() -> String {
+        let pathEntries = (ProcessInfo.processInfo.environment["PATH"] ?? "")
+            .split(separator: ":", omittingEmptySubsequences: true)
+            .map(String.init)
+        for runtime in ["node", "bun"] {
+            if pathEntries.contains(where: { directory in
+                FileManager.default.isExecutableFile(
+                    atPath: URL(fileURLWithPath: directory)
+                        .appendingPathComponent(runtime)
+                        .path
+                )
+            }) {
+                return runtime
+            }
+        }
+        return "node"
     }
 
     private static let openCodeFeedEventHarness = #"""
