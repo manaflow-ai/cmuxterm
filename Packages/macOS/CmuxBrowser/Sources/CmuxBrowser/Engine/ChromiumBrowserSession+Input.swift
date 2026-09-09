@@ -6,8 +6,18 @@ extension ChromiumBrowserSession {
     /// - Throws: A CDP transport or command error.
     public func stopLoading() async throws {
         if let owlRuntime {
+            let pendingIntent = owlNavigationIntent
+            let wasLoading = isLoading
+            let stoppedURL: URL?
             do {
-                _ = try owlRuntime.evaluate("window.stop()")
+                let raw = try owlRuntime.evaluate("(window.stop(), String(location.href || ''))")
+                if let data = raw.data(using: .utf8),
+                   let object = try? JSONSerialization.jsonObject(with: data),
+                   let href = CDPValue(any: object).stringValue {
+                    stoppedURL = URL(string: href)
+                } else {
+                    stoppedURL = nil
+                }
             } catch {
                 failOwlNavigation()
                 throw error
@@ -17,7 +27,26 @@ extension ChromiumBrowserSession {
             owlNavigationIntent = nil
             owlNavigationSawLoadingEvent = false
             owlNavigationBaselineDocumentEpoch = nil
+            if let stoppedURL {
+                if let pendingIntent {
+                    switch pendingIntent {
+                    case .destination where !Self.matches(url: currentURL, target: stoppedURL):
+                        owlHistory?.commitDestination(stoppedURL)
+                    case .back, .forward:
+                        owlHistory?.commitTraversal(to: stoppedURL)
+                    case .reload:
+                        owlHistory?.commitReload()
+                    case .destination:
+                        break
+                    }
+                    syncOwlHistorySnapshot()
+                }
+                currentURL = stoppedURL
+            }
             isLoading = false
+            if pendingIntent != nil || wasLoading {
+                navigationRevision &+= 1
+            }
             publish()
             return
         }

@@ -37,6 +37,7 @@ public actor ChromiumBrowserSession {
     var owlNavigationIntent: OwlNavigationIntent?
     var owlNavigationSawLoadingEvent = false
     var owlNavigationBaselineDocumentEpoch: Double?
+    var owlCurrentDocumentEpoch: Double?
     var nativeSurfaceContextID: UInt32?
     var connection: ChromiumCDPConnection?
     var state: ChromiumSessionState = .stopped
@@ -140,6 +141,7 @@ public actor ChromiumBrowserSession {
         owlNavigationIntent = nil
         owlNavigationSawLoadingEvent = false
         owlNavigationBaselineDocumentEpoch = nil
+        owlCurrentDocumentEpoch = nil
         for child in pendingProcesses.values {
             child.terminate()
         }
@@ -383,6 +385,7 @@ public actor ChromiumBrowserSession {
         owlNavigationIntent = nil
         owlNavigationSawLoadingEvent = false
         owlNavigationBaselineDocumentEpoch = nil
+        owlCurrentDocumentEpoch = owlDocumentEpoch(runtime: runtime)
         syncOwlHistorySnapshot()
         publish()
         owlPollTask = Task.detached(priority: .userInitiated) { [runtime] in
@@ -413,7 +416,10 @@ public actor ChromiumBrowserSession {
                     // the fallback monitor. The loading callback is the
                     // operation's start edge; readiness still verifies the
                     // complete document before committing it.
-                    beginOwlNavigation(.destination(eventURL))
+                    beginOwlNavigation(
+                        .destination(eventURL),
+                        baselineDocumentEpoch: owlCurrentDocumentEpoch
+                    )
                     owlNavigationSawLoadingEvent = true
                     startOwlNavigationReadinessMonitor()
                 }
@@ -450,6 +456,7 @@ public actor ChromiumBrowserSession {
         owlNavigationIntent = nil
         owlNavigationSawLoadingEvent = false
         owlNavigationBaselineDocumentEpoch = nil
+        owlCurrentDocumentEpoch = nil
         nativeSurfaceContextID = nil
     }
 
@@ -469,6 +476,7 @@ public actor ChromiumBrowserSession {
         owlNavigationIntent = nil
         owlNavigationSawLoadingEvent = false
         owlNavigationBaselineDocumentEpoch = nil
+        owlCurrentDocumentEpoch = nil
         nativeSurfaceContextID = nil
         let connectionToClose = connection
         connectionToClose?.close()

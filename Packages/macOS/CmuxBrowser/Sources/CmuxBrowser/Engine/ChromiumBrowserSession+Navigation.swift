@@ -384,6 +384,9 @@ extension ChromiumBrowserSession {
         ) else {
             return false
         }
+        if let documentEpoch = CDPValue(any: object["documentEpoch"]).doubleValue {
+            owlCurrentDocumentEpoch = documentEpoch
+        }
         if let title = object["title"] as? String, !title.isEmpty { self.title = title }
         commitOwlNavigation(intent, eventURL: eventURL)
         publish()
