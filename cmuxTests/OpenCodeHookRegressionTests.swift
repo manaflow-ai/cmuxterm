@@ -23,13 +23,16 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? fileManager.removeItem(at: root) }
 
-        let socketPath = root.appendingPathComponent("cmux.sock").path
+        let socketURL = URL(fileURLWithPath: "/tmp", isDirectory: true)
+            .appendingPathComponent("cmux-opencode-feed-\(UUID().uuidString).sock", isDirectory: false)
+        let socketPath = socketURL.path
         let harnessURL = root.appendingPathComponent("harness.js")
         try Self.openCodeFeedEventHarness.write(to: harnessURL, atomically: true, encoding: .utf8)
+        defer { try? fileManager.removeItem(at: socketURL) }
 
         let result = runProcess(
-            executablePath: "/usr/bin/env",
-            arguments: ["node", harnessURL.path, pluginURL.path, socketPath],
+            executablePath: try nodeExecutablePath(),
+            arguments: [harnessURL.path, pluginURL.path, socketPath],
             environment: ProcessInfo.processInfo.environment,
             timeout: 5
         )
@@ -109,6 +112,32 @@ final class OpenCodeHookRegressionTests: XCTestCase {
 
     private func bundledCLIPath() throws -> String {
         try BundledCLITestSupport.bundledCLIPath(for: Self.self)
+    }
+
+    private func nodeExecutablePath() throws -> String {
+        let pathDirectories = (ProcessInfo.processInfo.environment["PATH"] ?? "")
+            .split(separator: ":")
+            .map(String.init)
+        let candidatePaths = pathDirectories.map {
+            URL(fileURLWithPath: $0).appendingPathComponent("node", isDirectory: false).path
+        } + [
+            "/opt/homebrew/bin/node",
+            "/usr/local/bin/node",
+            "/usr/bin/node",
+            "/bin/node",
+        ]
+        var visitedPaths = Set<String>()
+        guard let executablePath = candidatePaths.first(where: { candidatePath in
+            visitedPaths.insert(candidatePath).inserted
+                && FileManager.default.isExecutableFile(atPath: candidatePath)
+        }) else {
+            throw NSError(
+                domain: "OpenCodeHookRegressionTests",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Node.js executable not found"]
+            )
+        }
+        return executablePath
     }
 
     private static let openCodeFeedEventHarness = #"""
