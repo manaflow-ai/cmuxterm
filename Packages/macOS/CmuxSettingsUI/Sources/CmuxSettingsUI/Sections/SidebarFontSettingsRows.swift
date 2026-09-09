@@ -15,7 +15,7 @@ struct SidebarFontSettingsRows: View {
             SettingsCardRow(
                 configurationReview: .json("sidebarAppearance.fontFamily"),
                 String(localized: "settings.sidebarAppearance.fontFamily", defaultValue: "Sidebar Font Family"),
-                subtitle: String(localized: "settings.sidebarAppearance.fontFamily.subtitle", defaultValue: "Use an installed font family for workspace titles, details, badges, and custom sidebar text. Leave empty for the system font."),
+                subtitle: String(localized: "settings.sidebarAppearance.fontFamily.subtitle", defaultValue: "Use an installed font family for built-in workspace titles, details, and badges. Leave empty for the system font."),
                 controlWidth: 250
             ) {
                 TextField(

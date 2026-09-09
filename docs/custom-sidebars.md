@@ -324,6 +324,10 @@ Text/typography: `.font(.title2|.headline|.caption|.system(size:design:)...)`,
 `.multilineTextAlignment(.center)`, `.textCase(.uppercase)`, `.strikethrough()`,
 `.underline()`.
 
+`sidebarAppearance.fontFamily` styles the built-in sidebar. Custom sidebars choose
+their own families with the declarations above; a JS or JSON family without a
+size uses the 13-point body default.
+
 Color/fill: `.foregroundColor`/`.foregroundStyle`/`.fill`/`.tint` taking a hex
 string `"#FF8800"` or a token (`primary`, `secondary`, `tertiary`, `accent`,
 `red`, `blue`, `mint`, `indigo`, `teal`, `cyan`, `brown`, …). `Color("#hex")` /

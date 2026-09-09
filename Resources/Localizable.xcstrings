@@ -223765,13 +223765,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Use an installed font family for workspace titles, details, badges, and custom sidebar text. Leave empty for the system font."
+            "value": "Use an installed font family for built-in workspace titles, details, and badges. Leave empty for the system font."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ワークスペースのタイトル、詳細、バッジ、カスタムサイドバーのテキストにインストール済みのフォントファミリーを使います。空のままにするとシステムフォントを使います。"
+            "value": "内蔵サイドバーのワークスペースのタイトル、詳細、バッジにインストール済みのフォントファミリーを使います。空のままにするとシステムフォントを使います。"
           }
         }
       }
