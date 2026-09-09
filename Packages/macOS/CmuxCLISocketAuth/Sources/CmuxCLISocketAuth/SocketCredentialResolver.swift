@@ -53,6 +53,7 @@ public final class SocketCredentialResolver: @unchecked Sendable {
     private let socketPath: String
     private let filePasswordProvider: @Sendable () -> String?
     private let keychainPasswordProvider: KeychainPasswordProvider
+    private let now: @Sendable () -> Date
     /// Shared mode state for clients targeting this route.
     public let authenticationModeCoordinator: SocketAuthenticationModeCoordinator
     // The resolver is shared by synchronous CLI and detached readiness paths.
@@ -68,7 +69,7 @@ public final class SocketCredentialResolver: @unchecked Sendable {
     /// The default sources read the same state-directory password file as the
     /// app and the legacy scoped keychain entries. Neither source is invoked by
     /// initialization or by ``password(for:)`` with ``SocketCredentialResolutionDemand/initialConnection``.
-    public init(
+    public convenience init(
         explicitPassword: String?,
         socketPath: String,
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -77,9 +78,32 @@ public final class SocketCredentialResolver: @unchecked Sendable {
         keychainPasswordProvider: KeychainPasswordProvider? = nil,
         authenticationModeCoordinator: SocketAuthenticationModeCoordinator? = nil
     ) {
+        self.init(
+            explicitPassword: explicitPassword,
+            socketPath: socketPath,
+            environment: environment,
+            fileManager: fileManager,
+            filePasswordProvider: filePasswordProvider,
+            keychainPasswordProvider: keychainPasswordProvider,
+            authenticationModeCoordinator: authenticationModeCoordinator,
+            now: { Date.now }
+        )
+    }
+
+    init(
+        explicitPassword: String?,
+        socketPath: String,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default,
+        filePasswordProvider: (@Sendable () -> String?)? = nil,
+        keychainPasswordProvider: KeychainPasswordProvider? = nil,
+        authenticationModeCoordinator: SocketAuthenticationModeCoordinator? = nil,
+        now: @escaping @Sendable () -> Date
+    ) {
         self.explicitPassword = Self.normalized(explicitPassword)
         self.environment = environment
         self.socketPath = socketPath
+        self.now = now
         let defaultPasswordFileURL = SocketControlPasswordStore.defaultPasswordFileURL(fileManager: fileManager)
         self.filePasswordProvider = filePasswordProvider ?? {
             Self.loadFromFile(url: defaultPasswordFileURL)
@@ -151,7 +175,7 @@ public final class SocketCredentialResolver: @unchecked Sendable {
     /// Resolves the credential chain without starting a source read after the deadline.
     public func resolve(deadline: Date?) -> String? {
         resolutionState.withLock { state in
-            guard !Self.deadlineExpired(deadline) else { return nil }
+            guard !deadlineExpired(deadline) else { return nil }
             switch state {
             case let .resolved(password, _):
                 return password
@@ -171,7 +195,7 @@ public final class SocketCredentialResolver: @unchecked Sendable {
                 state = .resolved(password: filePassword, source: .file)
                 return filePassword
             }
-            guard !Self.deadlineExpired(deadline) else { return nil }
+            guard !deadlineExpired(deadline) else { return nil }
             let services = Self.keychainServices(socketPath: socketPath, environment: environment)
             let keychainPassword = Self.normalized(keychainPasswordProvider(services))
             if let keychainPassword {
@@ -181,7 +205,7 @@ public final class SocketCredentialResolver: @unchecked Sendable {
             // A missing result that arrives after the deadline is not a
             // definitive credential absence; leave the source unresolved so a
             // later operation can retry with its own deadline.
-            guard !Self.deadlineExpired(deadline) else { return nil }
+            guard !deadlineExpired(deadline) else { return nil }
             state = .resolved(password: nil, source: nil)
             return nil
         }
@@ -204,9 +228,9 @@ public final class SocketCredentialResolver: @unchecked Sendable {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private static func deadlineExpired(_ deadline: Date?) -> Bool {
+    private func deadlineExpired(_ deadline: Date?) -> Bool {
         guard let deadline else { return false }
-        return deadline.timeIntervalSinceNow <= 0
+        return now() >= deadline
     }
 
     private static func loadFromFile(url: URL?) -> String? {

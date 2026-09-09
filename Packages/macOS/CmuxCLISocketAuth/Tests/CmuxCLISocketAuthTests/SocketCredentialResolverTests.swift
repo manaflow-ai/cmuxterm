@@ -189,7 +189,8 @@ struct SocketCredentialResolverTests {
                     return nil
                 }
                 return "fresh-keychain-password"
-            }
+            },
+            now: { clock.withLock { $0 } }
         )
 
         let firstDeadline = clock.withLock { $0.addingTimeInterval(1) }
