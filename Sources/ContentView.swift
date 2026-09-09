@@ -2103,6 +2103,7 @@ struct ContentView: View {
                     NSSound.beep()
                 }
             },
+            onCaptureScreenshot: triggerTitlebarFullDesktopScreenshot,
             visibilityMode: .alwaysVisible
         )
         .offset(y: -TitlebarControlsVisualMetrics.verticalLift)
@@ -11525,7 +11526,8 @@ struct VerticalTabsSidebar: View, Equatable {
                 if !tabManager.navigateForward() {
                     NSSound.beep()
                 }
-            }
+            },
+            onCaptureScreenshot: triggerTitlebarFullDesktopScreenshot
         )
     }
 
