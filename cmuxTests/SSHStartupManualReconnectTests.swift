@@ -52,7 +52,7 @@ struct SSHStartupManualReconnectTests {
         }
     }
 
-    @Test func manualReconnectReentersConnectLoop() throws {
+    @Test func failedVMStartupClosesAfterDismissalWithoutImplicitReconnect() throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory
             .appendingPathComponent("cmux-ssh-manual-retry-\(UUID().uuidString)", isDirectory: true)
@@ -93,29 +93,27 @@ struct SSHStartupManualReconnectTests {
         environment["CMUX_TEST_ATTEMPT_FILE"] = attemptFile.path
         environment["CMUX_SSH_RECONNECT_DELAY_SECONDS"] = "0"
 
-        let result = Self.runProcess(
-            executablePath: "/bin/sh",
-            arguments: ["-c", startupCommand],
+        let prompt = try Self.makeTerminalExitPromptProcess(TerminalExitPromptFixture(
+            startupCommand: startupCommand,
             environment: environment,
-            standardInput: "r\n",
-            timeout: 5
-        )
+            temporaryDirectory: root
+        ))
+        defer { Self.stopAndCleanUp(prompt) }
+        try #require(Self.waitForFile(
+            at: prompt.transcriptURL,
+            containing: "press Enter to close this pane",
+            timeout: 3
+        ), "the failed VM connection must reach its dismissal prompt")
 
-        #expect(!result.timedOut, Comment(rawValue: result.stderr))
-        #expect(result.status == 0, Comment(rawValue: result.stderr))
-        #expect(
-            (try? String(contentsOf: attemptFile, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) == "2",
-            "manual `r` retry must re-run the SSH connect loop a second time"
-        )
-        let recordedCalls = (try? String(contentsOf: logFile, encoding: .utf8)) ?? ""
-        let sessionEndCalls = recordedCalls
-            .split(separator: "\n")
-            .filter { $0.contains("ssh-session-end") }
-        #expect(sessionEndCalls.count == 2, Comment(rawValue: result.stderr))
-        #expect(
-            recordedCalls.contains("rpc workspace.remote.reconnect {\"workspace_id\":\"11111111-1111-1111-1111-111111111111\",\"surface_id\":\"22222222-2222-2222-2222-222222222222\"}"),
-            Comment(rawValue: recordedCalls)
-        )
+        // Startup no longer owns manual reconnect. The old retry character is
+        // ordinary input; Enter dismisses this failed attempt without an RPC.
+        try prompt.standardInput.fileHandleForWriting.write(contentsOf: Data("r\n".utf8))
+        try #require(Self.waitForExit(prompt.process, timeout: 3))
+        #expect(prompt.process.terminationStatus == 1)
+        #expect(try String(contentsOf: attemptFile, encoding: .utf8) == "1")
+        let recordedCalls = try String(contentsOf: logFile, encoding: .utf8)
+        #expect(recordedCalls.split(separator: "\n").filter { $0.contains("ssh-session-end") }.count == 1)
+        #expect(!recordedCalls.contains("rpc workspace.remote.reconnect "))
     }
 
     @Test func terminalTeardownDisablesRemoteInputReportingModesBeforePrompt() throws {
@@ -154,17 +152,21 @@ struct SSHStartupManualReconnectTests {
         environment["CMUX_WORKSPACE_ID"] = "11111111-1111-1111-1111-111111111111"
         environment["CMUX_SURFACE_ID"] = "22222222-2222-2222-2222-222222222222"
         environment["CMUX_SSH_RECONNECT_LIMIT"] = "0"
-        let result = Self.runProcess(
-            executablePath: "/usr/bin/script",
-            arguments: ["-q", "-F", "/dev/null", "/bin/sh", startupURL.path],
+        let prompt = try Self.makeTerminalExitPromptProcess(TerminalExitPromptFixture(
+            startupCommand: startupURL.path,
             environment: environment,
-            standardInput: "\n",
-            timeout: 5
-        )
-
-        let transcript = result.stdout + result.stderr
-        #expect(!result.timedOut, Comment(rawValue: transcript))
-        #expect(result.status == 7, Comment(rawValue: transcript))
+            temporaryDirectory: root
+        ))
+        defer { Self.stopAndCleanUp(prompt) }
+        try #require(Self.waitForFile(
+            at: prompt.transcriptURL,
+            containing: "press Enter to close this pane",
+            timeout: 3
+        ))
+        try prompt.standardInput.fileHandleForWriting.write(contentsOf: Data([0x0A]))
+        try #require(Self.waitForExit(prompt.process, timeout: 3))
+        #expect(prompt.process.terminationStatus == 7)
+        let transcript = try String(contentsOf: prompt.transcriptURL, encoding: .utf8)
         let requiredResets = [
             "\u{1B}[?1004l", // focus reporting
             "\u{1B}[?1000l", // mouse reporting
@@ -294,7 +296,7 @@ struct SSHStartupManualReconnectTests {
             try? standardInput.fileHandleForWriting.close()
         }
 
-        try process.run()
+        try SSHStartupCommandTestSupport.startProcess(process)
         let authReady = Self.waitForFile(at: authReadyMarker, containing: "ready", timeout: 3)
         #expect(authReady, "Timed out waiting for foreground authentication to enter its nested PTY")
         if authReady {
@@ -380,7 +382,7 @@ struct SSHStartupManualReconnectTests {
             }
         }
 
-        try process.run()
+        try SSHStartupCommandTestSupport.startProcess(process)
         try #require(
             Self.waitForFile(at: backoffReadyMarker, containing: "ready", timeout: 3),
             "Timed out waiting for initial authentication retry backoff"
@@ -645,8 +647,9 @@ struct SSHStartupManualReconnectTests {
     }
 
     @MainActor
-    @Test func reconnectKeepsConnectedWorkspaceForEndedPaneRetry() {
+    @Test func reconnectKeepsConnectedWorkspaceForEndedPaneRetry() throws {
         let workspace = Workspace()
+        defer { workspace.disconnectRemoteConnection(clearConfiguration: true) }
         let configuration = Self.makeRemoteConfiguration()
         workspace.configureRemoteConnection(configuration, autoConnect: false)
         workspace.applyRemoteConnectionStateUpdate(
@@ -655,8 +658,8 @@ struct SSHStartupManualReconnectTests {
             target: "cmux-macmini"
         )
 
-        let panel = TerminalPanel(workspaceId: workspace.id)
-        workspace.panels[panel.id] = panel
+        let panel = try #require(workspace.newTerminalSurfaceInFocusedPane(focus: false))
+        workspace.untrackRemoteTerminalSurface(panel.id)
         workspace.pendingRemoteTerminalChildExitSurfaceIds.insert(panel.id)
 
         #expect(!workspace.isRemoteTerminalSurface(panel.id))
@@ -674,6 +677,11 @@ struct SSHStartupManualReconnectTests {
         let workspace = Workspace()
         let configuration = Self.makeRemoteConfiguration()
         workspace.configureRemoteConnection(configuration, autoConnect: false)
+        workspace.applyRemoteConnectionStateUpdate(
+            .connected,
+            detail: "Connected controller",
+            target: configuration.displayTarget
+        )
         let panelId = try #require(workspace.focusedTerminalPanel?.id)
         #expect(
             workspace.markRemoteTerminalSessionConnected(
@@ -696,28 +704,33 @@ struct SSHStartupManualReconnectTests {
     }
 
     @MainActor
-    @Test func reconnectDefersToInFlightReconnectForEndedPaneRetry() {
+    @Test func reconnectingPresentationWithoutOwnerStartsAControllerTransition() async throws {
         let workspace = Workspace()
+        defer { workspace.disconnectRemoteConnection(clearConfiguration: true) }
         let configuration = Self.makeRemoteConfiguration()
         workspace.configureRemoteConnection(configuration, autoConnect: false)
+        await workspace.remoteSessionTransitionTask?.value
         workspace.applyRemoteConnectionStateUpdate(
             .reconnecting,
             detail: "Reconnecting to cmux-macmini via shared local proxy 127.0.0.1:64007",
             target: "cmux-macmini"
         )
 
-        let panel = TerminalPanel(workspaceId: workspace.id)
-        workspace.panels[panel.id] = panel
+        let panel = try #require(workspace.newTerminalSurfaceInFocusedPane(focus: false))
+        workspace.untrackRemoteTerminalSurface(panel.id)
         workspace.pendingRemoteTerminalChildExitSurfaceIds.insert(panel.id)
 
         #expect(!workspace.isRemoteTerminalSurface(panel.id))
         #expect(workspace.remoteConnectionState == .reconnecting)
 
-        workspace.reconnectRemoteConnection(surfaceId: panel.id)
+        #expect(workspace.remoteSessionController == nil)
+        #expect(workspace.remoteSessionTransitionTask == nil)
+        #expect(workspace.reconnectRemoteConnection(surfaceId: panel.id))
 
         #expect(workspace.isRemoteTerminalSurface(panel.id))
         #expect(!workspace.pendingRemoteTerminalChildExitSurfaceIds.contains(panel.id))
-        #expect(workspace.remoteConnectionState == .reconnecting)
+        #expect(workspace.remoteConnectionState == .connecting)
+        #expect(workspace.remoteSessionTransitionTask != nil)
     }
 
     @MainActor
@@ -975,27 +988,9 @@ struct SSHStartupManualReconnectTests {
             return startupCommand.replacingOccurrences(of: systemSSHPath, with: fakeSSH.path)
         }
 
-        let encodedPrefix = "(printf %s "
-        let encodedSuffix = " | base64"
-        let prefixRange = try #require(startupCommand.range(of: encodedPrefix))
-        let suffixRange = try #require(
-            startupCommand.range(
-                of: encodedSuffix,
-                range: prefixRange.upperBound..<startupCommand.endIndex
-            )
-        )
-        let encodedRange = prefixRange.upperBound..<suffixRange.lowerBound
-        let encodedScript = String(startupCommand[encodedRange])
-        let scriptData = try #require(Data(base64Encoded: encodedScript))
-        let script = try #require(String(data: scriptData, encoding: .utf8))
-        try #require(script.contains(systemSSHPath))
-        let rewrittenScript = script.replacingOccurrences(of: systemSSHPath, with: fakeSSH.path)
-        var rewrittenCommand = startupCommand
-        rewrittenCommand.replaceSubrange(
-            encodedRange,
-            with: Data(rewrittenScript.utf8).base64EncodedString()
-        )
-        return rewrittenCommand
+        return try #require(SSHStartupCommandTestSupport.replacingPinnedSSH(
+            in: startupCommand, with: fakeSSH.path
+        ))
     }
 
     private static func makeTerminalExitPromptFixture() throws -> TerminalExitPromptFixture {
@@ -1041,8 +1036,10 @@ struct SSHStartupManualReconnectTests {
         }
     }
 
-    private static func makeTerminalExitPromptProcess() throws -> TerminalExitPromptProcess {
-        let fixture = try makeTerminalExitPromptFixture()
+    private static func makeTerminalExitPromptProcess(
+        _ suppliedFixture: TerminalExitPromptFixture? = nil
+    ) throws -> TerminalExitPromptProcess {
+        let fixture = try suppliedFixture ?? makeTerminalExitPromptFixture()
         let transcriptURL = fixture.temporaryDirectory.appendingPathComponent("transcript.txt")
         try Data().write(to: transcriptURL)
         let transcriptHandle = try FileHandle(forWritingTo: transcriptURL)
@@ -1055,7 +1052,7 @@ struct SSHStartupManualReconnectTests {
         process.standardOutput = transcriptHandle
         process.standardError = FileHandle.nullDevice
         do {
-            try process.run()
+            try SSHStartupCommandTestSupport.startProcess(process)
         } catch {
             try? transcriptHandle.close()
             try? FileManager.default.removeItem(at: fixture.temporaryDirectory)
@@ -1119,29 +1116,22 @@ struct SSHStartupManualReconnectTests {
         executablePath: String,
         arguments: [String],
         environment: [String: String],
-        standardInput: String? = nil,
         timeout: TimeInterval
     ) -> ProcessRunResult {
         let process = Process()
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
-        let stdinPipe = standardInput == nil ? nil : Pipe()
         process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = arguments
         process.environment = environment
-        process.standardInput = stdinPipe ?? FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
         do {
-            try process.run()
+            try SSHStartupCommandTestSupport.startProcess(process)
         } catch {
             return ProcessRunResult(status: -1, stdout: "", stderr: String(describing: error), timedOut: false)
-        }
-
-        if let standardInput, let stdinPipe {
-            try? stdinPipe.fileHandleForWriting.write(contentsOf: Data(standardInput.utf8))
-            try? stdinPipe.fileHandleForWriting.close()
         }
 
         let exitSignal = DispatchSemaphore(value: 0)
