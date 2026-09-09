@@ -160,7 +160,11 @@ extension AppDelegate {
                 // the suffix reach the focused responder unchanged. The
                 // marker also protects the later AppKit replay seam.
                 if event.type == .keyDown {
-                    markPrefixChordPassThrough(event, dispatchWindow: dispatchWindow)
+                    markPrefixChordPassThrough(
+                        event,
+                        dispatchWindow: dispatchWindow,
+                        windowNumber: preOfferWindowNumber
+                    )
                 }
                 return false
             }
