@@ -66,10 +66,9 @@ import Testing
     }
 
     @Test func oversizedSleepUsesSafeChunksWithoutShorteningTheWait() async throws {
-        let runChunkedSleep = CmxRetryAfterPolicy.sleep
         let firstChunks = AsyncStream<TimeInterval>.makeStream()
         do {
-            try await runChunkedSleep(seconds: 18_446_744_074) { chunk in
+            try await CmxRetryAfterPolicy.sleep(seconds: 18_446_744_074) { chunk in
                 firstChunks.continuation.yield(chunk)
                 throw CancellationError()
             }
@@ -81,7 +80,7 @@ import Testing
 
         let secondChunks = AsyncStream<TimeInterval>.makeStream()
         let time = RetryAfterTestTime()
-        try await runChunkedSleep(seconds: 172_801) { chunk in
+        try await CmxRetryAfterPolicy.sleep(seconds: 172_801) { chunk in
             secondChunks.continuation.yield(chunk)
             time.advance(by: chunk)
         }
