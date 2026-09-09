@@ -178,7 +178,7 @@ struct CmuxConfigTypeValidator: Sendable {
             if rawShortcut is String {
                 // StoredShortcut accepts a string and validates its syntax in the app decoder.
             } else if let strokes = rawShortcut as? [Any] {
-                guard (1...2).contains(strokes.count), strokes.allSatisfy({ $0 is String }) else {
+                if !(1...2).contains(strokes.count) || !strokes.allSatisfy({ $0 is String }) {
                     issues.append(issue(
                         path: "\(path).shortcut",
                         key: "invalidField",
