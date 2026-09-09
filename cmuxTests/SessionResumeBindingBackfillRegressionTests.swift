@@ -196,6 +196,32 @@ struct SessionResumeBindingBackfillRegressionTests {
         )
     }
 
+    @Test @MainActor
+    func retiringAgentBindingAdvancesAppOwnedOwnerGeneration() throws {
+        let workspace = Workspace()
+        let panel = try #require(workspace.focusedTerminalPanel)
+        let binding = SurfaceResumeBindingSnapshot(
+            kind: "claude",
+            command: "claude --resume retired-session",
+            checkpointId: "retired-session",
+            source: "agent-hook",
+            autoResume: true,
+            updatedAt: 11
+        )
+
+        #expect(workspace.setSurfaceResumeBinding(binding, panelId: panel.id))
+        let ownerGeneration = try #require(
+            workspace.surfaceResumeBindingGeneration(panelId: panel.id)
+        )
+
+        workspace.retireAgentHookResumeBinding(panelId: panel.id)
+
+        #expect(workspace.surfaceResumeBinding(panelId: panel.id)?.autoResume == false)
+        #expect(
+            workspace.surfaceResumeBindingGeneration(panelId: panel.id) != ownerGeneration
+        )
+    }
+
     @Test
     func fingerprintHashesPersistedResumeInputs() {
         let registration = CmuxVaultAgentRegistration(

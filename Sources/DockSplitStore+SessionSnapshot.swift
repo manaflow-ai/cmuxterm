@@ -588,12 +588,12 @@ extension DockSplitStore {
             guard surfaceResumeBindingMutationAllowed(effective, panelId: panelId) else {
                 return stored
             }
-            surfaceResumeBindingsByPanelId[panelId] = effective
+            installSurfaceResumeBinding(effective, panelId: panelId)
         } else {
             guard surfaceResumeBindingRemovalAllowed(panelId: panelId) else {
                 return stored
             }
-            surfaceResumeBindingsByPanelId.removeValue(forKey: panelId)
+            removeStoredSurfaceResumeBinding(panelId: panelId)
         }
         return effective
     }

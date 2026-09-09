@@ -459,7 +459,7 @@ extension Workspace {
         }
         binding.autoResume = false
         if surfaceResumeBindingMutationAllowed(binding, panelId: panelId) {
-            surfaceResumeBindingsByPanelId[panelId] = binding
+            installSurfaceResumeBinding(binding, panelId: panelId)
         }
     }
 
