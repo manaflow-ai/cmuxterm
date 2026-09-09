@@ -11,6 +11,7 @@ extension ClaudeHookSessionRecord {
             AgentHookPromptLifecycleState(
                 depth: activePromptDepth,
                 activeTurnID: activePromptTurnId,
+                activeInvocationNumber: activePromptInvocationNumber,
                 activeTurnIDs: activePromptTurnIds,
                 lastTurnID: lastPromptTurnId
             )
@@ -18,22 +19,36 @@ extension ClaudeHookSessionRecord {
         set {
             activePromptDepth = newValue.depth
             activePromptTurnId = newValue.activeTurnID
+            activePromptInvocationNumber = newValue.activeInvocationNumber
             activePromptTurnIds = newValue.activeTurnIDs
             lastPromptTurnId = newValue.lastTurnID
         }
     }
 
     /// Starts an authoritative prompt in the persisted session projection.
-    mutating func beginAuthoritativePrompt(turnId: String?) {
+    mutating func beginAuthoritativePrompt(turnId: String?, invocationNumber: Int? = nil) {
         let wasActive = (activePromptDepth ?? 0) > 0
         let previousActiveTurnId = activePromptTurnId ?? activePromptTurnIds?.last
+        let previousInvocationNumber = activePromptInvocationNumber
         var state = promptLifecycleState
-        state.beginAuthoritativePrompt(turnID: turnId)
+        state.beginAuthoritativePrompt(
+            turnID: turnId,
+            invocationNumber: invocationNumber
+        )
         promptLifecycleState = state
         // Antigravity emits PreInvocation once per model invocation within a
         // single turn. Keep those repeated callbacks in one generation, while
         // still fencing a new turn when it has an explicit, changed ID.
-        if !wasActive || (turnId != nil && turnId != previousActiveTurnId) {
+        let isExplicitlyNewTurn = turnId != nil && turnId != previousActiveTurnId
+        let isResetInvocation: Bool = {
+            guard turnId == nil,
+                  let invocationNumber,
+                  let previousInvocationNumber else {
+                return false
+            }
+            return invocationNumber < previousInvocationNumber
+        }()
+        if !wasActive || isExplicitlyNewTurn || isResetInvocation {
             advancePromptLifecycleRevision()
         }
     }

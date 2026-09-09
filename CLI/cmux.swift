@@ -292,6 +292,10 @@ struct ClaudeHookSessionRecord: Codable {
     var activePromptDepth: Int?
     var activePromptTurnId: String?
     var activePromptTurnIds: [String]?
+    /// Provider invocation number for the active prompt, when available.
+    /// Antigravity uses this to distinguish same-turn callbacks from a new
+    /// turn when it omits a turn identifier.
+    var activePromptInvocationNumber: Int?
     var lastPromptTurnId: String?
     /// Monotonic identity for the authoritative prompt projection. A delayed
     /// SessionEnd must only settle the exact prompt revision it observed.
@@ -1196,6 +1200,7 @@ final class ClaudeHookSessionStore {
         cwd: String?,
         transcriptPath: String? = nil,
         turnId: String? = nil,
+        invocationNumber: Int? = nil,
         previousActivePromptTurnIsTerminal: Bool = false,
         terminalActivePromptTurnIds: Set<String> = [],
         pid: Int?,
@@ -1247,7 +1252,10 @@ final class ClaudeHookSessionStore {
             )
             appendAutoNameMessages(autoNameMessages, to: &record)
             if promptDepthPolicy.closesActivePrompt {
-                record.beginAuthoritativePrompt(turnId: normalizedTurnId)
+                record.beginAuthoritativePrompt(
+                    turnId: normalizedTurnId,
+                    invocationNumber: invocationNumber
+                )
                 state.sessions[normalized] = record
                 return (staleTerminalTurn: false, nested: false)
             }
@@ -35572,6 +35580,8 @@ export default CMUXSessionRestore;
                         cwd: preferredAgentHookResumeWorkingDirectory(kind: def.name, current: launchCommand, currentCwd: hookCwd, mapped: mapped),
                         transcriptPath: transcriptPathForStore,
                         turnId: input.turnId,
+                        invocationNumber: (input.rawObject?["invocationNum"] as? NSNumber)?.intValue
+                            ?? (input.rawObject?["invocation_num"] as? NSNumber)?.intValue,
                         previousActivePromptTurnIsTerminal: previousActivePromptTurnIsTerminal,
                         terminalActivePromptTurnIds: terminalActivePromptTurnIds,
                         pid: pid,

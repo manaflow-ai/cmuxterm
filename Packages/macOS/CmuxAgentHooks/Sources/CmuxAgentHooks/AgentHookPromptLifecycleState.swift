@@ -6,6 +6,11 @@ public struct AgentHookPromptLifecycleState: Sendable, Equatable {
     /// The most recently active turn identifier, when the provider supplies one.
     public private(set) var activeTurnID: String?
 
+    /// The provider's invocation number for the active prompt, when supplied.
+    /// Antigravity increments this for repeated model invocations in one turn
+    /// and resets it when a new user turn begins.
+    public private(set) var activeInvocationNumber: Int?
+
     /// The active turn stack, when turn identifiers are available.
     public private(set) var activeTurnIDs: [String]?
 
@@ -17,26 +22,32 @@ public struct AgentHookPromptLifecycleState: Sendable, Equatable {
     /// - Parameters:
     ///   - depth: The persisted active prompt depth.
     ///   - activeTurnID: The persisted active turn identifier.
+    ///   - activeInvocationNumber: The provider's optional invocation number.
     ///   - activeTurnIDs: The persisted active turn stack.
     ///   - lastTurnID: The persisted most recently observed turn identifier.
     public init(
         depth: Int? = nil,
         activeTurnID: String? = nil,
+        activeInvocationNumber: Int? = nil,
         activeTurnIDs: [String]? = nil,
         lastTurnID: String? = nil
     ) {
         self.depth = depth
         self.activeTurnID = activeTurnID
+        self.activeInvocationNumber = activeInvocationNumber
         self.activeTurnIDs = activeTurnIDs
         self.lastTurnID = lastTurnID
     }
 
     /// Begins one authoritative prompt, replacing any stale active frame.
     ///
-    /// - Parameter turnID: The provider's optional turn identifier.
-    public mutating func beginAuthoritativePrompt(turnID: String?) {
+    /// - Parameters:
+    ///   - turnID: The provider's optional turn identifier.
+    ///   - invocationNumber: The provider's optional invocation number.
+    public mutating func beginAuthoritativePrompt(turnID: String?, invocationNumber: Int? = nil) {
         depth = 1
         activeTurnID = turnID
+        activeInvocationNumber = invocationNumber
         activeTurnIDs = turnID.map { [$0] }
         // A provider may omit the turn id on a repeated invocation. That is
         // not a new completed-turn observation and must not erase the marker
@@ -50,6 +61,7 @@ public struct AgentHookPromptLifecycleState: Sendable, Equatable {
     public mutating func endAuthoritativePrompt() {
         depth = nil
         activeTurnID = nil
+        activeInvocationNumber = nil
         activeTurnIDs = nil
     }
 
