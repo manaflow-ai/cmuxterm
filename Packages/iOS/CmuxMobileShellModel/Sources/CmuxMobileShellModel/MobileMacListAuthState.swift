@@ -4,19 +4,12 @@ public import Observation
 private func entriesWithMinimumSupportedVersions(
     _ entries: [String: MobileMacListAuthState.Entry],
     stableMinimum: String?,
-    nightlyMinimum: String?,
-    overrideStable: Bool,
-    overrideNightly: Bool
+    nightlyMinimum: String?
 ) -> [String: MobileMacListAuthState.Entry] {
-    guard overrideStable || overrideNightly else { return entries }
     return entries.mapValues { entry in
         var updated = entry
-        if overrideStable {
-            updated.minimumSupportedVersion = stableMinimum
-        }
-        if overrideNightly {
-            updated.minimumSupportedNightlyVersion = nightlyMinimum
-        }
+        updated.minimumSupportedVersion = stableMinimum
+        updated.minimumSupportedNightlyVersion = nightlyMinimum
         return updated
     }
 }
@@ -160,35 +153,31 @@ public final class MobileMacListAuthState {
 
     public init() {}
 
+    /// Replaces the directory projection and its account-level floor.
+    ///
+    /// A missing directory floor is authoritative and clears the prior
+    /// directory value. The current iOS policy, when installed, remains the
+    /// higher-priority source for both release lanes.
     public func replace(
         entriesByEndpointID: [String: Entry],
         entriesByDeviceID: [String: Entry],
-        minimumSupportedMacVersion: String? = nil,
-        minimumSupportedNightlyMacVersion: String? = nil
+        minimumSupportedMacVersion: String? = nil
     ) {
         let effectiveStableMinimum = hasPolicyMinimumSupportedMacVersion
             ? policyMinimumSupportedMacVersion
-            : minimumSupportedMacVersion ?? self.minimumSupportedMacVersion
+            : minimumSupportedMacVersion
         let effectiveNightlyMinimum = hasPolicyMinimumSupportedMacVersion
             ? policyMinimumSupportedNightlyMacVersion
-            : minimumSupportedNightlyMacVersion ?? self.minimumSupportedNightlyMacVersion
-        let overrideStable = hasPolicyMinimumSupportedMacVersion
-            || effectiveStableMinimum != nil
-        let overrideNightly = hasPolicyMinimumSupportedMacVersion
-            || effectiveNightlyMinimum != nil
+            : nil
         self.entriesByEndpointID = entriesWithMinimumSupportedVersions(
             entriesByEndpointID,
             stableMinimum: effectiveStableMinimum,
-            nightlyMinimum: effectiveNightlyMinimum,
-            overrideStable: overrideStable,
-            overrideNightly: overrideNightly
+            nightlyMinimum: effectiveNightlyMinimum
         )
         self.entriesByDeviceID = entriesWithMinimumSupportedVersions(
             entriesByDeviceID,
             stableMinimum: effectiveStableMinimum,
-            nightlyMinimum: effectiveNightlyMinimum,
-            overrideStable: overrideStable,
-            overrideNightly: overrideNightly
+            nightlyMinimum: effectiveNightlyMinimum
         )
         self.minimumSupportedMacVersion = effectiveStableMinimum
         self.minimumSupportedNightlyMacVersion = effectiveNightlyMinimum
@@ -220,16 +209,12 @@ public final class MobileMacListAuthState {
         entriesByEndpointID = entriesWithMinimumSupportedVersions(
             entriesByEndpointID,
             stableMinimum: stable,
-            nightlyMinimum: nightly,
-            overrideStable: true,
-            overrideNightly: true
+            nightlyMinimum: nightly
         )
         entriesByDeviceID = entriesWithMinimumSupportedVersions(
             entriesByDeviceID,
             stableMinimum: stable,
-            nightlyMinimum: nightly,
-            overrideStable: true,
-            overrideNightly: true
+            nightlyMinimum: nightly
         )
         minimumSupportedMacVersion = stable
         minimumSupportedNightlyMacVersion = nightly

@@ -176,7 +176,7 @@ struct MobileMacListAuthStateTests {
     }
 
     @Test
-    func nightlyOnlyReplacementPreservesStableFloor() {
+    func authoritativeReplacementClearsObsoleteFloors() {
         let state = MobileMacListAuthState()
         let stable = MobileMacListAuthState.Entry(
             status: "active",
@@ -200,19 +200,19 @@ struct MobileMacListAuthStateTests {
         )
         state.replace(
             entriesByEndpointID: ["nightly-endpoint": nightly],
-            entriesByDeviceID: ["nightly-device": nightly],
-            minimumSupportedNightlyMacVersion: "0.64.22-nightly.3345650013202"
+            entriesByDeviceID: ["nightly-device": nightly]
         )
-        #expect(state.minimumSupportedMacVersion == "0.64.23")
-        // A subsequent snapshot carrying only the Nightly floor must not
-        // erase the Stable floor on its rows when a Stable entry is present.
+        #expect(state.minimumSupportedMacVersion == nil)
+        #expect(state.entry(deviceID: "nightly-device")!.minimumSupportedVersion == nil)
+
+        // A subsequent authoritative snapshot without a floor clears the
+        // previous Stable requirement rather than retaining stale state.
         state.replace(
             entriesByEndpointID: ["endpoint": stable],
-            entriesByDeviceID: ["device": stable],
-            minimumSupportedNightlyMacVersion: "0.64.22-nightly.3345650013202"
+            entriesByDeviceID: ["device": stable]
         )
-        #expect(state.entry(deviceID: "device")!.minimumSupportedVersion == "0.64.23")
-        #expect(state.entry(deviceID: "device")!.isOutdated)
+        #expect(state.entry(deviceID: "device")!.minimumSupportedVersion == nil)
+        #expect(!state.entry(deviceID: "device")!.isOutdated)
     }
 
     @Test
