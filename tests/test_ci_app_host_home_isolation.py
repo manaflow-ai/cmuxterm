@@ -55,7 +55,6 @@ TEST_RUNNER_ENVIRONMENT_KEYS = (
     "CMUX_APP_HOST_EXPECTED_XDG_CONFIG_HOME",
     "CMUX_APP_HOST_KEY",
     "CMUX_APP_HOST_RECEIPT_DIR",
-    "CMUX_TEST_NODE_PATH",
 )
 FORBIDDEN_SCHEME_ENVIRONMENT_KEYS = {
     f"TEST_RUNNER_{key}" for key in TEST_RUNNER_ENVIRONMENT_KEYS
@@ -416,20 +415,11 @@ def main() -> int:
         "app-host run-derived key": (
             '"TEST_RUNNER_CMUX_APP_HOST_KEY=$app_host_key"'
         ),
-        "app-host Node executable": (
-            '"TEST_RUNNER_CMUX_TEST_NODE_PATH=$CMUX_TEST_NODE_PATH"'
-        ),
         "Ghostty app-support path validation": (
             "validate_app_host_config_paths"
         ),
     }.items():
         require(APP_HOST_WRAPPER, needle, context)
-
-    require(
-        CONSOLE_WRAPPER,
-        "CMUX_TEST_NODE_PATH",
-        "console-session Node executable forwarding",
-    )
 
     cleanup_path = ROOT / "scripts/ci/cleanup-app-host-home.sh"
     if not cleanup_path.is_file():

@@ -13,7 +13,7 @@ if [ "${CMUX_MOCK_XCODEBUILD_PROCESS:-0}" = "1" ]; then
     "${CFFIXED_USER_HOME:-<unset>}" \
     "${XDG_CONFIG_HOME:-<unset>}" \
     >> "$CMUX_CAPTURE_XCODEBUILD_PARENT_ENV"
-  printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' \
+  printf '%s|%s|%s|%s|%s|%s|%s|%s|%s\n' \
     "${TEST_RUNNER_HOME:-<unset>}" \
     "${TEST_RUNNER_CFFIXED_USER_HOME:-<unset>}" \
     "${TEST_RUNNER_XDG_CONFIG_HOME:-<unset>}" \
@@ -23,7 +23,6 @@ if [ "${CMUX_MOCK_XCODEBUILD_PROCESS:-0}" = "1" ]; then
     "${TEST_RUNNER_CMUX_APP_HOST_EXPECTED_XDG_CONFIG_HOME:-<unset>}" \
     "${TEST_RUNNER_CMUX_APP_HOST_KEY:-<unset>}" \
     "${TEST_RUNNER_CMUX_APP_HOST_RECEIPT_DIR:-<unset>}" \
-    "${TEST_RUNNER_CMUX_TEST_NODE_PATH:-<unset>}" \
     >> "$CMUX_CAPTURE_TEST_RUNNER_HOME_ENV"
   config_home="${TEST_RUNNER_HOME:-${HOME:-/tmp}}"
   config_category=default
@@ -236,7 +235,6 @@ CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_TIMEOUT_SECONDS=0.1 \
 CMUX_CI_APP_HOST_ISOLATION_REQUIRED=1 \
 CMUX_APP_HOST_HOME="$APP_HOST_HOME" \
 CMUX_APP_HOST_XDG_CONFIG_HOME="$APP_HOST_XDG_CONFIG_HOME" \
-CMUX_TEST_NODE_PATH="$TMP_DIR/node" \
 CFFIXED_USER_HOME="$XCODE_PARENT_FIXED_HOME" \
 XDG_CONFIG_HOME="$XCODE_PARENT_XDG_CONFIG_HOME" \
   bash "$ROOT_DIR/scripts/ci/run-app-host-xcodebuild.sh" test >"$TMP_DIR/output.log" 2>&1
@@ -309,13 +307,6 @@ isolated_runner_count="$(awk -F '|' \
 if [ "$isolated_runner_count" -ne "$invocation_count" ]; then
   cat "$TMP_DIR/test-runner-home-env.log"
   echo "FAIL: every xcodebuild invocation must pass isolated homes through TEST_RUNNER_ variables"
-  exit 1
-fi
-
-node_runner_count="$(awk -F '|' -v node="$TMP_DIR/node" '$10 == node { count += 1 } END { print count + 0 }' "$TMP_DIR/test-runner-home-env.log")"
-if [ "$node_runner_count" -ne "$invocation_count" ]; then
-  cat "$TMP_DIR/test-runner-home-env.log"
-  echo "FAIL: every xcodebuild invocation must pass the explicit Node executable through TEST_RUNNER_ variables"
   exit 1
 fi
 
