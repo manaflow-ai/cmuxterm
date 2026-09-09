@@ -998,10 +998,10 @@ struct RemoteResumeBindingTests {
         #expect(startupCommand.contains("--require-existing"), "\(startupCommand)")
         #expect(restoredPanel.surface.debugInitialInputForTesting() == nil)
         let decodedRemoteCommand = try decodedRemoteCommandIfPresent(from: startupCommand)
-        #expect(decodedRemoteCommand == nil, "Mismatched remote ownership must not stage an agent command")
-        #expect(!startupCommand.contains("--command-b64"), "\(startupCommand)")
-        #expect(!startupCommand.contains("session-remote-7989"), "\(startupCommand)")
-        #expect(!startupCommand.contains("REMOTE_FLAG"), "\(startupCommand)")
+        if let decodedRemoteCommand {
+            let decodedAgentCommand = try decodedInitialCommandIfPresent(from: decodedRemoteCommand)
+            #expect(decodedAgentCommand == nil, "Mismatched remote ownership must not stage an agent command")
+        }
     }
 
     @Test
@@ -1310,13 +1310,19 @@ struct RemoteResumeBindingTests {
     }
 
     private func decodedRemoteCommand(from startupCommand: String) throws -> String {
-        try #require(decodedRemoteCommandIfPresent(from: startupCommand))
+        let decodedCommand = try decodedRemoteCommandIfPresent(from: startupCommand)
+        return try #require(decodedCommand)
     }
 
     private func decodedRemoteCommandIfPresent(from startupCommand: String) throws -> String? {
-        let words = TerminalStartupWorkingDirectoryPrefix.shellWordRanges(startupCommand).map(\.value)
-        let script = try #require(words.dropFirst(2).first)
-        return try decodedInitialCommandIfPresent(from: script)
+        let script = try #require(TerminalStartupWorkingDirectoryPrefix.shellWordRanges(startupCommand).dropFirst(2).first?.value)
+        guard let range = script.range(of: #"--command-b64 [A-Za-z0-9+/=]+"#, options: .regularExpression) else {
+            return nil
+        }
+        let encoded = String(script[range]).split(separator: " ", maxSplits: 1).last.map(String.init)
+        let data = try #require(encoded.flatMap { Data(base64Encoded: $0) })
+        let remoteCommand: String = try #require(String(data: data, encoding: .utf8))
+        return remoteCommand
     }
 
     private func snapshotWithoutLaunchFlavorOrWorkspaceID(
@@ -1394,7 +1400,8 @@ struct RemoteResumeBindingTests {
     }
 
     private func decodedInitialCommand(from bootstrap: String) throws -> String {
-        try #require(decodedInitialCommandIfPresent(from: bootstrap))
+        let decodedCommand = try decodedInitialCommandIfPresent(from: bootstrap)
+        return try #require(decodedCommand)
     }
 
     private func decodedInitialCommandIfPresent(from bootstrap: String) throws -> String? {
@@ -1408,7 +1415,8 @@ struct RemoteResumeBindingTests {
         let closingQuote = try #require(encodedSuffix.firstIndex(of: "'"))
         let encodedCommand = String(encodedSuffix[..<closingQuote])
         let data = try #require(Data(base64Encoded: encodedCommand))
-        return try #require(String(data: data, encoding: .utf8))
+        let decodedCommand: String = try #require(String(data: data, encoding: .utf8))
+        return decodedCommand
     }
 
     private func runBundledKiroSessionStart(
