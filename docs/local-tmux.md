@@ -113,6 +113,8 @@ tmux -V
 binary currently on `PATH`. They can differ after a package upgrade. Record the
 server PID and start time as well as the cmux and macOS versions. On macOS, `ps`
 and `lsof` can help inspect the selected PID's start time and mapped executable.
+If the mapped executable path has been replaced or removed, record that too; it
+is a possible confounding factor, not proof of the permission failure's cause.
 
 Outside the pane, use `tmux -S <socket-path>` to query the same server, or
 `tmux -L <socket-name>` for an explicitly named server. A plain `tmux ls` does not
@@ -130,6 +132,8 @@ currently non-reproducible rather than permanently fixed.
 When reporting the problem, include:
 
 - Whether the session uses `cmux local-tmux` or an external launcher.
+- The tested app build/revision and whether newer relevant changes were tested;
+  a marketing version alone may not distinguish a release from a development build.
 - The affected server's version/start time and how its socket was selected.
 - The failing operation and the results of the same-file comparison.
 - Any available permission-denial record at the failure time, with private paths
