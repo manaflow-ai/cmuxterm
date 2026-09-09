@@ -35,16 +35,17 @@ extension AgentNotificationRegressionTests {
         let readyMarker = root.appendingPathComponent("ready")
         let execMarker = root.appendingPathComponent("execed")
         try """
-        touch '\(readyMarker.path)'
         trap 'exec /bin/sh "\(scopedScript.path)"' USR1
-        while :; do sleep 1; done
+        touch '\(readyMarker.path)'
+        IFS= read -r ignored
         """.write(to: initialScript, atomically: true, encoding: .utf8)
         try """
         export CMUX_SURFACE_ID='\(fixture.panelId.uuidString)'
-        exec /bin/sh -c 'touch "\(execMarker.path)"; exec sleep 30'
+        exec /bin/sh -c 'printf "%s" "$CMUX_SURFACE_ID" > "\(execMarker.path).tmp"; mv "\(execMarker.path).tmp" "\(execMarker.path)"; IFS= read -r ignored'
         """.write(to: scopedScript, atomically: true, encoding: .utf8)
 
         let process = Process()
+        let inputPipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = [initialScript.path]
         var environment = ProcessInfo.processInfo.environment
@@ -52,6 +53,7 @@ extension AgentNotificationRegressionTests {
             environment.removeValue(forKey: $0)
         }
         process.environment = environment
+        process.standardInput = inputPipe
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try process.run()
@@ -60,6 +62,7 @@ extension AgentNotificationRegressionTests {
                 _ = Darwin.kill(process.processIdentifier, SIGKILL)
                 process.waitUntilExit()
             }
+            try? inputPipe.fileHandleForWriting.close()
             try? FileManager.default.removeItem(at: root)
         }
         #expect(await waitForMarker(at: readyMarker))
@@ -73,6 +76,7 @@ extension AgentNotificationRegressionTests {
         #expect(cachedMiss == nil)
         #expect(Darwin.kill(process.processIdentifier, SIGUSR1) == 0)
         #expect(await waitForMarker(at: execMarker))
+        #expect(try String(contentsOf: execMarker, encoding: .utf8) == fixture.panelId.uuidString)
 
         #expect(
             fixture.appDelegate.liveAgentDeliveryTarget(forAgentPID: process.processIdentifier)
