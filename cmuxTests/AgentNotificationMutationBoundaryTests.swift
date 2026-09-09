@@ -880,6 +880,12 @@ extension AgentNotificationRegressionTests {
                 + "Kiro|Current|Guarded delivery|g=\(guardValue.socketEnvelope)"
         )
         #expect(guardedResponse == "OK")
+        bus.drainForTesting()
+        #expect(fixture.store.notifications.map(\.body) == [
+            "Guarded delivery",
+        ])
+
+        fixture.store.replaceNotificationsForTesting([])
         let legacyOptionTextResponse = TerminalController.debugNotifyTargetQueuedResponseForTesting(
             "\(fixture.source.id.uuidString) \(fixture.panelId.uuidString) "
                 + "Kiro|Legacy|Keep partial --agent-guard --expected-agent-key=kiro"
@@ -887,11 +893,9 @@ extension AgentNotificationRegressionTests {
         #expect(legacyOptionTextResponse == "OK")
         bus.drainForTesting()
 
-        #expect(Set(fixture.store.notifications.map(\.body)) == Set([
-            "Body --agent-guard --expected-agent-key=kiro remains payload text",
-            "Guarded delivery",
+        #expect(fixture.store.notifications.map(\.body) == [
             "Keep partial --agent-guard --expected-agent-key=kiro",
-        ]))
+        ])
     }
 
     @Test("Guarded clear command forwards a complete session guard and rejects a partial one")
