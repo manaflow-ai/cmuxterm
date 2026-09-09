@@ -39,6 +39,10 @@ struct VaultPaneView: View {
                 )
             }
         }
+        // Keep the sidebar's identifier on its own container instead of
+        // inheriting it on every Vault tab, menu, and timeline control.
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("VaultPane")
     }
 
     private var tabBar: some View {
