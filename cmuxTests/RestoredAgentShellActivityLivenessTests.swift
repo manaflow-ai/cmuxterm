@@ -323,7 +323,7 @@ struct RestoredAgentShellActivityLivenessTests {
         let panelId = UUID()
 
         // The recorded process is alive with its recorded generation.
-        #expect(RestoredAgentLiveness.hasLiveProcess(
+        #expect(RestoredAgentLiveness().hasLiveProcess(
             agent,
             workspaceId: workspaceId,
             panelId: panelId,
@@ -334,7 +334,7 @@ struct RestoredAgentShellActivityLivenessTests {
         ))
         // The recorded process exited and the pane's foreground is something
         // that cannot be inspected.
-        #expect(!RestoredAgentLiveness.hasLiveProcess(
+        #expect(!RestoredAgentLiveness().hasLiveProcess(
             agent,
             workspaceId: workspaceId,
             panelId: panelId,
@@ -344,7 +344,7 @@ struct RestoredAgentShellActivityLivenessTests {
             currentProcessIdentity: { _ in nil }
         ))
         // A PID reused by another generation is not this session's process.
-        #expect(!RestoredAgentLiveness.hasLiveProcess(
+        #expect(!RestoredAgentLiveness().hasLiveProcess(
             agent,
             workspaceId: workspaceId,
             panelId: panelId,
@@ -362,7 +362,7 @@ struct RestoredAgentShellActivityLivenessTests {
             workingDirectory: Self.projectDirectory,
             launchCommand: nil
         )
-        #expect(!RestoredAgentLiveness.hasLiveProcess(
+        #expect(!RestoredAgentLiveness().hasLiveProcess(
             claude,
             workspaceId: workspaceId,
             panelId: panelId,
@@ -391,7 +391,7 @@ struct RestoredAgentShellActivityLivenessTests {
         let panelId = UUID()
 
         // The recorded process exited; a bare replacement Pi in the foreground vouches.
-        #expect(RestoredAgentLiveness.hasLiveProcess(
+        #expect(RestoredAgentLiveness().hasLiveProcess(
             agent,
             workspaceId: workspaceId,
             panelId: panelId,
@@ -404,7 +404,7 @@ struct RestoredAgentShellActivityLivenessTests {
         ))
         // The recorded PID still exists under another generation; a different
         // bare process in the foreground does not vouch.
-        #expect(!RestoredAgentLiveness.hasLiveProcess(
+        #expect(!RestoredAgentLiveness().hasLiveProcess(
             agent,
             workspaceId: workspaceId,
             panelId: panelId,
@@ -418,7 +418,7 @@ struct RestoredAgentShellActivityLivenessTests {
             foregroundProcessArguments: { _ in barePi }
         ))
         // A shell in the foreground never vouches, dead recorded process or not.
-        #expect(!RestoredAgentLiveness.hasLiveProcess(
+        #expect(!RestoredAgentLiveness().hasLiveProcess(
             agent,
             workspaceId: workspaceId,
             panelId: panelId,

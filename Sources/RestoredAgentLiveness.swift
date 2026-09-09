@@ -10,12 +10,28 @@ import Foundation
 /// matches, the live agent index with revalidated process evidence, and the
 /// pane's foreground process validated against the agent identity, which
 /// covers the window before the session-start hook registers a PID.
-enum RestoredAgentLiveness {
+struct RestoredAgentLiveness {
     /// The `<kind>.<session>` process a hook registered for the pane.
     struct RecordedProcess: Equatable {
         let pid: pid_t
         let identity: AgentPIDProcessIdentity?
     }
+
+    /// Creates an evaluator with injectable process probes.
+    init(
+        currentProcessIdentity: @escaping (pid_t) -> AgentPIDProcessIdentity? = { AgentPIDProcessIdentity(pid: $0) },
+        processIsPresent: @escaping (pid_t) -> Bool = { PIDPresence.current(pid: $0) != .absent },
+        foregroundProcessArguments: @escaping (Int) -> CmuxTopProcessArguments? =
+            CmuxTopProcessSnapshot.processArgumentsAndEnvironment(for:)
+    ) {
+        self.currentProcessIdentity = currentProcessIdentity
+        self.processIsPresent = processIsPresent
+        self.foregroundProcessArguments = foregroundProcessArguments
+    }
+
+    private let currentProcessIdentity: (pid_t) -> AgentPIDProcessIdentity?
+    private let processIsPresent: (pid_t) -> Bool
+    private let foregroundProcessArguments: (Int) -> CmuxTopProcessArguments?
 
     /// The runtime PID key hooks register for `agent`'s session.
     static func pidKey(for agent: SessionRestorableAgentSnapshot) -> String {
@@ -34,24 +50,23 @@ enum RestoredAgentLiveness {
     ///   - processIsPresent: whether a PID still has a process-table entry.
     ///   - foregroundProcessArguments: argv and environment for the foreground
     ///     process.
-    static func hasLiveProcess(
+    func hasLiveProcess(
         _ agent: SessionRestorableAgentSnapshot,
         workspaceId: UUID,
         panelId: UUID,
         recordedProcess: RecordedProcess?,
         liveIndex: RestorableAgentSessionIndex?,
         foregroundProcessID: Int?,
-        currentProcessIdentity: (pid_t) -> AgentPIDProcessIdentity? = { AgentPIDProcessIdentity(pid: $0) },
-        processIsPresent: (pid_t) -> Bool = { PIDPresence.current(pid: $0) != .absent },
-        foregroundProcessArguments: (Int) -> CmuxTopProcessArguments? =
-            CmuxTopProcessSnapshot.processArgumentsAndEnvironment(for:)
+        currentProcessIdentity: ((pid_t) -> AgentPIDProcessIdentity?)? = nil,
+        processIsPresent: ((pid_t) -> Bool)? = nil,
+        foregroundProcessArguments: ((Int) -> CmuxTopProcessArguments?)? = nil
     ) -> Bool {
         if agent.kind != .claude,
            let recordedProcess,
            recordedProcess.pid > 0,
            let identity = recordedProcess.identity,
            identity.pid == recordedProcess.pid,
-           currentProcessIdentity(recordedProcess.pid) == identity {
+           (currentProcessIdentity ?? self.currentProcessIdentity)(recordedProcess.pid) == identity {
             return true
         }
         if liveIndex?.hasCurrentLiveProcessForStablePanel(
@@ -70,13 +85,13 @@ enum RestoredAgentLiveness {
         // second, whereas a wrongly retired binding stays retired until the
         // next prompt, the very failure #12084 reports.
         let boundingProcessID: Int? = recordedProcess.flatMap { recorded in
-            recorded.pid > 0 && processIsPresent(recorded.pid) ? Int(recorded.pid) : nil
+            recorded.pid > 0 && (processIsPresent ?? self.processIsPresent)(recorded.pid) ? Int(recorded.pid) : nil
         }
         return RestoredAgentForegroundProcess.matches(
             agent,
             foregroundProcessID: foregroundProcessID,
             recordedProcessID: boundingProcessID,
-            processArguments: foregroundProcessArguments
+            processArguments: foregroundProcessArguments ?? self.foregroundProcessArguments
         )
     }
 }

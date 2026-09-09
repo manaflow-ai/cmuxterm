@@ -311,7 +311,7 @@ extension DockSplitStore {
                 identity: runtime?.agentPIDProcessIdentities[pidKey]
             )
         }
-        return RestoredAgentLiveness.hasLiveProcess(
+        return RestoredAgentLiveness().hasLiveProcess(
             agent,
             workspaceId: detachedSurfaceTransfersByPanelId[panelId]?.sessionRestoreWorkspaceId
                 ?? workspaceId,

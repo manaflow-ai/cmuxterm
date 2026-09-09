@@ -382,7 +382,7 @@ extension Workspace {
                 identity: agentPIDProcessIdentitiesByKey[key]
             )
         }()
-        return RestoredAgentLiveness.hasLiveProcess(
+        return RestoredAgentLiveness().hasLiveProcess(
             restoredAgent,
             workspaceId: id,
             panelId: panelId,
