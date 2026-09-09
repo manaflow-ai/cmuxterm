@@ -113,6 +113,26 @@ struct CMUXCLIForkVerbRegressionTests {
     }
 
     @Test
+    func retargetedForkWorkingDirectoryReplacesStaleRestoreSelection() throws {
+        let snapshot = SessionRestorableAgentSnapshot(
+            kind: .codex,
+            sessionId: "retargeted-fork-session",
+            workingDirectory: "/tmp/original",
+            launchCommand: AgentLaunchCommandSnapshot(
+                arguments: ["codex"],
+                workingDirectory: "/tmp/original"
+            ),
+            restoreWorkingDirectorySelection: .exact("/tmp/original")
+        )
+
+        let retargeted = snapshot.retargetingForkWorkingDirectory("/tmp/destination")
+
+        #expect(retargeted.restoreWorkingDirectorySelection == .exact("/tmp/destination"))
+        #expect(retargeted.forkCommand()?.contains("'/tmp/destination'") == true)
+        #expect(retargeted.forkCommand()?.contains("'/tmp/original'") == false)
+    }
+
+    @Test
     func surfaceResumeCanonicalizerUsesForkSelectorForLocalBindings() throws {
         let sessionID = "019dad34-d218-7943-b81a-eddac5c87951"
         let binding = SurfaceResumeBindingSnapshot(

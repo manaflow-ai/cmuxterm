@@ -33,6 +33,7 @@ extension SessionRestorableAgentSnapshot {
         let effectiveWorkingDirectory = registration?.cwd == .ignore ? nil : workingDirectory
         var retargeted = self
         retargeted.workingDirectory = effectiveWorkingDirectory
+        retargeted.restoreWorkingDirectorySelection = .exact(effectiveWorkingDirectory)
         if var launchCommand = retargeted.launchCommand {
             launchCommand.workingDirectory = effectiveWorkingDirectory
             retargeted.launchCommand = launchCommand
