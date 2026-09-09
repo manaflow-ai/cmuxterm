@@ -10421,7 +10421,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let allowsFocusMutation = shouldActivate && TerminalController.socketCommandAllowsInAppFocusMutations()
         let presentWindow: @MainActor () -> Void = { [weak self, weak window, weak tabManager] in
             guard let self, let window, let tabManager,
-                  self.mainWindowContexts[windowId]?.tabManager === tabManager else { return }
+                  self.mainWindowContexts[ObjectIdentifier(window)]?.tabManager === tabManager else { return }
             if suppressActivation {
                 window.orderFront(nil)
                 if allowsFocusMutation {
