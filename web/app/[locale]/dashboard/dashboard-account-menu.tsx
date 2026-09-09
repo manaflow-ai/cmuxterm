@@ -1,11 +1,10 @@
 "use client";
 
 import { Menu } from "@base-ui-components/react/menu";
-import { UserAvatar, useStackApp } from "@stackframe/stack";
+import { UserAvatar, useUser } from "@stackframe/stack";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { localizedVaultPath, vaultSignInHref } from "@/app/lib/vault-auth";
-import type { DashboardSessionUser } from "@/app/lib/dashboard-session";
 import { Link, useRouter } from "@/i18n/navigation";
 import { clearCoderouterOrganizationScope } from "@/services/coderouter/organizationScope";
 import { useThemeToggle } from "@/app/[locale]/theme";
@@ -14,19 +13,11 @@ import { useDashboardTeamScope, type DashboardCatalogTeam } from "./dashboard-te
 const menuItemClass =
   "flex min-h-9 w-full cursor-default select-none items-center gap-2 px-2.5 py-2 text-left text-sm text-foreground no-underline outline-none data-[highlighted]:bg-code-bg";
 
-export function DashboardAccountMenuFallback() {
-  return <div aria-hidden="true" className="min-w-0 flex-1" />;
-}
-
-/**
- * The identity row. The user arrives from the server session so the row
- * paints with the shell instead of after a second client fetch to Stack.
- */
-export function DashboardAccountMenu({ user }: { user: DashboardSessionUser | null }) {
+export function DashboardAccountMenu() {
   const t = useTranslations("dashboard.accountMenu");
   const locale = useLocale();
   const router = useRouter();
-  const stackApp = useStackApp();
+  const user = useUser({ or: "return-null" });
   const teamScope = useDashboardTeamScope(user?.id ?? null);
   const theme = useThemeToggle();
   const [signOutPending, setSignOutPending] = useState(false);
@@ -113,7 +104,7 @@ export function DashboardAccountMenu({ user }: { user: DashboardSessionUser | nu
                   setSignOutPending(true);
                   setSignOutError(false);
                   try {
-                    await stackApp.signOut();
+                    await user.signOut();
                     clearCoderouterOrganizationScope();
                     router.replace("/");
                     router.refresh();
