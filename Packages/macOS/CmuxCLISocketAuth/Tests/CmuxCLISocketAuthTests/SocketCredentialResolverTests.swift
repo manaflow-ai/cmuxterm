@@ -169,6 +169,50 @@ struct SocketCredentialResolverTests {
     }
 
     @Test
+    func lateMissingKeychainCredentialRemainsRetryable() {
+        let clock = OSAllocatedUnfairLock<Date>(
+            initialState: Date(timeIntervalSince1970: 1_000)
+        )
+        let providerCalls = OSAllocatedUnfairLock<Int>(initialState: 0)
+        let resolver = SocketCredentialResolver(
+            explicitPassword: nil,
+            socketPath: "/tmp/cmux-debug-credential-test.sock",
+            environment: [:],
+            filePasswordProvider: { nil },
+            keychainPasswordProvider: { _ in
+                let call = providerCalls.withLock { value in
+                    value += 1
+                    return value
+                }
+                if call == 1 {
+                    clock.withLock { $0.addTimeInterval(2) }
+                    return nil
+                }
+                return "fresh-keychain-password"
+            }
+        )
+
+        let firstDeadline = clock.withLock { $0.addingTimeInterval(1) }
+        #expect(
+            resolver.password(
+                for: .authenticationRequired,
+                deadline: firstDeadline
+            ) == nil
+        )
+        #expect(resolver.source == nil)
+
+        let secondDeadline = clock.withLock { $0.addingTimeInterval(1) }
+        #expect(
+            resolver.password(
+                for: .authenticationRequired,
+                deadline: secondDeadline
+            ) == "fresh-keychain-password"
+        )
+        #expect(providerCalls.withLock { $0 } == 2)
+        #expect(resolver.source == .keychain)
+    }
+
+    @Test
     func socketPathScopeWinsOverMismatchedEnvironmentTag() {
         let services = SocketCredentialResolver.keychainServices(
             socketPath: "/tmp/cmux-debug-target.tag.sock",
