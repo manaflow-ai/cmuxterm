@@ -434,7 +434,7 @@
   },
   "vault": {
     "overview": {
-      "eyebrow": "cmux 保險庫",
+      "eyebrow": "cmux Vault",
       "title": "保險庫概覽",
       "description": "同步會話的儲存和上傳活動。",
       "emptyTitle": "尚未同步會話",
@@ -447,7 +447,7 @@
     },
     "cliAuth": {
       "section": "拱頂",
-      "eyebrow": "cmux 保險庫",
+      "eyebrow": "cmux Vault",
       "title": "批准 CLI 訪問",
       "description": "確認 cmux-vault 顯示的代碼，將此裝置連線至您已登入的 cmux 帳戶。",
       "coderouterEyebrow": "CodeRouter",
@@ -461,7 +461,7 @@
     },
     "sessions": {
       "section": "拱頂",
-      "eyebrow": "cmux 保險庫",
+      "eyebrow": "cmux Vault",
       "title": "同步會話",
       "description": "從您的本機電腦同步的近期編碼代理轉錄內容。",
       "backToOverview": "返回概覽",
@@ -1521,7 +1521,7 @@
         "p5": "需要 cmux v0.64+。"
       },
       "cmuxVault": {
-        "title": "cmux Vault 介紹",
+        "title": "cmux Vault",
         "summary": "從 Vault 窗格搜尋 Codex、Claude Code、OpenCode 與 Pi 工作階段，並拖入工作區。",
         "date": "2026年5月22日",
         "p1": "cmux 現在在右側邊欄提供 Vault 窗格，用來查看舊的代理工作階段。",
@@ -1604,10 +1604,10 @@
       ]
     },
     "cmuxVault": {
-      "metaTitle": "cmux Vault 介紹",
+      "metaTitle": "cmux Vault",
       "metaDescription": "cmux v0.64+ 新增 Vault 窗格，可搜尋 Codex、Claude Code、OpenCode 與 Pi 工作階段，並拖入工作區。",
       "metaKeywords": [
-        "cmux 保險庫",
+        "cmux Vault",
         "Codex 工作階段",
         "Claude Code 工作階段",
         "OpenCode 工作階段",
@@ -2625,7 +2625,7 @@
       "suggestCloudVmName": "cmux 雲端虛擬機",
       "suggestCloudVmUse": "操作雲端虛擬機器建立、附加、執行、SSH 端點、計費和提供者故障排除流程。",
       "suggestCloudVmWhy": "雲端虛擬機器工作涉及 Web 應用程式、資料庫、提供者 API 和冒煙測試。",
-      "suggestVaultName": "cmux 保險庫",
+      "suggestVaultName": "cmux Vault",
       "suggestVaultUse": "管理保管庫支援的代理程式配置、憑證和復原行為，而不會在提示中洩漏機密。",
       "suggestVaultWhy": "Vault 工作流程需要比正常設定更嚴格的處理，因為它們會影響機密和代理啟動。",
       "suggestionsCallout": "讓未來的技能專注於具有真實命令序列的可重複工作流程。如果某項技能只能重述產品文檔，請將其新增至文檔。",
