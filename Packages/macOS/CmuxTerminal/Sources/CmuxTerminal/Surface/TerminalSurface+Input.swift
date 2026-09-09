@@ -1759,10 +1759,14 @@ extension TerminalSurface {
             validatedSurface = currentSurface
             validatedGeneration = runtimeSurfaceGeneration
         }
-        if case .promptSubmission = input,
-           ghostty_surface_process_exited(surface) {
-            finishPendingPromptDelivery(input, with: .processExited)
-            return .failed
+        switch input {
+        case .promptSubmission, .humanPromptSubmission:
+            guard !ghostty_surface_process_exited(surface) else {
+                finishPendingPromptDelivery(input, with: .processExited)
+                return .failed
+            }
+        default:
+            break
         }
         switch input {
         case .pasteText(let chunk):
