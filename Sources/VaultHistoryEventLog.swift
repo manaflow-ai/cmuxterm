@@ -19,6 +19,9 @@ final class VaultHistoryEventLog {
     private var pendingRecordCount = 0
     /// Uncommitted window operations cannot publish an open or any child event.
     private var pendingWindowEvents: [UUID: [VaultHistoryEvent]] = [:]
+    /// A retained window can finish construction before startup recording is active.
+    /// Keep its committed events until the lifecycle gate opens instead of dropping them.
+    private var pendingLaunchCommittedEvents: [VaultHistoryEvent] = []
 
     /// Whether accepted records are still queued or being persisted.
     var hasPendingRecords: Bool {
@@ -35,6 +38,12 @@ final class VaultHistoryEventLog {
 
     func transition(to phase: VaultHistoryRecordingPhase) {
         self.phase = phase
+        guard phase == .active, !pendingLaunchCommittedEvents.isEmpty else { return }
+        let events = pendingLaunchCommittedEvents
+        pendingLaunchCommittedEvents.removeAll(keepingCapacity: true)
+        for event in events {
+            record(event)
+        }
     }
 
     func record(_ event: VaultHistoryEvent) {
@@ -76,14 +85,21 @@ final class VaultHistoryEventLog {
     /// before the readiness callback completed.
     func commitWindowCreation(windowId: UUID, excludingBootstrapWorkspaceId: UUID? = nil) {
         guard let events = pendingWindowEvents.removeValue(forKey: windowId) else { return }
-        for event in events {
+        let retainedEvents = events.filter { event in
             if let excludingBootstrapWorkspaceId,
                (event.kind == .windowOpened
                 || (event.kind == .workspaceCreated
                     && event.subject.workspaceId == excludingBootstrapWorkspaceId)) {
-                continue
+                return false
             }
-            record(event)
+            return true
+        }
+        if phase == .launching {
+            pendingLaunchCommittedEvents.append(contentsOf: retainedEvents)
+        } else {
+            for event in retainedEvents {
+                record(event)
+            }
         }
     }
 

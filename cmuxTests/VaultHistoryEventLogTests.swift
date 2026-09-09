@@ -45,6 +45,22 @@ import Testing
         #expect(await log.recentEvents().map(\.id) == ["launch"])
     }
 
+    @Test func committedWindowEventsRemainStagedUntilLaunchCompletes() async {
+        let store = VaultHistoryEventStore(fileURL: nil)
+        let log = VaultHistoryEventLog(store: store, phase: .launching)
+        let windowId = UUID()
+
+        log.beginWindowCreation(windowId: windowId)
+        log.record(event(id: "launch", windowId: windowId))
+        log.commitWindowCreation(windowId: windowId)
+        await log.flushPendingRecords()
+        #expect(await log.recentEvents().isEmpty)
+
+        log.transition(to: .active)
+        await log.flushPendingRecords()
+        #expect(await log.recentEvents().map(\.id) == ["launch"])
+    }
+
     @Test func startupRestoreDiscardsInitialWindowHistoryAfterRestoreCompletes() async throws {
         try await withWindowHistory(initialPhase: .launching) { app, log in
             let restoredWindowSnapshot = SessionWindowSnapshot(
