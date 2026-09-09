@@ -422,9 +422,9 @@ extension Array where Element == CuratedSettingEntry {
             .init(
                 section: .browser,
                 id: "engine",
-                title: String(localized: "settings.browser.engine", defaultValue: "Browser Engine"),
+                title: String(localized: "settings.browser.runtimeEngine", defaultValue: "Browser Engine"),
                 paths: ["browser.engine"],
-                synonyms: String(localized: "settings.search.alias.setting.browser.engine", defaultValue: "browser.engine webkit chromium chrome browser engine runtime default external")
+                synonyms: String(localized: "settings.search.alias.setting.browser.runtimeEngine", defaultValue: "browser.engine webkit chromium chrome browser engine runtime default external")
             ),
             .init(section: .browser, id: "search-engine", title: "Default Search Engine", synonyms: "browser.defaultSearchEngine omnibar address bar google duckduckgo bing kagi brave startpage perplexity exa yahoo ecosia qwant mojeek wikipedia github baidu yandex custom search provider engine name url template"),
             .init(section: .browser, id: "search-suggestions", title: "Show Search Suggestions", synonyms: "browser.showSearchSuggestions suggest autocomplete address bar search suggestions"),

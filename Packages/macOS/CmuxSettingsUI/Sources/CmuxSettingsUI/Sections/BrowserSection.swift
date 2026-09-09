@@ -157,11 +157,11 @@ public struct BrowserSection: View {
             SettingsCardRow(
                 configurationReview: .json("browser.engine"),
                 searchAnchorID: "setting:browser:engine",
-                String(localized: "settings.browser.engine", defaultValue: "Browser Engine"),
-                subtitle: browserEngineSubtitle(browserEngine.current),
+                String(localized: "settings.browser.runtimeEngine", defaultValue: "Browser Engine"),
+                subtitle: browserEngineSubtitle(displayedBrowserEngine),
                 controlWidth: Self.columnWidth
             ) {
-                Picker("", selection: Binding(get: { browserEngine.current }, set: { setBrowserEngine($0) })) {
+                Picker("", selection: Binding(get: { displayedBrowserEngine }, set: { setBrowserEngine($0) })) {
                     ForEach(BrowserEngine.allCases, id: \.self) { value in
                         Text(browserEngineLabel(value)).tag(value)
                     }
@@ -744,18 +744,21 @@ public struct BrowserSection: View {
     }
 
     private func setBrowserEngine(_ value: BrowserEngine) {
-        browserEngine.acceptCommittedValue(value)
-        if !hostActions.setBrowserEngine(value.rawValue) {
-            browserEngine.set(value)
+        browserEngine.set(value) { @MainActor [hostActions] in
+            _ = hostActions.setBrowserEngine(value.rawValue)
         }
+    }
+
+    private var displayedBrowserEngine: BrowserEngine {
+        browserManagedByPolicy ? .systemDefault : browserEngine.current
     }
 
     private func browserEngineLabel(_ engine: BrowserEngine) -> String {
         switch engine {
         case .webKit:
-            return String(localized: "browser.engine.webkit", defaultValue: "WebKit (Embedded)")
+            return String(localized: "browser.runtimeEngine.webkit", defaultValue: "WebKit (Embedded)")
         case .systemDefault:
-            return String(localized: "browser.engine.systemDefault", defaultValue: "Default Browser")
+            return String(localized: "browser.runtimeEngine.systemDefault", defaultValue: "Default Browser")
         }
     }
 
@@ -763,12 +766,12 @@ public struct BrowserSection: View {
         switch engine {
         case .webKit:
             return String(
-                localized: "settings.browser.engine.subtitle.webkit",
+                localized: "settings.browser.runtimeEngine.subtitle.webkit",
                 defaultValue: "WebKit runs inside cmux with automation, profiles, and imported browser data."
             )
         case .systemDefault:
             return String(
-                localized: "settings.browser.engine.subtitle.systemDefault",
+                localized: "settings.browser.runtimeEngine.subtitle.systemDefault",
                 defaultValue: "Tabs and intercepted links open in your macOS default browser, preserving its signed-in state."
             )
         }

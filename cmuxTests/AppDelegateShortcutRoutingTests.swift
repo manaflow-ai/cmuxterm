@@ -512,6 +512,8 @@ final class AppDelegateShortcutRoutingTests: XCTestCase {
             UserDefaults.standard.object(forKey: BrowserAvailabilitySettings.disabledKey) != nil
         let originalBrowserDisabled = UserDefaults.standard.bool(forKey: BrowserAvailabilitySettings.disabledKey)
         let originalBrowserEngine = UserDefaults.standard.object(forKey: BrowserEngineSettings.engineKey)
+        let originalBrowserEngineDidInitialize =
+            UserDefaults.standard.object(forKey: BrowserEngineSettings.didInitializeKey)
         BrowserAvailabilitySettings.setDisabled(true)
         defer {
             if let originalBrowserEngine {
@@ -523,6 +525,14 @@ final class AppDelegateShortcutRoutingTests: XCTestCase {
                 UserDefaults.standard.set(originalBrowserDisabled, forKey: BrowserAvailabilitySettings.disabledKey)
             } else {
                 UserDefaults.standard.removeObject(forKey: BrowserAvailabilitySettings.disabledKey)
+            }
+            if let originalBrowserEngineDidInitialize {
+                UserDefaults.standard.set(
+                    originalBrowserEngineDidInitialize,
+                    forKey: BrowserEngineSettings.didInitializeKey
+                )
+            } else {
+                UserDefaults.standard.removeObject(forKey: BrowserEngineSettings.didInitializeKey)
             }
         }
 

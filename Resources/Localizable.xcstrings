@@ -298779,7 +298779,58 @@
       }
     }
   },
-    "browser.engine.systemDefault": {
+  "settings.browser.runtimeEngine": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Browser Engine"
+        }
+      },
+      "ja": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "ブラウザエンジン"
+        }
+      }
+    }
+  },
+  "settings.browser.runtimeEngine.subtitle.webkit": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "WebKit runs inside cmux with automation, profiles, and imported browser data."
+        }
+      },
+      "ja": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "WebKit は cmux 内で実行され、自動化、プロファイル、インポートしたブラウザデータを利用できます。"
+        }
+      }
+    }
+  },
+  "settings.search.alias.setting.browser.runtimeEngine": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "browser.engine webkit chromium chrome browser engine runtime default external"
+        }
+      },
+      "ja": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "browser.engine webkit chromium chrome browser engine runtime default external ブラウザ エンジン 既定 外部"
+        }
+      }
+    }
+  },
+    "browser.runtimeEngine.systemDefault": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
@@ -298904,7 +298955,7 @@
         }
       }
     },
-    "browser.engine.webkit": {
+    "browser.runtimeEngine.webkit": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
@@ -299188,7 +299239,7 @@
         }
       }
     },
-    "settings.browser.engine.subtitle.systemDefault": {
+    "settings.browser.runtimeEngine.subtitle.systemDefault": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
