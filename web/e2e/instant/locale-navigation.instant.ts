@@ -75,6 +75,30 @@ for (const initialLocale of ["ko", "ja", "ar", "de", "zh-TW"] as const) {
   });
 }
 
+test("a stale locale prefetch cannot replace an explicit English preference", async ({ page }) => {
+  await page.goto("/ko");
+  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("en");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+
+  const status = await page.evaluate(async () => {
+    const response = await fetch("/ko/blog/cmux-history", {
+      headers: {
+        RSC: "1",
+        "Next-Router-Prefetch": "1",
+        "Next-Router-Segment-Prefetch": "/_tree",
+      },
+    });
+    await response.text();
+    return response.status;
+  });
+  expect(status).toBe(200);
+  expect((await page.context().cookies(page.url()))
+    .find((cookie) => cookie.name === "NEXT_LOCALE")?.value).toBe("en");
+  await page.reload();
+  await expect(page).toHaveURL((url) => url.pathname === "/");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+});
+
 test("locale switch preserves a nested route after client-side navigation", async ({ page }) => {
   await page.goto("/ko");
   await page.waitForLoadState("load");

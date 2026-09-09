@@ -978,6 +978,38 @@ describe("SEO middleware", () => {
     }
   });
 
+  test("does not let background locale requests overwrite an explicit preference", () => {
+    for (const locale of locales.filter((locale) => locale !== "en")) {
+      const response = middleware(requestFor(`/${locale}/blog`, {
+        cookie: "NEXT_LOCALE=en",
+        "accept-language": `${locale},en;q=0.8`,
+        "sec-fetch-dest": "empty",
+      }));
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("x-middleware-request-x-next-intl-locale")).toBe(locale);
+      expect(response.headers.get("set-cookie")).toBeNull();
+      expect(response.headers.get("x-middleware-set-cookie")).toBeNull();
+    }
+  });
+
+  test("keeps locale preference detection and document cookie updates", () => {
+    const background = middleware(requestFor("/blog", {
+      cookie: "NEXT_LOCALE=en",
+      "accept-language": "ko,en;q=0.8",
+      "sec-fetch-dest": "empty",
+    }));
+    expect(background.status).toBe(200);
+    expect(background.headers.get("x-middleware-request-x-next-intl-locale")).toBe("en");
+
+    const document = middleware(requestFor("/ko/blog", {
+      cookie: "NEXT_LOCALE=en",
+      "accept-language": "ko,en;q=0.8",
+      "sec-fetch-dest": "document",
+    }));
+    expect(document.cookies.get("NEXT_LOCALE")?.value).toBe("ko");
+  });
+
   test("leaves public docs paths unchanged for channel routing", () => {
     delete process.env.CMUX_DOCS_CHANNEL;
 
