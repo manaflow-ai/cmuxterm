@@ -295,7 +295,7 @@ struct ClaudeHookSessionRecord: Codable {
     /// Provider invocation number for the active prompt, when available.
     /// Antigravity uses this to distinguish same-turn callbacks from a new
     /// turn when it omits a turn identifier.
-    var activePromptInvocationNumber: Int?
+    var activePromptInvocationNumber: Int? = nil
     var lastPromptTurnId: String?
     /// Monotonic identity for the authoritative prompt projection. A delayed
     /// SessionEnd must only settle the exact prompt revision it observed.
