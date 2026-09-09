@@ -25,7 +25,7 @@ public struct ShortcutPrefixChordPassThroughLedger: Sendable {
     /// Marks one event identity for a single later bypass.
     public mutating func mark(_ identity: ShortcutPrefixChordEventIdentity) {
         guard !markers.contains(identity) else { return }
-        guard markers.insert(identity).inserted else { return }
+        markers.insert(identity)
         order.append(identity)
         trimIfNeeded()
     }
