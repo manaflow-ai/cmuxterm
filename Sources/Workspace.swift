@@ -14092,6 +14092,9 @@ extension Workspace: BonsplitDelegate {
                 surfaceResumeBindingIndex: nil
             )
             let agentRuntime = agentRuntimeState(forPanelId: panelId)
+            let agentLifecycleRecords = takeAgentLifecycleRecordsForTransfer(
+                panelID: panelId
+            )
             let panelDirectory = panelDirectories[panelId]
             let remoteTTYReportOriginWorkspaceID =
                 surfaceRegistry.remoteTTYReportOriginWorkspaceIDs[panelId]
@@ -14140,6 +14143,7 @@ extension Workspace: BonsplitDelegate {
                     $0.hasCompleteManagedSessionIdentity ? $0 : nil
                 },
                 agentRuntime: agentRuntime,
+                agentLifecycleRecords: agentLifecycleRecords,
                 isRemoteTerminal: isRemoteTerminal,
                 remoteTerminalSessionPhase: remoteTerminalSessionStatesBySurfaceId[panelId]?.phase,
                 remoteTerminalAuthority: remoteTerminalSessionStatesBySurfaceId[panelId]?.authority,
