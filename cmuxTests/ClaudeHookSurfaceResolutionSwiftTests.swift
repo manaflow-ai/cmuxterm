@@ -818,6 +818,10 @@ struct ClaudeHookSurfaceResolutionSwiftTests {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
+        // Register termination before launch to avoid an immediate-exit race.
+        let exitSignal = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in exitSignal.signal() }
+
         do {
             try process.run()
         } catch {
@@ -828,12 +832,7 @@ struct ClaudeHookSurfaceResolutionSwiftTests {
             try? stdinPipe.fileHandleForWriting.close()
         }
 
-        let exitSignal = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .userInitiated).async {
-            process.waitUntilExit()
-            exitSignal.signal()
-        }
-
+        // Await the callback instead of blocking a global-pool waiter.
         let timedOut = exitSignal.wait(timeout: .now() + timeout) == .timedOut
         if timedOut {
             process.terminate()
