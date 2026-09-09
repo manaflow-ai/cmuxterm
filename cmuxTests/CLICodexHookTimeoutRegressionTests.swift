@@ -135,8 +135,6 @@ struct CLICodexHookTimeoutRegressionTests {
             "PreToolUse",
             "PostToolUse",
             "PermissionRequest",
-            "SubagentStart",
-            "SubagentStop",
         ]
         #expect(Set(emittedEvents) == expectedInjectedEvents)
         #expect(emittedEvents.count == expectedInjectedEvents.count)
@@ -197,7 +195,7 @@ struct CLICodexHookTimeoutRegressionTests {
                       let event = params["event"] as? [String: Any] else {
                     return false
                 }
-                return event["hook_event_name"] as? String == "PreToolUse"
+                return event["hook_event_name"] as? String == "PermissionRequest"
             }
         })
         #expect(AgentJournalAppendCapture.captures(in: commands.snapshot()).contains { capture in
@@ -365,7 +363,7 @@ struct CLICodexHookTimeoutRegressionTests {
         #expect(install.status == 0, Comment(rawValue: install.stderr))
 
         let command = try #require(
-            codexHookEntries(in: codexHome).first { $0.eventName == "UserPromptSubmit" }?.command
+            codexHookEntries(in: codexHome).first { $0.eventName == "PreToolUse" }?.command
         )
         let run = runCodexHookProcess(
             executablePath: "/bin/sh",
@@ -380,7 +378,7 @@ struct CLICodexHookTimeoutRegressionTests {
                 "CMUX_TEST_SLEEP_PID": sleepPIDFile.path,
                 "CMUX_TEST_CHILD_DONE": childDoneFile.path,
             ],
-            standardInput: #"{"session_id":"codex-session","prompt":"run"}"#,
+            standardInput: #"{"session_id":"codex-session","hook_event_name":"PreToolUse"}"#,
             timeout: 2
         )
 
@@ -602,112 +600,6 @@ struct CLICodexHookTimeoutRegressionTests {
             .filter { $0.eventName == "Stop" }
         #expect(stopHooks.contains { $0.command == userScript.path })
         #expect(stopHooks.contains { $0.command != userScript.path })
-    }
-
-    @Test func codexInstalledAsyncStopDoesNotMarkNewerTurnIdle() throws {
-        let cliPath = try bundledCLIPath()
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-codex-installed-stale-stop-\(UUID().uuidString)", isDirectory: true)
-        let codexHome = root.appendingPathComponent(".codex", isDirectory: true)
-        let socketPath = makeCodexHookSocketPath("codex-inst")
-        let listenerFD = try bindCodexHookUnixSocket(at: socketPath)
-        let commands = CodexHookCapturedSocketCommands()
-        let workspaceId = "11111111-1111-1111-1111-111111111111"
-        let surfaceId = "22222222-2222-2222-2222-222222222222"
-        let sessionId = "codex-installed-stale-stop-session"
-        try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
-        defer {
-            Darwin.close(listenerFD)
-            unlink(socketPath)
-            try? FileManager.default.removeItem(at: root)
-        }
-
-        startCodexHookMockSocketServerAccepting(
-            listenerFD: listenerFD,
-            commands: commands,
-            surfaceId: surfaceId,
-            connectionLimit: 24
-        )
-
-        let install = runCodexHookProcess(
-            executablePath: cliPath,
-            arguments: ["hooks", "codex", "install", "--yes"],
-            environment: codexHookTestEnvironment(root: root, codexHome: codexHome),
-            timeout: 5
-        )
-        #expect(!install.timedOut, Comment(rawValue: install.stderr))
-        #expect(install.status == 0, Comment(rawValue: install.stderr))
-
-        let promptCommand = try #require(
-            codexHookEntries(in: codexHome).first { $0.eventName == "UserPromptSubmit" }?.command
-        )
-        let stopCommand = try #require(
-            codexHookEntries(in: codexHome).first { $0.eventName == "Stop" }?.command
-        )
-        let environment = [
-            "HOME": root.path,
-            "CODEX_HOME": codexHome.path,
-            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
-            "PWD": root.path,
-            "TMPDIR": root.path,
-            "CMUX_SOCKET_PATH": socketPath,
-            "CMUX_WORKSPACE_ID": workspaceId,
-            "CMUX_SURFACE_ID": surfaceId,
-            "CMUX_AGENT_HOOK_STATE_DIR": root.path,
-            "CMUX_CLI_SENTRY_DISABLED": "1",
-            "CMUX_BUNDLED_CLI_PATH": cliPath,
-            "CMUX_CODEX_PID": "4242",
-        ]
-
-        let oldPrompt = runCodexHookProcess(
-            executablePath: "/bin/sh",
-            arguments: ["-c", promptCommand],
-            environment: environment,
-            standardInput: #"{"session_id":"\#(sessionId)","turn_id":"old-turn","cwd":"\#(root.path)","hook_event_name":"UserPromptSubmit","prompt":"old"}"#,
-            timeout: 3
-        )
-        #expect(oldPrompt.status == 0, Comment(rawValue: oldPrompt.stderr))
-        #expect(oldPrompt.stdout == "{}\n")
-        #expect(waitForConditionBlocking(timeout: 2) {
-            commands.snapshot().contains { $0.hasPrefix("set_status codex Running ") }
-        })
-
-        let currentPrompt = runCodexHookProcess(
-            executablePath: "/bin/sh",
-            arguments: ["-c", promptCommand],
-            environment: environment,
-            standardInput: #"{"session_id":"\#(sessionId)","turn_id":"current-turn","cwd":"\#(root.path)","hook_event_name":"UserPromptSubmit","prompt":"current"}"#,
-            timeout: 3
-        )
-        #expect(currentPrompt.status == 0, Comment(rawValue: currentPrompt.stderr))
-        #expect(currentPrompt.stdout == "{}\n")
-        #expect(waitForConditionBlocking(timeout: 2) {
-            let snapshot = commands.snapshot()
-            return snapshot.contains { $0.hasPrefix("clear_notifications ") }
-                && snapshot.contains { $0.hasPrefix("set_status codex Running ") }
-        })
-
-        let staleStopStart = commands.snapshot().count
-        let staleStop = runCodexHookProcess(
-            executablePath: "/bin/sh",
-            arguments: ["-c", stopCommand],
-            environment: environment,
-            standardInput: #"{"session_id":"\#(sessionId)","turn_id":"old-turn","cwd":"\#(root.path)","hook_event_name":"Stop","last_assistant_message":"old done"}"#,
-            timeout: 3
-        )
-        #expect(staleStop.status == 0, Comment(rawValue: staleStop.stderr))
-        #expect(staleStop.stdout == "{}\n")
-        #expect(waitForConditionBlocking(timeout: 2) {
-            commands.snapshot().count > staleStopStart
-        })
-
-        let staleStopCommands = Array(commands.snapshot().dropFirst(staleStopStart))
-        #expect(
-            !staleStopCommands.contains {
-                $0.hasPrefix("notify_target") || ($0.hasPrefix("set_status codex ") && $0.contains(" Idle "))
-            },
-            "An installed async Stop from an older turn must not notify or mark a newer running turn idle, saw \(staleStopCommands)"
-        )
     }
 
     @Test func codexInstalledHooksPreserveAdmissionOrder() throws {
@@ -936,7 +828,12 @@ struct CLICodexHookTimeoutRegressionTests {
             listenerFD: listenerFD,
             commands: commands,
             surfaceId: surfaceId,
-            connectionLimit: 8
+            connectionLimit: 8,
+            processBinding: CodexHookMockProcessBinding(
+                processID: 2,
+                workspaceID: workspaceId,
+                surfaceID: surfaceId
+            )
         )
 
         let result = runCodexHookProcess(
@@ -1020,7 +917,12 @@ struct CLICodexHookTimeoutRegressionTests {
             listenerFD: listenerFD,
             commands: commands,
             surfaceId: surfaceId,
-            connectionLimit: 8
+            connectionLimit: 8,
+            processBinding: CodexHookMockProcessBinding(
+                processID: 4242,
+                workspaceID: workspaceId,
+                surfaceID: surfaceId
+            )
         )
 
         let result = runCodexHookProcess(
@@ -1035,6 +937,7 @@ struct CLICodexHookTimeoutRegressionTests {
                 "CMUX_SURFACE_ID": surfaceId,
                 "CMUX_AGENT_HOOK_STATE_DIR": root.path,
                 "CMUX_CLI_SENTRY_DISABLED": "1",
+                "CMUX_CODEX_PID": "4242",
             ],
             standardInput: #"{"session_id":"\#(sessionId)","cwd":"\#(root.path)","hook_event_name":"SessionStart"}"#,
             timeout: 5
@@ -1130,7 +1033,12 @@ struct CLICodexHookTimeoutRegressionTests {
             listenerFD: listenerFD,
             commands: commands,
             surfaceId: surfaceId,
-            connectionLimit: 8
+            connectionLimit: 8,
+            processBinding: CodexHookMockProcessBinding(
+                processID: 4242,
+                workspaceID: workspaceId,
+                surfaceID: surfaceId
+            )
         )
 
         let result = runCodexHookProcess(

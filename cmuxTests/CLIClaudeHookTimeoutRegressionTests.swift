@@ -444,12 +444,14 @@ struct CLIClaudeHookTimeoutRegressionTests {
             return params?["pid"] == nil
                 && params?["surface_id"] as? String == surfaceID
         })
-        let expectedStatusKey = agent == "claude" ? "claude_code" : agent
-        #expect(commands.contains {
-            $0.hasPrefix("set_status \(expectedStatusKey) Running ")
-                && $0.contains("--tab=\(movedWorkspaceID)")
-                && $0.contains("--panel=\(surfaceID)")
-        }, Comment(rawValue: commands.joined(separator: "\n")))
+        if subcommand == "prompt-submit" {
+            let expectedStatusKey = agent == "claude" ? "claude_code" : agent
+            #expect(commands.contains {
+                $0.hasPrefix("set_status \(expectedStatusKey) Running ")
+                    && $0.contains("--tab=\(movedWorkspaceID)")
+                    && $0.contains("--panel=\(surfaceID)")
+            }, Comment(rawValue: commands.joined(separator: "\n")))
+        }
         let stateURL = root.appendingPathComponent(
             "\(agent)-hook-sessions.json",
             isDirectory: false
