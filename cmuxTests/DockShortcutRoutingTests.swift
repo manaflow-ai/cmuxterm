@@ -1653,7 +1653,7 @@ struct DockShortcutRoutingTests {
         try await AppContextSerialGate.withExclusiveAppContext {
             try await Self.withHarness { harness in
                 let flags = CmuxFeatureFlags.shared
-                let simulatorFlag = CmuxFeatureFlags.allFlags[5]
+                let simulatorFlag = CmuxFeatureFlags.simulatorFlag
                 let previousOverride = flags.overrideValue(for: simulatorFlag)
                 flags.setOverride(true, for: simulatorFlag)
                 defer { flags.setOverride(previousOverride, for: simulatorFlag) }
@@ -1679,7 +1679,7 @@ struct DockShortcutRoutingTests {
         try await AppContextSerialGate.withExclusiveAppContext {
             try await Self.withHarness { harness in
                 let flags = CmuxFeatureFlags.shared
-                let simulatorFlag = CmuxFeatureFlags.allFlags[5]
+                let simulatorFlag = CmuxFeatureFlags.simulatorFlag
                 let previousOverride = flags.overrideValue(for: simulatorFlag)
                 flags.setOverride(true, for: simulatorFlag)
                 defer { flags.setOverride(previousOverride, for: simulatorFlag) }
