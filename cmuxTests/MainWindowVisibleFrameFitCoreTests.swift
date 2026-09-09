@@ -310,4 +310,66 @@ struct MainWindowVisibleFrameFitCoreTests {
         #expect(restored.width == CGFloat(savedFrame.width))
         #expect(restored.height == CGFloat(savedFrame.height))
     }
+
+    @Test func displayDisconnectMovesRightStrandedWindowIntoRemainingDisplay() throws {
+        let stranded = CGRect(x: 1_520, y: 120, width: 900, height: 600)
+
+        let repaired = try #require(core.repairedFrame(
+            for: stranded,
+            displays: [Self.builtInDisplay],
+            minimumWidth: Self.minimumWidth,
+            minimumHeight: Self.minimumHeight,
+            mode: .visibleFrame
+        ))
+
+        #expect(Self.builtInDisplay.visibleFrame.contains(repaired))
+        #expect(repaired.width == stranded.width)
+        #expect(repaired.height == stranded.height)
+    }
+
+    @Test func nativeFullscreenReconnectDefersToAppKit() {
+        let external = SessionDisplayGeometry(
+            displayID: 88,
+            stableID: "external-reconnected",
+            frame: CGRect(x: 1_512, y: -211, width: 2_560, height: 1_440),
+            visibleFrame: CGRect(x: 1_512, y: -187, width: 2_560, height: 1_416)
+        )
+        let staleFullscreenFrame = CGRect(x: 1_512, y: -497, width: 2_560, height: 1_403)
+
+        let repaired = core.repairedFrame(
+            for: staleFullscreenFrame,
+            displays: [Self.builtInDisplay, external],
+            minimumWidth: Self.minimumWidth,
+            minimumHeight: Self.minimumHeight,
+            mode: .nativeFullscreen
+        )
+
+        #expect(repaired == nil)
+    }
+
+    @Test func zoomedWindowAppActivationRestoresCurrentVisibleFrame() throws {
+        let shrunkZoomedFrame = CGRect(x: 0, y: 0, width: 2_560, height: 1_100)
+
+        let repaired = try #require(core.repairedFrame(
+            for: shrunkZoomedFrame,
+            displays: [Self.rightDisplay],
+            minimumWidth: Self.minimumWidth,
+            minimumHeight: Self.minimumHeight,
+            mode: .zoomed
+        ))
+
+        #expect(repaired == Self.rightDisplay.visibleFrame)
+    }
+}
+
+@Suite("Main window zoom intent")
+struct MainWindowZoomIntentTests {
+    @Test func userPlacementClearsZoomIntent() {
+        var state = MainWindowZoomIntentState()
+        state.recordZoom(isZoomed: true)
+
+        state.recordUserPlacement()
+
+        #expect(!state.wantsZoomedFrame)
+    }
 }

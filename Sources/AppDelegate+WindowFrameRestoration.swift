@@ -10,9 +10,10 @@ extension AppDelegate {
         guard !isTerminatingApp else { return }
         let candidateWindows = windows ?? mainWindowsForVisibilityController()
         let availableDisplays = displays ?? currentDisplayGeometries().available
-        MainWindowVisibleFrameFitRescue().performFitIfNeeded(
+        MainWindowFrameReconciler().repair(
             displays: availableDisplays,
-            windows: candidateWindows
+            windows: candidateWindows,
+            trigger: .restorationCheckpoint
         )
     }
 

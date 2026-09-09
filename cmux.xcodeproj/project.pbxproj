@@ -1711,6 +1711,7 @@
 		2F0C05000000000000000002 /* MainWindowFocusController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0C05000000000000000001 /* MainWindowFocusController.swift */; };
 		6512F0C06512F0C06512F002 /* MainWindowFocusRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6512F0C06512F0C06512F001 /* MainWindowFocusRestoreTests.swift */; };
 		B37A00000000000000000005 /* MainWindowFocusTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B37A00000000000000000006 /* MainWindowFocusTypes.swift */; };
+		730600020000000000000002 /* MainWindowFrameReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 730600020000000000000001 /* MainWindowFrameReconciler.swift */; };
 		9666C0019666C0019666C001 /* MainWindowLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9666C0029666C0029666C002 /* MainWindowLifecycleCoordinator.swift */; };
 		9666D1019666D1019666D101 /* MainWindowLifecycleCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9666D1029666D1029666D102 /* MainWindowLifecycleCoordinatorTests.swift */; };
 		9666E0019666E0019666E001 /* MainWindowLifecyclePhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9666E0029666E0029666E002 /* MainWindowLifecyclePhase.swift */; };
@@ -1725,7 +1726,7 @@
 		17C9F5BA0DD14EDC8C3E5001 /* MainWindowVisibilityControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C9F5BA0DD14EDC8C3E5002 /* MainWindowVisibilityControllerTests.swift */; };
 		A6D1F0100000000000000002 /* MainWindowVisibilityLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6D1F0100000000000000001 /* MainWindowVisibilityLifecycleTests.swift */; };
 		730600000000000000000001 /* MainWindowVisibleFrameFitCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 730600010000000000000001 /* MainWindowVisibleFrameFitCoreTests.swift */; };
-		730600020000000000000002 /* MainWindowVisibleFrameFitRescue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 730600020000000000000001 /* MainWindowVisibleFrameFitRescue.swift */; };
+		730600030000000000000002 /* MainWindowZoomIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 730600030000000000000001 /* MainWindowZoomIntent.swift */; };
 		4DD540783D6349A794464BDA /* ManagedPolicyBrowserGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 224F615BB3A34C66A999EACF /* ManagedPolicyBrowserGateTests.swift */; };
 		F05288349F2E48398A0E0252 /* ManagedPolicyEnforcementObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFDB146929E340BE89407AC1 /* ManagedPolicyEnforcementObserver.swift */; };
 		E50D16B83824419FB525A70F /* ManagedPolicyRemoteControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0128D58A0B34955A144D263 /* ManagedPolicyRemoteControlTests.swift */; };
@@ -5084,6 +5085,7 @@
 		2F0C05000000000000000001 /* MainWindowFocusController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowFocusController.swift; sourceTree = "<group>"; };
 		6512F0C06512F0C06512F001 /* MainWindowFocusRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowFocusRestoreTests.swift; sourceTree = "<group>"; };
 		B37A00000000000000000006 /* MainWindowFocusTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowFocusTypes.swift; sourceTree = "<group>"; };
+		730600020000000000000001 /* MainWindowFrameReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/MainWindowFrameReconciler.swift; sourceTree = "<group>"; };
 		9666C0029666C0029666C002 /* MainWindowLifecycleCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowLifecycleCoordinator.swift; sourceTree = "<group>"; };
 		9666D1029666D1029666D102 /* MainWindowLifecycleCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowLifecycleCoordinatorTests.swift; sourceTree = "<group>"; };
 		9666E0029666E0029666E002 /* MainWindowLifecyclePhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowLifecyclePhase.swift; sourceTree = "<group>"; };
@@ -5098,7 +5100,7 @@
 		17C9F5BA0DD14EDC8C3E5002 /* MainWindowVisibilityControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowVisibilityControllerTests.swift; sourceTree = "<group>"; };
 		A6D1F0100000000000000001 /* MainWindowVisibilityLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowVisibilityLifecycleTests.swift; sourceTree = "<group>"; };
 		730600010000000000000001 /* MainWindowVisibleFrameFitCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowVisibleFrameFitCoreTests.swift; sourceTree = "<group>"; };
-		730600020000000000000001 /* MainWindowVisibleFrameFitRescue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/MainWindowVisibleFrameFitRescue.swift; sourceTree = "<group>"; };
+		730600030000000000000001 /* MainWindowZoomIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/MainWindowZoomIntent.swift; sourceTree = "<group>"; };
 		224F615BB3A34C66A999EACF /* ManagedPolicyBrowserGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedPolicyBrowserGateTests.swift; sourceTree = "<group>"; };
 		CFDB146929E340BE89407AC1 /* ManagedPolicyEnforcementObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedPolicyEnforcementObserver.swift; sourceTree = "<group>"; };
 		F0128D58A0B34955A144D263 /* ManagedPolicyRemoteControlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedPolicyRemoteControlTests.swift; sourceTree = "<group>"; };
@@ -7698,7 +7700,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				A6D1F0200000000000000001 /* WindowCloseObserver.swift */,
 				A6D1F0300000000000000001 /* MainWindowVisibilityController+Lifecycle.swift */,
 				2F0C06000000000000000001 /* MainWindowVisibilityController.swift */,
-				730600020000000000000001 /* MainWindowVisibleFrameFitRescue.swift */,
+				730600020000000000000001 /* MainWindowFrameReconciler.swift */,
+				730600030000000000000001 /* MainWindowZoomIntent.swift */,
 				895500000000000000000004 /* MainWindowController.swift */,
 				A6D1F0000000000000000001 /* ReleasingWindowController.swift */,
 				A500D011A1B2C3D4E5F60718 /* DebugLogging.swift */,
@@ -11823,6 +11826,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				895500000000000000000003 /* MainWindowController.swift in Sources */,
 				2F0C05000000000000000002 /* MainWindowFocusController.swift in Sources */,
 				B37A00000000000000000005 /* MainWindowFocusTypes.swift in Sources */,
+				730600020000000000000002 /* MainWindowFrameReconciler.swift in Sources */,
 				9666C0019666C0019666C001 /* MainWindowLifecycleCoordinator.swift in Sources */,
 				9666E0019666E0019666E001 /* MainWindowLifecyclePhase.swift in Sources */,
 				9666E0039666E0039666E003 /* MainWindowLifecycleRecord.swift in Sources */,
@@ -11832,7 +11836,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				9666D0019666D0019666D001 /* MainWindowRouteSnapshot.swift in Sources */,
 				A6D1F0300000000000000002 /* MainWindowVisibilityController+Lifecycle.swift in Sources */,
 				2F0C06000000000000000002 /* MainWindowVisibilityController.swift in Sources */,
-				730600020000000000000002 /* MainWindowVisibleFrameFitRescue.swift in Sources */,
+				730600030000000000000002 /* MainWindowZoomIntent.swift in Sources */,
 				F05288349F2E48398A0E0252 /* ManagedPolicyEnforcementObserver.swift in Sources */,
 				A28B087F0000000000000003 /* MarkdownEditableFocusMessageHandler.swift in Sources */,
 				A5FD0002 /* MarkdownFindWebViewEvaluator.swift in Sources */,
