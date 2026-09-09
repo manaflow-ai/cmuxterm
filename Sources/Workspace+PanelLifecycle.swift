@@ -9,7 +9,6 @@ extension Workspace {
     private static let structuredAgentHookStatusKeys = AgentHibernationLifecycleStatusKeys.allowedStatusKeys
     private static let managedSubagentEnvironmentKey = "CMUX_AGENT_MANAGED_SUBAGENT"
     private static let truthyStartupEnvironmentValues: Set<String> = ["1", "true", "yes", "on", "enabled"]
-
     var agentPIDs: [String: pid_t] {
         get { sidebarAgentRuntimeObservation.agentPIDs }
         set { sidebarAgentRuntimeObservation.setAgentPIDs(newValue) }
@@ -404,6 +403,7 @@ extension Workspace {
             )
         }
         let processIdentity = Self.agentPIDProcessIdentity(pid: pid)
+        if key == "claude_code", let panelId, let processIdentity { AgentHibernationController.shared.disarmSessionEndPreservationIfSuperseded(panelKey: AgentHibernationPanelKey(workspaceId: id, panelId: panelId), processIdentity: processIdentity) }
         agentPIDs[key] = pid
         agentPIDProcessIdentitiesByKey[key] = processIdentity
         if let panelId {

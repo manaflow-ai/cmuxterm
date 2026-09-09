@@ -112,7 +112,7 @@ Environment:
 | `vault` | Vault session-index namespace: `sessions [--agent <id>] [--folder <path>] [--limit <n>]` lists indexed agent sessions newest first; `search <query>` searches them with `agent:`/`repo:`/`ws:`/`before:`/`after:` operators; `checkpoints --agent <id> --session <id>` lists a session's checkpoint timeline (derived turn checkpoints + manual ones); `checkpoint … [--name <text>]` creates a manual checkpoint (capturing the workspace git HEAD when available); `fork … (--checkpoint <id> \| --turn <n>) [--open]` forks a new session from a checkpoint and prints the new session id (plus its resume command when one is available) (`--open` also opens it in a new workspace). Backed by the socket v2 methods `vault.sessions`, `vault.search`, `vault.checkpoints`, `vault.checkpoint`, and `vault.fork`; all support `--json`. |
 | `move-tab-to-new-workspace` | Move a tab or surface into a newly created workspace. |
 | `list-workspaces` | List workspaces. |
-| `new-workspace` | Create a workspace, optionally with cwd, command, description, layout, and per-workspace environment variables (`--env KEY=VALUE` repeatable, `--env-file <path>`). See [Workspace environment variables](#workspace-environment-variables). |
+| `new-workspace` | Create a workspace, optionally with cwd, command, description, layout, and per-workspace environment variables (`--env KEY=VALUE` repeatable, `--env-file <path>`). See [Workspace environment variables](#workspace-environment-variables). `--command <text>` runs in the initial interactive shell; see [Initial terminal command](#initial-terminal-command). |
 | `ssh` | Open an SSH-backed workspace. Preserves the caller's live `SSH_AUTH_SOCK` for app-launched OpenSSH processes so `ForwardAgent yes` from ssh_config works normally. Supports `-A` / `--forward-agent` to request forwarding and `-a` / `--no-forward-agent` to disable forwarding for a workspace. Agent forwarding remains opt-in because forwarded agents can be used by processes on the remote host while the SSH session is active. |
 | `local-tmux` | Opt in to a user-owned local tmux server. `start`, `attach`, `list`, `status`, `detach`, `close`, and `cleanup` preserve and manage named sessions independently of the cmux GUI; `cleanup` previews stale records unless `--prune` is supplied. `list`, `status`, `detach`, `close`, `cleanup`, and `attach --headless` work without a running cmux control socket. This preserves live processes across cmux lifecycle events, not a machine shutdown or reboot; use a remote tmux owner for continuity while the Mac is offline. See [`docs/local-tmux.md`](local-tmux.md). |
 | `tmux attach` | Compatibility alias for `local-tmux attach`. |
@@ -120,14 +120,14 @@ Environment:
 | `ssh-session-list` | List persisted SSH PTY sessions for one remote workspace or all remote workspaces. Supports `--json`. |
 | `ssh-session-attach` | Create a local terminal surface that reattaches to an existing persisted SSH PTY session. |
 | `ssh-session-cleanup` | Close one or all persisted SSH PTY sessions. Supports `--json`. |
-| `new-split` | Split from a surface in a direction. |
+| `new-split` | Split from a surface in a direction. `--command <text>` starts a command in the new terminal; see [Initial terminal command](#initial-terminal-command). |
 | `list-panes` | List panes in a workspace. |
 | `list-pane-surfaces` | List surfaces in a pane. |
 | `tree` | Print a window, workspace, pane, and surface tree. |
 | `top` | Print process/resource usage for cmux windows, workspaces, panes, and surfaces. |
 | `focus-pane` | Focus a pane. |
-| `new-pane` | Create a pane with terminal or browser content. |
-| `new-surface` | Create a surface inside a pane. |
+| `new-pane` | Create a pane with terminal or browser content. `--command <text>` is accepted for terminal panes only; see [Initial terminal command](#initial-terminal-command). |
+| `new-surface` | Create a surface inside a pane. `--command <text>` is accepted for terminal surfaces only; see [Initial terminal command](#initial-terminal-command). |
 | `close-surface` | Close a surface. |
 | `move-surface` | Move a surface to another pane, workspace, window, or index. |
 | `split-off` | Move a surface into a new split without changing focus by default. |
@@ -419,6 +419,40 @@ Semantics:
   `--mask`, and are kept out of `workspace list`. Prefer `--env-file` so secrets
   do not land in shell history. Note that values stored in the session manifest
   live on disk in plaintext.
+
+### Initial terminal command
+
+`new-workspace`, `new-split`, `new-pane`, and `new-surface` accept
+`--command <text>` (also `--command=<text>`; a value is required).
+
+- CLI: the text is sent to the v2 socket as `initial_input` with one trailing
+  Enter (`\r`) appended. Command text is preserved literally, including quotes,
+  `&&`, pipes, and `$VARS`, which the new shell interprets.
+- Socket: `initial_input` on `workspace.create`, `surface.split`, `pane.create`,
+  and `surface.create` (including Dock placement). The value is delivered raw at
+  spawn time as the terminal's initial input, so socket clients append their own
+  Enter keystroke.
+
+Semantics:
+
+- **Interactive shell stays alive.** The terminal spawns its normal interactive
+  shell and the text is typed into it, so the shell remains after the command
+  exits. This differs from the pre-existing `initial_command` socket param,
+  which replaces the shell with a one-shot process; `initial_command` is
+  unchanged.
+- **Terminal-only.** The CLI rejects `--command` when `--type` is explicitly
+  non-terminal (`browser`, `simulator`, `agent-session`), and the socket
+  rejects `initial_input` with `invalid_params` when `type` is present and not
+  `terminal`. A null `type` is treated as omitted (terminal).
+- **Blank input is ignored.** Empty or whitespace-only text is dropped and no
+  `initial_input` is sent.
+- **Layouts win.** `new-workspace --layout` ignores `--command`; layout surfaces
+  define their own commands. Without `--layout`, the command is injected at
+  spawn and no follow-up `surface.send_text` is issued.
+- **Remote tmux mirrors fail closed.** A mirrored remote-tmux workspace rejects
+  creation requests carrying `initial_input` instead of dropping the command.
+  A split next to a cloud-projected pane with explicit `initial_input` stays
+  local.
 
 tmux compatibility commands:
 
@@ -741,6 +775,7 @@ the expected text without connecting to a cmux socket.
 - `cmux tab-action --help` -> `Usage: cmux tab-action --action <name>`
 - `cmux rename-tab --help` -> `Usage: cmux rename-tab`
 - `cmux new-workspace --help` -> `Usage: cmux new-workspace`
+- `cmux new-workspace --help` -> `--command <text>`
 - `cmux list-workspaces --help` -> `Usage: cmux list-workspaces`
 - `cmux ssh --help` -> `Usage: cmux ssh <destination>`
 - `cmux ssh --help` -> `--forward-agent`
@@ -753,13 +788,16 @@ the expected text without connecting to a cmux socket.
 - `cmux ssh-session-attach --help` -> `Usage: cmux ssh-session-attach --session-id <id>`
 - `cmux ssh-session-cleanup --help` -> `Usage: cmux ssh-session-cleanup`
 - `cmux new-split --help` -> `Usage: cmux new-split`
+- `cmux new-split --help` -> `--command <text>`
 - `cmux list-panes --help` -> `Usage: cmux list-panes`
 - `cmux list-pane-surfaces --help` -> `Usage: cmux list-pane-surfaces`
 - `cmux tree --help` -> `Usage: cmux tree`
 - `cmux top --help` -> `Usage: cmux top`
 - `cmux focus-pane --help` -> `Usage: cmux focus-pane`
 - `cmux new-pane --help` -> `Usage: cmux new-pane`
+- `cmux new-pane --help` -> `--command <text>`
 - `cmux new-surface --help` -> `Usage: cmux new-surface`
+- `cmux new-surface --help` -> `--command <text>`
 - `cmux close-surface --help` -> `Usage: cmux close-surface`
 - `cmux drag-surface-to-split --help` -> `Usage: cmux drag-surface-to-split`
 - `cmux refresh-surfaces --help` -> `Usage: cmux refresh-surfaces`
