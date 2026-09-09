@@ -583,9 +583,15 @@ private final class ShortcutNoopFileSearchController: FileSearchControlling {
             prefix: "cmux-file-explorer-shortcut-settings"
         )
         KeyboardShortcutSettings.resetAll()
+#if DEBUG
+        AppDelegate.shared?.debugResetShortcutRoutingStateForTesting()
+#endif
         defer {
             KeyboardShortcutSettings.resetAll()
             KeyboardShortcutSettings.settingsFileStore = originalSettingsFileStore
+#if DEBUG
+            AppDelegate.shared?.debugResetShortcutRoutingStateForTesting()
+#endif
         }
 
         try body()
