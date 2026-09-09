@@ -13,7 +13,8 @@ extension SettingsWindowRoot {
                     SettingsSidebarEntryRow(
                         title: entry.title,
                         symbolName: entry.symbolName,
-                        subtitle: subtitle(for: entry)
+                        subtitle: subtitle(for: entry),
+                        isSelected: selectedSidebarEntryID == entry.id
                     )
                     .tag(entry.id)
                 }

@@ -35,10 +35,9 @@ public final class JSONValueModel<Value: SettingCodable> {
     /// deallocates.
     @ObservationIgnored private let observation = SettingReadDriver<Value>()
 
-    /// Owns the most recent persistence task so synchronous SwiftUI bindings
-    /// do not leave an untracked operation behind. A new write supersedes the
-    /// previous task; the store actor still serializes operations that have
-    /// already reached it.
+    /// Retains the tail of the ordered persistence queue while the model is
+    /// alive. Each queued task retains its predecessor until that operation
+    /// completes, so writes cannot be dropped when callers update quickly.
     @ObservationIgnored private var pendingWriteTask: Task<Void, Never>?
 
     /// Creates a model bound to ``key`` in ``store``.
@@ -86,10 +85,6 @@ public final class JSONValueModel<Value: SettingCodable> {
         self.current = key.defaultValue
     }
 
-    deinit {
-        pendingWriteTask?.cancel()
-    }
-
     /// Starts the JSON change stream for the retained model.
     ///
     /// Idempotent: the first call starts observation and later calls are
@@ -135,15 +130,19 @@ public final class JSONValueModel<Value: SettingCodable> {
         }
     }
 
-    /// Enqueues one actor-isolated persistence operation and retains its task
-    /// for lifecycle cancellation. The closure runs on the main actor before
-    /// and after the store hop, so updates to ``lastWriteError`` stay isolated.
+    /// Enqueues one actor-isolated persistence operation behind earlier writes.
+    /// The closure runs on the main actor before and after the store hop, so
+    /// updates to ``lastWriteError`` stay isolated. Persistence intentionally
+    /// outlives the model so closing a settings view cannot cancel a queued
+    /// write.
     private func enqueueWrite(
         _ operation: @escaping @Sendable (JSONConfigStore, JSONKey<Value>) async throws -> Void
     ) -> Task<Void, Never> {
-        pendingWriteTask?.cancel()
+        let previousWriteTask = pendingWriteTask
         let keyID = key.id
-        let task = Task { @MainActor [weak self, store, key] in
+        let task = Task { @MainActor [weak self, store, key, previousWriteTask] in
+            _ = await previousWriteTask?.value
+            guard !Task.isCancelled else { return }
             do {
                 try await operation(store, key)
                 guard !Task.isCancelled else { return }

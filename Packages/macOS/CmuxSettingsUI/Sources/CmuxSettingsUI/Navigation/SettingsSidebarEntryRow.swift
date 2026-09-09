@@ -14,22 +14,24 @@ struct SettingsSidebarEntryRow: View {
     let title: String
     let symbolName: String
     let subtitle: String?
+    let isSelected: Bool
     @Environment(\.chromePalette) private var chromePalette
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: symbolName)
-                .foregroundStyle(chromePalette.textSecondary.swiftUIColor)
+                .foregroundStyle((isSelected ? chromePalette.textOnSelected : chromePalette.textSecondary).swiftUIColor)
                 .frame(width: 16)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
+                    .foregroundStyle((isSelected ? chromePalette.textOnSelected : chromePalette.textPrimary).swiftUIColor)
                     .lineLimit(1)
 
                 if let subtitle {
                     Text(subtitle)
                         .cmuxFont(.caption)
-                        .foregroundStyle(chromePalette.textSecondary.swiftUIColor)
+                        .foregroundStyle((isSelected ? chromePalette.textOnSelected : chromePalette.textSecondary).swiftUIColor)
                         .lineLimit(1)
                 }
             }
