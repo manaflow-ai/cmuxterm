@@ -94,6 +94,33 @@ struct CLIPinnedHookClockTests {
         }
     }
 
+    @Test
+    func hookProcessWaitSignalsNormalExitAndBoundsOwnedTimeout() {
+        let normal = runCodexHookProcess(
+            executablePath: "/bin/sh",
+            arguments: ["-c", "printf normal"],
+            environment: ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin"],
+            timeout: 2
+        )
+        #expect(!normal.timedOut)
+        #expect(normal.status == 0)
+        #expect(normal.stdout == "normal")
+        #expect(normal.stderr.isEmpty)
+
+        let timeoutStart = ContinuousClock.now
+        let timeout = runCodexHookProcess(
+            executablePath: "/bin/sh",
+            arguments: ["-c", "exec /bin/sleep 30"],
+            environment: ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin"],
+            timeout: 0.1
+        )
+        #expect(timeout.timedOut)
+        #expect(timeout.status != 0)
+        #expect(timeout.stdout.isEmpty)
+        #expect(timeout.stderr.isEmpty)
+        #expect(timeoutStart.duration(to: .now) < .seconds(5))
+    }
+
     private func makeCLI(named name: String, exitCode: Int, root: URL) throws -> String {
         let url = root.appendingPathComponent(name)
         let script = """
