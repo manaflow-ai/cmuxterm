@@ -623,7 +623,7 @@ jobs:
       # grows: a shard can crash around 1,000 UI tests and poison the remaining
       # selectors. Six-way packing keeps each broad shard near 13 minutes of
       # measured work; allow focused gates and one app-host restart headroom.
-      CMUX_UNIT_TEST_TIMEOUT_SECONDS: "300"
+      CMUX_UNIT_TEST_TIMEOUT_SECONDS: "1800"
       # XCTest app-host crashes can leave xcodebuild waiting in Swift's crash
       # backtracer until the job timeout. Keep crash handling non-interactive
       # and cheap so xcodebuild can restart/finish the suite.
