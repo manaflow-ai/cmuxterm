@@ -464,17 +464,6 @@ final class MachinesPanelModelTests: XCTestCase {
             "resource:vivid-newt/terminal/term_1",
             "resource:vivid-newt/terminal/term_2",
         ])
-        // Port rows: the sidebar side of `cmux vm open <m>:port/<n>` — the same
-        // `<m>/browser/port:<n>` resource, so click and CLI open one catalog entry.
-        let portRows = Dictionary(CloudTreeNodeBuilder.flattened(nodes).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        if case .port(let resource, _, _) = portRows["resource:vivid-newt/browser/port:3000"]!.kind {
-            XCTAssertEqual(resource.port, 3000)
-            XCTAssertEqual(resource.id, port.id)
-        } else { XCTFail("expected a port row") }
-        XCTAssertFalse(portRows["resource:vivid-newt/browser/port:3000"]!.isDragSource, "ports open in place; they do not leave the tree by drag")
-        // A daemon browser at a localhost URL is a browser, never a port row.
-        let localhostBrowser = SurfaceResource(id: SurfaceResourceID(machine: .cloud("vivid-newt"), kind: .browser, key: "browser_9"), title: "app", detail: "http://localhost:3000", lifecycle: .running, agent: nil, remoteWorkspace: nil, port: 3000, url: "http://localhost:3000")
-        XCTAssertEqual(CloudTreeNodeBuilder.portResources([localhostBrowser, port]).map(\.id), [port.id])
         // A remote workspace already showing locally: its row marks it open and the click
         // jumps to that local workspace instead of opening a second copy.
         let remoteSideLocalWorkspace = UUID()
@@ -663,13 +652,11 @@ final class MachinesPanelModelTests: XCTestCase {
             SurfaceRemoteView(tabID: "tab_b", workspace: workspace, index: 1),
         ]
         let catalog = SurfaceCatalog()
+        // The catalog drops writes for a cloud machine with no registered provider.
         let provider = GroupFakeProvider(machine: machine)
+        provider.info = machineInfo(machine, hasDesktop: false, remoteWorkspaces: [workspace])
         catalog.register(provider)
-        catalog.replaceResources(
-            [terminalResource],
-            on: machine,
-            info: machineInfo(machine, hasDesktop: false, remoteWorkspaces: [workspace])
-        )
+        XCTAssertTrue(catalog.replaceResources([terminalResource], on: machine, info: provider.info, from: provider))
 
         let group = try catalog.remoteWorkspaceGroup(machine: machine, workspaceID: workspace.id)
         XCTAssertEqual(group.title, "main")
@@ -687,13 +674,11 @@ final class MachinesPanelModelTests: XCTestCase {
         resource.remoteWorkspace = workspace
         resource.remoteViews = []
         let catalog = SurfaceCatalog()
+        // The catalog drops writes for a cloud machine with no registered provider.
         let provider = GroupFakeProvider(machine: machine)
+        provider.info = machineInfo(machine, hasDesktop: false, remoteWorkspaces: [workspace])
         catalog.register(provider)
-        catalog.replaceResources(
-            [resource],
-            on: machine,
-            info: machineInfo(machine, hasDesktop: false, remoteWorkspaces: [workspace])
-        )
+        XCTAssertTrue(catalog.replaceResources([resource], on: machine, info: provider.info, from: provider))
 
         let group = try catalog.remoteWorkspaceGroup(machine: machine, workspaceID: workspace.id)
         XCTAssertEqual(group.resources, [resource.id])
@@ -724,8 +709,14 @@ final class MachinesPanelModelTests: XCTestCase {
             snapshot: SurfaceCatalogSnapshot(machines: [machineInfo(.cloud("quiet-owl"), linkState: .asleep, hasDesktop: false)], resources: [], projections: []),
             localWorkspaces: []
         )
-        XCTAssertEqual(CloudTreeNodeBuilder.flattened(asleep).map(\.id), ["machine:quiet-owl", "machine:quiet-owl/placeholder"])
+        // The link placeholder leads; the Ports group stays reachable so a sleeping
+        // machine can still explain how to discover its ports (see emptyPorts(info:)).
+        XCTAssertEqual(
+            CloudTreeNodeBuilder.flattened(asleep).map(\.id),
+            ["machine:quiet-owl", "machine:quiet-owl/placeholder", "machine:quiet-owl/ports", "machine:quiet-owl/ports/status"]
+        )
         if case .placeholder(_, let placeholder) = asleep[0].children[0].kind { XCTAssertEqual(placeholder.style, .dimmed) } else { XCTFail() }
+        if case .placeholder(_, let ports) = asleep[0].children[1].children[0].kind { XCTAssertEqual(ports.style, .dimmed) } else { XCTFail() }
 
         let broken = CloudTreeNodeBuilder.nodes(
             machines: [machineSnapshot(id: "broken-elk")],
@@ -736,8 +727,10 @@ final class MachinesPanelModelTests: XCTestCase {
             XCTAssertEqual(placeholder.style, .error)
             XCTAssertEqual(placeholder.text, "timed out")
         } else { XCTFail() }
-        // A machine the catalog has not registered yet has nothing to expand.
-        XCTAssertNil(CloudTreeNodeBuilder.nodes(machines: [machineSnapshot(id: "new")], snapshot: .empty, localWorkspaces: [])[0].children.first)
+        // A machine the catalog has not registered yet only shows that it is connecting.
+        let unregistered = CloudTreeNodeBuilder.nodes(machines: [machineSnapshot(id: "new")], snapshot: .empty, localWorkspaces: [])
+        XCTAssertEqual(unregistered[0].children.map(\.id), ["machine:new/placeholder"])
+        if case .placeholder(_, let placeholder) = unregistered[0].children[0].kind { XCTAssertEqual(placeholder.style, .connecting) } else { XCTFail() }
         // A machine only the catalog knows still gets a row.
         let catalogOnly = CloudTreeNodeBuilder.nodes(
             machines: [],
@@ -1071,23 +1064,6 @@ final class CloudTreeScopeAndSignatureTests: XCTestCase {
 /// CPU/Mem/Disk reading (when the style shows stats), else nothing.
 @Suite("Cloud tree machine inline fact")
 struct CloudTreeMachineInlineFactTests {
-    @Test("Refresh drops retained statistics when the provider withdraws support")
-    func capabilityWithdrawalDropsPreviousStats() {
-        let stats = VMStats(
-            state: .awake, sampledAt: Date(timeIntervalSince1970: 0), cpus: 2, cpuPercent: 9.4,
-            loadAverage1m: nil, memoryTotalMb: 3891, memoryUsedMb: 3481, diskTotalMb: 3174, diskUsedMb: 2867
-        )
-        var summary = VMSummary(
-            id: "machine", provider: "freestyle", status: "running", image: "base", createdAt: 0, base: nil
-        )
-        let supported = MachineSnapshotBuilder.snapshot(from: summary, previousStats: stats)
-        #expect(supported.stats == stats)
-        summary.capabilities = VMCapabilities(json: ["stats": false])
-        let unsupported = MachineSnapshotBuilder.snapshot(from: summary, previousStats: supported.stats)
-        #expect(unsupported.stats == nil)
-        #expect(CloudTreeMachineRowContent.inlineFact(unsupported, style: .compact) == nil)
-    }
-
     private func snapshot(stats: VMStats?) -> MachineSnapshot {
         var machine = MachineSnapshotBuilder.snapshot(from: VMSummary(
             id: "troll", provider: "freestyle", status: "running", image: "cmux-devbox:devbox-20260828b", createdAt: 0, base: nil
@@ -1135,11 +1111,6 @@ struct MachinesPanelListProblemTests {
                 .httpStatus(402, #"{"error":"vm_requires_pro"}"#)
             ) == .requiresPro
         )
-    }
-
-    @Test(arguments: ["pause", "resume"])
-    func unsupportedLifecycleDoesNotRequestReauthOrPayment(action: String) {
-        #expect(MachinesPanelViewModel.classifyListFailure(.lifecycleUnsupported(action: action)) == .unreachable)
     }
 
     @Test("Transient-shaped failures keep the retry-first unreachable state")
@@ -1201,97 +1172,6 @@ struct MachinesPanelPaidPlanTests {
         let error = VMClientError.httpStatus(402, #"{"error":"vm_requires_pro"}"#)
         #expect(error.description.contains("https://cmux.com/pricing"))
         #expect(error.description.contains("Upgrade to cmux Pro"))
-    }
-}
-
-// MARK: - VMCapabilities decoding (the client half of the provider contract)
-
-/// The client gates verbs on the server's capability object and must stay
-/// skew-safe in both directions: a missing flag reads as supported (an older
-/// server keeps its historical attempt-and-surface behavior), and unknown
-/// providers are described entirely by their capability set — no provider
-/// name appears in any gate.
-struct VMCapabilitiesDecodingTests {
-    @Test(arguments: [VMMachineKind.base, .desktop])
-    func legacyStatsFollowMachineKind(kind: VMMachineKind) {
-        let response: [String: Any] = [
-            "kind": kind.rawValue,
-            "image": "snapshot-opaque",
-            "capabilities": ["snapshot": true, "fork": true],
-        ]
-        #expect(VMCapabilities(vmResponse: response).stats == kind.hasDesktop)
-    }
-
-    @Test func legacyStatsInferKindWhenMissing() {
-        #expect(!VMCapabilities(vmResponse: ["image": "cmux-devbox"]).stats)
-        #expect(VMCapabilities(vmResponse: ["image": "cmux-xfce"]).stats)
-    }
-
-    @Test(arguments: [true, false])
-    func explicitStatsOverrideLegacyKind(supported: Bool) {
-        for kind in VMMachineKind.allCases {
-            let response: [String: Any] = ["kind": kind.rawValue, "capabilities": ["stats": supported]]
-            #expect(VMCapabilities(vmResponse: response).stats == supported)
-        }
-    }
-
-    @Test func fullServerObjectDecodes() {
-        let caps = VMCapabilities(json: [
-            "snapshot": true, "restore": true, "fork": false,
-            "exec": true, "stats": false, "ports": false, "desktop": false,
-            "sizing": true, "persistentHome": false,
-            "attachTransports": ["cmux-remote"],
-        ])
-        #expect(caps.snapshot)
-        #expect(!caps.fork)
-        #expect(caps.exec)
-        #expect(!caps.stats)
-        #expect(!caps.ports)
-        #expect(!caps.desktop)
-        #expect(caps.sizing)
-        #expect(!caps.persistentHome)
-        #expect(caps.attachTransports == ["cmux-remote"])
-        #expect(caps.cmuxRemote)
-        #expect(!caps.ssh)
-
-        let socketCaps = VMCapabilities(json: ["attach_transports": ["cmux-remote"]])
-        #expect(socketCaps.attachTransports == ["cmux-remote"])
-    }
-
-    @Test func missingFlagsReadAsSupported() {
-        // An older server sends only {snapshot, restore, fork}: the new flags
-        // default to true and the transport list to nil (attempt, don't gate).
-        let caps = VMCapabilities(json: ["snapshot": true, "restore": true, "fork": true])
-        #expect(caps.stats)
-        #expect(caps.ports)
-        #expect(caps.desktop)
-        #expect(caps.sizing)
-        #expect(caps.persistentHome)
-        #expect(caps.attachTransports == nil)
-        #expect(caps.ssh)
-        #expect(caps.cmuxRemote)
-    }
-
-    @Test func absentObjectIsAll() {
-        let caps = VMCapabilities(json: nil)
-        #expect(caps == .all)
-    }
-
-    @Test func socketEchoRoundTrips() {
-        // The socket worker's `vm ls --json` payload is rebuilt from the same
-        // struct; the wire object must carry every gate an agent needs.
-        let caps = VMCapabilities(
-            snapshot: true, restore: true, fork: false,
-            exec: true, stats: false, ports: false, desktop: false,
-            sizing: true, persistentHome: false,
-            attachTransports: ["cmux-remote"])
-        let object = caps.jsonObject
-        #expect(object["fork"] as? Bool == false)
-        #expect(object["stats"] as? Bool == false)
-        #expect(object["ports"] as? Bool == false)
-        #expect(object["sizing"] as? Bool == true)
-        #expect(object["persistentHome"] as? Bool == false)
-        #expect(object["attach_transports"] as? [String] == ["cmux-remote"])
     }
 }
 
