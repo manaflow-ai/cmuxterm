@@ -201,15 +201,13 @@ struct CLICodexHookTimeoutRegressionTests {
                       let event = params["event"] as? [String: Any] else {
                     return false
                 }
-                return event["hook_event_name"] as? String == "PermissionRequest"
+                return event["hook_event_name"] as? String == "PreToolUse"
+                    && event["_ppid"] as? Int == 4242
             }
         })
         #expect(waitForConditionBlocking(timeout: 3) {
-            AgentJournalAppendCapture.captures(in: commands.snapshot()).contains { capture in
-                capture.kind == "agent.approval.requested"
-                    && capture.agentKey == "codex"
-                    && capture.workspaceId == workspaceId
-                    && capture.surfaceId == surfaceId
+            commands.snapshot().contains {
+                $0 == "notify_target_async \(workspaceId) \(surfaceId) Codex|Permission|Approval needed|c=needs-permission;p=0"
             }
         })
     }
