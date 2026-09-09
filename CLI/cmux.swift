@@ -116,25 +116,6 @@ private func agentHookDebugSocketName(_ socketPath: String?) -> String {
 }
 #endif
 
-struct ClaudeHookActiveSessionRecord: Codable {
-    var sessionId: String
-    var turnId: String?
-    var allowsNewSessionReplacement: Bool?
-    var updatedAt: TimeInterval
-}
-
-typealias AgentHookLaunchCommandRecord = AgentLaunchCommand
-
-private struct CodexMonitorLeaseRecord: Codable {
-    var leaseId: String
-    var sessionId: String
-    var turnId: String?
-    var workspaceId: String
-    var surfaceId: String?
-    var createdAt: TimeInterval
-    var retiredAt: TimeInterval?
-}
-
 final class ClaudeHookSessionStore {
     /// Reports whether one upsert was admitted and which same-process records
     /// were queued for cleanup. Acceptance is independent of the cleanup list:
@@ -1838,10 +1819,6 @@ final class ClaudeHookSessionStore {
         return String(value[..<index]) + "…"
     }
 
-
-
-
-
     func clearNotificationEmission(sessionId: String) throws {
         let normalized = normalizeSessionId(sessionId)
         guard !normalized.isEmpty else { return }
@@ -1957,9 +1934,6 @@ final class ClaudeHookSessionStore {
         }
         return errno == EPERM
     }
-
-
-
 
     func hasActiveSession(workspaceId: String, surfaceId: String?) throws -> Bool {
         guard let normalizedWorkspace = normalizeOptional(workspaceId) else { return false }
@@ -17112,7 +17086,6 @@ struct CMUXCLI {
             }
             return
         }
-
 
         if subcommand == "find" {
             let sid = try requireSurface()
@@ -40586,7 +40559,6 @@ export default CMUXSessionRestore;
             return false
         }
     }
-
 
     private func versionSummary() -> String {
         let info = resolvedVersionInfo()

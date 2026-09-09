@@ -601,6 +601,7 @@
 		79390001AA11BB22CC33DD01 /* ClaudeHookLiveDeliveryTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79390002AA11BB22CC33DD02 /* ClaudeHookLiveDeliveryTargetTests.swift */; };
 		79390009AA11BB22CC33DD09 /* ClaudeHookLiveDeliveryTargetTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7939000AAA11BB22CC33DD0A /* ClaudeHookLiveDeliveryTargetTestSupport.swift */; };
 		79390011AA11BB22CC33DD11 /* ClaudeHookPIDAuthenticationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79390012AA11BB22CC33DD12 /* ClaudeHookPIDAuthenticationTests.swift */; };
+		C0DE0F010000000000000002 /* ClaudeHookSessionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE0F010000000000000001 /* ClaudeHookSessionModels.swift */; };
 		BFA7A72B93D1E89E8E327833 /* ClaudeHookSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1164784A69ABF6BB40DA7CFB /* ClaudeHookSessionRecord.swift */; };
 		5DABA5B95D4F93562F66F7D8 /* ClaudeHookSessionStore+Ownership.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40CE0A832B8685100E22A9D8 /* ClaudeHookSessionStore+Ownership.swift */; };
 		2E78FA681815B8515A1FA2D6 /* ClaudeHookSessionStore+RuntimeOrdering.swift in Sources */ = {isa = PBXBuildFile; fileRef = E757317C5EF43DC18BF5F0D6 /* ClaudeHookSessionStore+RuntimeOrdering.swift */; };
@@ -4110,6 +4111,7 @@
 		79390002AA11BB22CC33DD02 /* ClaudeHookLiveDeliveryTargetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeHookLiveDeliveryTargetTests.swift; sourceTree = "<group>"; };
 		7939000AAA11BB22CC33DD0A /* ClaudeHookLiveDeliveryTargetTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeHookLiveDeliveryTargetTestSupport.swift; sourceTree = "<group>"; };
 		79390012AA11BB22CC33DD12 /* ClaudeHookPIDAuthenticationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeHookPIDAuthenticationTests.swift; sourceTree = "<group>"; };
+		C0DE0F010000000000000001 /* ClaudeHookSessionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeHookSessionModels.swift; sourceTree = "<group>"; };
 		1164784A69ABF6BB40DA7CFB /* ClaudeHookSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeHookSessionRecord.swift; sourceTree = "<group>"; };
 		40CE0A832B8685100E22A9D8 /* ClaudeHookSessionStore+Ownership.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ClaudeHookSessionStore+Ownership.swift"; sourceTree = "<group>"; };
 		E757317C5EF43DC18BF5F0D6 /* ClaudeHookSessionStore+RuntimeOrdering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ClaudeHookSessionStore+RuntimeOrdering.swift"; sourceTree = "<group>"; };
@@ -9286,6 +9288,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				40CE0A832B8685100E22A9D8 /* ClaudeHookSessionStore+Ownership.swift */,
 				E757317C5EF43DC18BF5F0D6 /* ClaudeHookSessionStore+RuntimeOrdering.swift */,
 				1164784A69ABF6BB40DA7CFB /* ClaudeHookSessionRecord.swift */,
+				C0DE0F010000000000000001 /* ClaudeHookSessionModels.swift */,
 				C2538002A1B2C3D4E5F60719 /* CMUXCLI+TerminalCreation.swift */,
 				F97300010000000000000001 /* FreestyleInteractiveShellScript.swift */,
 				C11218000000000000000051 /* CLIError.swift */,
@@ -13174,6 +13177,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				A10649330000000000000001 /* AutomationWebhookPolicy.swift in Sources */,
 				A10649380000000000000001 /* AutomationWebhookRedirectDelegate.swift in Sources */,
 				805500000000000000000004 /* BrowserValueTextFormatter.swift in Sources */,
+				C0DE0F010000000000000002 /* ClaudeHookSessionModels.swift in Sources */,
 				BFA7A72B93D1E89E8E327833 /* ClaudeHookSessionRecord.swift in Sources */,
 				5DABA5B95D4F93562F66F7D8 /* ClaudeHookSessionStore+Ownership.swift in Sources */,
 				2E78FA681815B8515A1FA2D6 /* ClaudeHookSessionStore+RuntimeOrdering.swift in Sources */,
