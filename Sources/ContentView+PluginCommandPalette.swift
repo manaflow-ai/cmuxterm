@@ -4,7 +4,7 @@ import Foundation
 import SwiftUI
 
 extension ContentView {
-    fileprivate func pluginAndConfigPaletteContributions(
+    func pluginAndConfigPaletteContributions(
         defaultSubtitle: String
     ) -> [CommandPaletteCommandContribution] {
         func constant(_ value: String) -> (CommandPaletteContextSnapshot) -> String { { _ in value } }
@@ -29,7 +29,7 @@ extension ContentView {
         return contributions
     }
 
-    fileprivate func registerPluginAndConfiguredCommandPaletteHandlers(
+    func registerPluginAndConfiguredCommandPaletteHandlers(
         _ registry: inout CommandPaletteHandlerRegistry
     ) {
         for issue in cmuxConfigStore.configurationIssues {
@@ -47,7 +47,7 @@ extension ContentView {
         registerPluginCommandPaletteHandlers(&registry)
     }
 
-    fileprivate func applyingPluginChangeObservers(to view: AnyView) -> AnyView {
+    func applyingPluginChangeObservers(to view: AnyView) -> AnyView {
         AnyView(view
             .task {
                 for await _ in NotificationCenter.default.notifications(named: .cmuxPluginManagementDidChange) {
