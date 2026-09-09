@@ -4875,6 +4875,36 @@ def _self_test() -> int:
             {RULE_SLEEP_THEN_ASSERT},
         ),
         (
+            "cmuxTests/generic-task-sleep.swift",
+            "try await Task<Never, Never>.sleep(for: .seconds(1))\n#expect(ready)\n",
+            {RULE_SLEEP_THEN_ASSERT},
+        ),
+        (
+            "cmuxTests/thread-sleep.swift",
+            "Thread.sleep(forTimeInterval: 1)\n#expect(ready)\n",
+            {RULE_SLEEP_THEN_ASSERT},
+        ),
+        (
+            "cmuxTests/posix-sleep.swift",
+            "sleep(1)\n#expect(ready)\n",
+            {RULE_SLEEP_THEN_ASSERT},
+        ),
+        (
+            "cmuxTests/darwin-sleep.swift",
+            "Darwin.sleep(1)\n#expect(ready)\n",
+            {RULE_SLEEP_THEN_ASSERT},
+        ),
+        (
+            "cmuxTests/glibc-sleep.swift",
+            "Glibc.sleep(1)\n#expect(ready)\n",
+            {RULE_SLEEP_THEN_ASSERT},
+        ),
+        (
+            "cmuxTests/continuous-clock-sleep.swift",
+            "try await ContinuousClock().sleep(for: .seconds(1))\n#expect(ready)\n",
+            {RULE_SLEEP_THEN_ASSERT},
+        ),
+        (
             "tests/sh.sh",
             "sleep 1\ntest -f /tmp/out || exit 1\n",
             set(),  # shell `test -f` is not in our assertion vocabulary; ensure no false negative is required
@@ -4888,6 +4918,17 @@ def _self_test() -> int:
     ]
 
     negatives: list[tuple[str, str]] = [
+        (
+            "Packages/Shared/Example/Tests/ExampleTests/InjectedSleepTests.swift",
+            "try await RetryPolicy.sleep(seconds: 172_801) { chunk in\n"
+            "    #expect(chunk <= 86_400)\n"
+            "    time.advance(by: chunk)\n"
+            "}\n",
+        ),
+        (
+            "cmuxTests/virtual-clock.swift",
+            "try await virtualClock.sleep(for: .seconds(1))\n#expect(ready)\n",
+        ),
         # Deterministic scenario-pacing sleep with NO following assertion.
         (
             "tests/n1.py",
