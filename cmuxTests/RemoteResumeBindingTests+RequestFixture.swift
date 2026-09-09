@@ -13,7 +13,7 @@ extension RemoteResumeBindingTests {
             "kind": "codex",
             "checkpoint_id": "session-remote-7989",
             "source": "agent-hook",
-            "agent_event_time": 1_893_456_700,
+            "agent_event_time": Date.now.timeIntervalSince1970,
             "command": command,
             "cwd": "/srv/remote project",
             "environment": [
