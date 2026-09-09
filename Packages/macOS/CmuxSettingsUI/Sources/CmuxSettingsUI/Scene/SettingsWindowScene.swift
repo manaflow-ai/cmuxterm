@@ -73,7 +73,7 @@ public struct SettingsWindowRoot: View {
     // @AppStorage (not @SceneStorage): the window is AppKit-hosted, so
     // there is no SwiftUI scene to store into (cmux issue #7777).
     @AppStorage(SettingsWindowRoot.selectedSectionDefaultsKey) private var selectedSectionRaw: String = SettingsSectionID.account.rawValue
-    @AppStorage("selectedSettingsSidebarEntry") private var selectedSidebarEntryID: String = "section:\(SettingsSectionID.account.rawValue)"
+    @AppStorage("selectedSettingsSidebarEntry") fileprivate var selectedSidebarEntryID: String = "section:\(SettingsSectionID.account.rawValue)"
     // Mirrors BetaFeaturesCatalogSection.cloudMachines so flipping the Beta
     // Features toggle shows/hides the Cloud sidebar row without reopening
     // Settings; the host folds in the remote rollout flag.
