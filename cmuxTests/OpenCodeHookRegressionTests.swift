@@ -25,16 +25,17 @@ final class OpenCodeHookRegressionTests: XCTestCase {
 
         // Keep the Unix socket outside the long macOS temporary-directory
         // path. Darwin's socket path limit is shorter than that path plus a
-        // UUID, and Node reports the resulting truncation collision as
+        // UUID, and Bun reports the resulting truncation collision as
         // EADDRINUSE even when this test created a fresh directory.
         let socketPath = "/tmp/cmux-opencode-\(UUID().uuidString).sock"
         let harnessURL = root.appendingPathComponent("harness.js")
         try Self.openCodeFeedEventHarness.write(to: harnessURL, atomically: true, encoding: .utf8)
         defer { try? fileManager.removeItem(atPath: socketPath) }
+        let bunURL = try Self.bunExecutableURL()
 
         let result = runProcess(
-            executablePath: "/usr/bin/env",
-            arguments: ["node", harnessURL.path, pluginURL.path, socketPath],
+            executablePath: bunURL.path,
+            arguments: [harnessURL.path, pluginURL.path, socketPath],
             environment: ProcessInfo.processInfo.environment,
             timeout: 5
         )
@@ -114,6 +115,23 @@ final class OpenCodeHookRegressionTests: XCTestCase {
 
     private func bundledCLIPath() throws -> String {
         try BundledCLITestSupport.bundledCLIPath(for: Self.self)
+    }
+
+    private static func bunExecutableURL() throws -> URL {
+        let fileManager = FileManager.default
+        var candidates: [String] = []
+        if let install = ProcessInfo.processInfo.environment["BUN_INSTALL"], !install.isEmpty {
+            candidates.append(URL(fileURLWithPath: install).appendingPathComponent("bin/bun").path)
+        }
+        candidates += [
+            fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".bun/bin/bun").path,
+            "/opt/homebrew/bin/bun",
+            "/usr/local/bin/bun",
+        ]
+        if let path = candidates.first(where: { fileManager.isExecutableFile(atPath: $0) }) {
+            return URL(fileURLWithPath: path)
+        }
+        throw XCTSkip("Bun runtime is required for the OpenCode plugin harness")
     }
 
     private static let openCodeFeedEventHarness = #"""
