@@ -163999,13 +163999,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Up to 50 Cloud VMs, each with its own resources; default size 8 GB RAM and 32 GB disk, with 4 to 64 GB RAM available"
+            "value": "Up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "最大 50 台の Cloud VM。各マシンに専用のリソースがあり、標準サイズは 8 GB RAM / 32 GB ディスク。RAM 4～64 GB のサイズを選べます"
+            "value": "最大 50 台の Cloud VM で、24 GB RAM と 6 vCPU を共有"
           }
         }
       }
@@ -164220,121 +164220,121 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro では最大 50 台、Team ではユーザーごとに最大 50 台の Cloud VM を利用できます。各マシンには独立した CPU、メモリ、ディスクがあります。標準サイズは 8 GB RAM / 32 GB ディスクで、RAM 4～64 GB のサイズを選べます。ディスクは最大 256 GB まで拡張できます。従量課金や超過料金はありません。"
+            "value": "Pro では最大 50 台の Cloud VM で、24 GB RAM と 6 vCPU を共有します。Team ではユーザーごとに同じ上限が適用されます。従量課金や超過料金はありません。"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro includes up to 50 Cloud VMs, with 24 GB RAM and 6 vCPUs shared across all VMs. Team includes the same limits per user. There is no metering or overage billing."
           }
         }
       }
@@ -164623,13 +164623,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Up to 50 Cloud VMs per user, each with its own resources; default size 8 GB RAM and 32 GB disk, with 4 to 64 GB RAM available"
+            "value": "Up to 50 Cloud VMs per user, with 24 GB RAM and 6 vCPUs per user shared across all their VMs"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ユーザーごとに最大 50 台の Cloud VM。各マシンに専用のリソースがあり、標準サイズは 8 GB RAM / 32 GB ディスク。RAM 4～64 GB のサイズを選べます"
+            "value": "ユーザーごとに最大 50 台の Cloud VM で、ユーザーあたり 24 GB RAM と 6 vCPU を共有"
           }
         }
       }
