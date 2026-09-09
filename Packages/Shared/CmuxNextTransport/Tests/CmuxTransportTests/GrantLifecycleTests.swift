@@ -232,7 +232,7 @@ struct GrantLifecycleTests {
         await gate.release()
         await enforcing.value
 
-        let key = SessionKey(
+        let key = TransportHost.SessionKey(
             deviceID: renewedIdentity.deviceID, appIdentity: renewedIdentity.appIdentity)
         #expect(await renewedClient.isClosed == false)
         #expect(await host.session(for: key)?.grant == renewed)

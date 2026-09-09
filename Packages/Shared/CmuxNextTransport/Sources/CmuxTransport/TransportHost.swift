@@ -219,7 +219,8 @@ public actor TransportHost {
             if now >= expiresAt + expiryGraceSeconds {
                 // The snapshot may be stale after the close await below; only
                 // remove the entry if this exact connection still owns the key.
-                guard let current = sessions[key], current.connection === session.connection
+                guard let current = sessions[key], current.connection === session.connection,
+                    current.grant == session.grant
                 else { continue }
                 if TransportDebugLog.enabled {
                     TransportDebugLog.host.notice(
@@ -252,7 +253,7 @@ public actor TransportHost {
                 let control = await current.connection.lane(Self.controlLaneName)
                 // A supersession may have happened while lane() suspended.
                 guard let latest = sessions[key], latest.connection === current.connection,
-                    !latest.warnedExpiring
+                    latest.grant == session.grant, !latest.warnedExpiring
                 else { continue }
                 sessions[key]?.warnedExpiring = true
                 try? await control.send(Frame.grantExpiring(expiresAt: expiresAt))
