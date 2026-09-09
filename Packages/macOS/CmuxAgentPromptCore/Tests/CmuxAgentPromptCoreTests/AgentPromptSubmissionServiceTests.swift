@@ -452,6 +452,7 @@ struct AgentPromptSubmissionServiceTests {
             surfaceID: secondSurfaceID,
             reason: "workspace_fifo"
         ))
+        #expect(service.pendingByteCount == "first".utf8.count + "second".utf8.count)
 
         let drained = service.drain(workspaceID: workspaceID)
         #expect(drained.map(\.messageID) == [first.messageID, second.messageID])
@@ -465,6 +466,7 @@ struct AgentPromptSubmissionServiceTests {
             queued: false
         ))
         #expect(service.pendingCount == 0)
+        #expect(service.pendingByteCount == 0)
     }
 
     @MainActor
@@ -509,7 +511,7 @@ struct AgentPromptSubmissionServiceTests {
         )
         #expect(first.result == .queued(
             workspaceID: workspaceID,
-            surfaceID: nil,
+            surfaceID: firstSurfaceID,
             reason: "agent_turn_active"
         ))
         #expect(second.result == .queued(
@@ -517,6 +519,7 @@ struct AgentPromptSubmissionServiceTests {
             surfaceID: secondSurfaceID,
             reason: "workspace_fifo"
         ))
+        #expect(service.pendingByteCount == "first".utf8.count + "second".utf8.count)
 
         let drained = service.drain(workspaceID: workspaceID)
         #expect(drained.map(\.messageID) == [first.messageID, second.messageID])
@@ -530,6 +533,7 @@ struct AgentPromptSubmissionServiceTests {
             queued: false
         ))
         #expect(service.pendingCount == 0)
+        #expect(service.pendingByteCount == 0)
     }
 
     @MainActor

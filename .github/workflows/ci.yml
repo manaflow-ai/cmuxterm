@@ -1684,6 +1684,7 @@ jobs:
             CmuxRemoteWorkspace
             CmuxRemoteSession
             CmuxAgentChat
+            CmuxAgentPromptCore
             CmuxAgentSessionStore
             CmuxAuthRuntime
             CmuxBrowser
