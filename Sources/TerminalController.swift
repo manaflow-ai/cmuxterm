@@ -2816,7 +2816,6 @@ class TerminalController {
         // surface.refresh/health/resume.set/get/clear, debug.terminals, surface.send_text/
         // send_key/report_tty/report_pwd/report_shell_state/ports_kick/clear_history/
         // trigger_flash/read_text handled by ControlCommandCoordinator.
-
         // Panes
         // pane.* handled by ControlCommandCoordinator.
 
@@ -2825,6 +2824,7 @@ class TerminalController {
         case "notification.create_for_caller":
             return v2Result(id: id, self.v2NotificationCreateForCaller(params: params))
         case "agent.resolve_delivery_target": return v2Result(id: id, self.v2AgentResolveDeliveryTarget(params: params))
+        case "agent.hibernation.session_end": return v2Result(id: id, self.v2AgentHibernationSessionEnd(params: params))
         #if DEBUG
         case "debug.notification.status":
             return v2Ok(id: id, result: notificationDebugStatus())
@@ -3220,7 +3220,7 @@ class TerminalController {
             "pane.join",
             "pane.last",
             "notification.create",
-            "notification.create_for_caller", "agent.resolve_delivery_target",
+            "notification.create_for_caller", "agent.resolve_delivery_target", "agent.hibernation.session_end",
             "notification.create_for_surface",
             "notification.create_for_target",
             "notification.list",
