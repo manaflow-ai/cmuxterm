@@ -24,6 +24,11 @@ import {
 } from "./controlPlane";
 import { captureSentryException, type SentryEnv } from "./sentry";
 import { parseRetryAfterSeconds, rateLimitedJson } from "./retryAfterResponse";
+import {
+  pruneExpiredAccountState,
+  retentionAlarmAt,
+  runAccountSqliteMigrations,
+} from "./accountSqliteStorage";
 
 export interface ControlPlaneEnv extends SentryEnv {
   /** Vercel web API origin the DO proxies (dev/prod), e.g. https://cmux.com.
@@ -72,6 +77,18 @@ function wrapSocket(ws: WebSocket): CtlSocket {
 }
 
 export class AccountControlPlane extends DurableObject<ControlPlaneEnv> {
+  private readonly sqlite = this.ctx.storage.sql;
+
+  constructor(ctx: DurableObjectState, env: ControlPlaneEnv) {
+    super(ctx, env);
+    runAccountSqliteMigrations({
+      sql: this.sqlite,
+      transactionSync: <T>(callback: () => T): T => this.ctx.storage.transactionSync(callback),
+    }, Date.now());
+    pruneExpiredAccountState(this.sqlite, Date.now());
+    void this.ctx.storage.setAlarm(retentionAlarmAt(Date.now()));
+  }
+
   private readonly core = new ControlPlaneCore({
     // DurableObjectStorage's get/put/delete structurally cover CtlStorage;
     // single widening cast, same pattern as TeamPresence.syncStorage().
@@ -240,6 +257,7 @@ export class AccountControlPlane extends DurableObject<ControlPlaneEnv> {
 
   override async alarm(): Promise<void> {
     try {
+      pruneExpiredAccountState(this.sqlite, Date.now());
       await this.core.handleAlarm();
     } catch (error) {
       await captureSentryException(this.env, "cloudflare-control-plane", error, {

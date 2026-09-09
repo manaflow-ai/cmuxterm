@@ -15,15 +15,15 @@ import {
 class RecordingSql implements SqliteExecutor {
   readonly statements: string[] = [];
   readonly applied: { version: number; name: string }[] = [];
-  exec<T = Record<string, unknown>>(query: string, ..._bindings: unknown[]): Iterable<T> {
+  exec(query: string, ..._bindings: unknown[]): Iterable<unknown> {
     this.statements.push(query);
     if (query.includes("SELECT version, name FROM account_schema_migrations")) {
-      return this.applied as T[];
+      return this.applied;
     }
     if (query.includes("INSERT INTO account_schema_migrations")) {
       this.applied.push({ version: 1, name: "account_state_tables" });
     }
-    return [] as T[];
+    return [];
   }
 }
 

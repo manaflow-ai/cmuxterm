@@ -22,7 +22,7 @@ export const RETENTION_WINDOWS_MS = {
 
 /** Minimal structural subset of Cloudflare's synchronous SqlStorage API. */
 export interface SqliteExecutor {
-  exec<T = Record<string, unknown>>(query: string, ...bindings: unknown[]): Iterable<T>;
+  exec(query: string, ...bindings: unknown[]): Iterable<unknown>;
 }
 
 export interface AccountSqliteDatabase {
@@ -135,9 +135,10 @@ export function runAccountSqliteMigrations(
   `);
 
   const applied = new Map<number, string>();
-  for (const row of sql.exec<{ version?: unknown; name?: unknown }>(
+  for (const rawRow of sql.exec(
     "SELECT version, name FROM account_schema_migrations ORDER BY version",
   )) {
+    const row = rawRow as { version?: unknown; name?: unknown };
     if (typeof row.version !== "number" || !Number.isSafeInteger(row.version)
       || typeof row.name !== "string") {
       throw new Error("invalid account schema migration row");
@@ -198,7 +199,7 @@ export function isPayloadWithinQuota(bytes: number): boolean {
 }
 
 function scalarNumber(sql: SqliteExecutor, query: string): number {
-  const row = [...sql.exec<{ value?: unknown }>(query)][0];
+  const row = [...sql.exec(query)][0] as { value?: unknown } | undefined;
   const value = row?.value;
   return typeof value === "number" && Number.isSafeInteger(value) ? value : 0;
 }
