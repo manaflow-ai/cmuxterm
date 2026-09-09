@@ -1,6 +1,6 @@
 # Keep CI change-area routing exercised when guard policy files change.
 #!/usr/bin/env python3
-"""Behavioral tests for the CI path filter."""
+"""Behavioral tests for CI routing and its macOS compile gate."""
 
 from __future__ import annotations
 
@@ -127,6 +127,17 @@ def test_ios_only_skips_main_macos_ci() -> None:
 
 def test_app_source_runs_macos() -> None:
     assert_areas(["Sources/AppDelegate.swift"], macos=True, web=False)
+
+
+def test_pull_request_router_runs_for_every_pr() -> None:
+    # A workflow-level paths filter is evaluated before the changes job and can
+    # suppress every required CI check for an app-source pull request. The
+    # router itself remains the cost-control boundary for cheap changes.
+    workflow = CI_WORKFLOW.read_text(encoding="utf-8")
+    trigger = workflow.split("\njobs:\n", 1)[0]
+    assert "\n  pull_request:\n" in trigger
+    assert "\n    paths:" not in trigger
+    assert "\n    paths-ignore:" not in trigger
 
 
 def test_workflow_changes_run_everything() -> None:
@@ -331,6 +342,8 @@ def linux_preflight_needs(
 def run_detect_step_for_paths(
     paths: list[str],
     workflow_path: Path = CI_WORKFLOW,
+    *,
+    required_source: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
     script = detect_step_script(workflow_path)
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -364,6 +377,7 @@ def run_detect_step_for_paths(
             "BASE_SHA": base_sha,
             "HEAD_SHA": head_sha,
             "MERGE_SHA": head_sha,
+            "CI_SOURCE_SHA": head_sha if required_source else "",
             "GITHUB_OUTPUT": str(output_path),
         }
         result = subprocess.run(
@@ -376,6 +390,22 @@ def run_detect_step_for_paths(
             check=True,
         )
         return result, output_path.read_text(encoding="utf-8").splitlines()
+
+
+def test_required_workflow_does_not_delegate_routing_to_pr_owned_detector() -> None:
+    # Replace the detector with invalid source. The enforced YAML must select
+    # every workload without executing/importing that PR-owned detector.
+    _, outputs = run_detect_step_for_paths(
+        ["scripts/ci/detect_ci_change_areas.py"], required_source=True,
+    )
+    assert outputs == ["macos=true", "web=true", "agent_session_web=true"]
+
+
+def test_required_workflow_cannot_take_the_candidate_provenance_only_shortcut() -> None:
+    _, outputs = run_detect_step_for_paths(
+        ["scripts/ghosttykit-checksums.txt"], required_source=True,
+    )
+    assert outputs == ["macos=true", "web=true", "agent_session_web=true"]
 
 
 def test_workflow_self_change_guard_runs_before_detector_imports() -> None:

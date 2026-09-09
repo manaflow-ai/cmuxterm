@@ -4,8 +4,8 @@ import Darwin
 
 /// Shared harness for socket-driven browser fixture tests.
 ///
-/// Launches the app with a unique tagged debug socket (same conventions as
-/// `AutomationSocketUITests`), exposes V2 request helpers (newline-delimited
+/// Launches the app with a unique debug socket in the test runner's sandbox,
+/// exposes V2 request helpers (newline-delimited
 /// `{id, method, params}` JSON over the unix socket; responses carry
 /// `ok`/`result`/`error`), and helpers to open a browser split and navigate
 /// it to a local fixture page under `cmuxUITests/BrowserFixtures/`.
@@ -19,23 +19,44 @@ class BrowserFixtureSocketTestCase: XCTestCase {
     private var launchTag = ""
     private(set) var app: XCUIApplication?
 
-    override func setUp() {
-        super.setUp()
+    override func setUpWithError() throws {
+        try super.setUpWithError()
         continueAfterFailure = false
-        socketPath = "/tmp/cmux-debug-\(UUID().uuidString).sock"
-        diagnosticsPath = "/tmp/cmux-ui-test-browser-fixtures-\(UUID().uuidString).json"
+        // Xcode's UI-test runner is sandboxed. A global /tmp socket can be
+        // readable but still reject connect(2) with EPERM. The app is not
+        // sandboxed, so pass it a path in the runner's writable temp directory.
+        // Keep the basename short: sockaddr_un.sun_path includes the terminator.
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+        let identifier = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        socketPath = temporaryDirectory.appendingPathComponent("c\(identifier.prefix(12))").path
+        diagnosticsPath = temporaryDirectory.appendingPathComponent("cmux-\(identifier).json").path
+        let address = sockaddr_un()
+        guard socketPath.utf8CString.count <= MemoryLayout.size(ofValue: address.sun_path) else {
+            throw NSError(
+                domain: NSPOSIXErrorDomain,
+                code: Int(ENAMETOOLONG),
+                userInfo: [NSLocalizedDescriptionKey: "Browser fixture socket path is too long: \(socketPath)"]
+            )
+        }
         launchTag = "ui-tests-browser-\(UUID().uuidString.prefix(8))"
-        try? FileManager.default.removeItem(atPath: socketPath)
-        try? FileManager.default.removeItem(atPath: diagnosticsPath)
-        try? FileManager.default.removeItem(atPath: taggedSocketPath())
+        print("Browser fixture runner temporary directory: \(temporaryDirectory.path)")
     }
 
     override func tearDown() {
+        if (testRun?.totalFailureCount ?? 0) > 0 {
+            let diagnostics = loadDiagnostics()
+            print("Browser fixture failure: socket=\(socketPath) diagnostics=\(diagnostics)")
+            if let data = try? Data(contentsOf: URL(fileURLWithPath: diagnosticsPath)) {
+                let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
+                attachment.name = "Browser socket diagnostics"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+        }
         app?.terminate()
         app = nil
         try? FileManager.default.removeItem(atPath: socketPath)
         try? FileManager.default.removeItem(atPath: diagnosticsPath)
-        try? FileManager.default.removeItem(atPath: taggedSocketPath())
         super.tearDown()
     }
 
@@ -115,7 +136,7 @@ class BrowserFixtureSocketTestCase: XCTestCase {
     ) throws -> [String: Any] {
         let envelope = try XCTUnwrap(
             socketEnvelope(method: method, params: params, responseTimeout: responseTimeout),
-            "No socket response for \(method)",
+            "No socket response for \(method) at \(socketPath). diagnostics=\(loadDiagnostics())",
             file: file,
             line: line
         )
@@ -163,13 +184,40 @@ class BrowserFixtureSocketTestCase: XCTestCase {
             file: file,
             line: line
         )
+        var openParameters: [String: Any] = [
+            "workspace_id": workspaceID,
+            "surface_id": sourceSurfaceID,
+        ]
+        let requestedEngine = [
+            "TEST_RUNNER_CMUX_UI_TEST_BROWSER_ENGINE",
+            "CMUX_UI_TEST_BROWSER_ENGINE",
+        ]
+        .compactMap { ProcessInfo.processInfo.environment[$0] }
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .first { !$0.isEmpty }
+        if let requestedEngine, !requestedEngine.isEmpty {
+            // The CI browser gate sets this only after it has proved that the
+            // exact artifact contains native CEF.  Keep ordinary WebKit tests
+            // unchanged when the variable is absent.
+            openParameters["engine"] = requestedEngine
+        }
+
         let opened = try socketResult(
             method: "browser.open_split",
-            params: ["workspace_id": workspaceID, "surface_id": sourceSurfaceID],
+            params: openParameters,
             responseTimeout: 15.0,
             file: file,
             line: line
         )
+        if let requestedEngine, !requestedEngine.isEmpty {
+            XCTAssertEqual(
+                opened["engine"] as? String,
+                requestedEngine,
+                "browser.open_split did not create the requested \(requestedEngine) engine: \(opened)",
+                file: file,
+                line: line
+            )
+        }
         return try XCTUnwrap(
             opened["surface_id"] as? String,
             "browser.open_split returned no surface_id: \(opened)",
@@ -272,53 +320,15 @@ class BrowserFixtureSocketTestCase: XCTestCase {
     // MARK: - Socket plumbing (mirrors AutomationSocketUITests)
 
     private func waitForSocketPong(timeout: TimeInterval) -> Bool {
-        let ready = waitForControlSocketReady(
+        waitForControlSocketReady(
             pingTimeout: timeout,
             socketFileExists: {
-                self.socketCandidates().contains { FileManager.default.fileExists(atPath: $0) }
+                FileManager.default.fileExists(atPath: self.socketPath)
             },
             pingReturnsPong: {
-                for candidate in self.socketCandidates() {
-                    guard FileManager.default.fileExists(atPath: candidate) else { continue }
-                    if ControlSocketClient(path: candidate, responseTimeout: 1.0).sendLine("ping") == "PONG" {
-                        self.socketPath = candidate
-                        return true
-                    }
-                }
-                return false
+                ControlSocketClient(path: self.socketPath, responseTimeout: 1.0).sendLine("ping") == "PONG"
             }
         )
-        if ready { return true }
-
-        let diagnostics = loadDiagnostics()
-        guard controlSocketDiagnosticsReportReady(diagnostics),
-              let expectedPath = diagnostics["socketExpectedPath"],
-              socketCandidates().contains(expectedPath) else {
-            return false
-        }
-        socketPath = expectedPath
-        return true
-    }
-
-    private func socketCandidates() -> [String] {
-        var candidates = [socketPath, taggedSocketPath()]
-        if let expectedPath = loadDiagnostics()["socketExpectedPath"], !expectedPath.isEmpty {
-            candidates.append(expectedPath)
-        }
-        var seen = Set<String>()
-        candidates.removeAll { !seen.insert($0).inserted }
-        return candidates
-    }
-
-    private func taggedSocketPath() -> String {
-        let slug = launchTag
-            .lowercased()
-            .replacingOccurrences(of: ".", with: "-")
-            .replacingOccurrences(of: "_", with: "-")
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-            .joined(separator: "-")
-        return "/tmp/cmux-debug-\(slug).sock"
     }
 
     private func loadDiagnostics() -> [String: String] {
@@ -350,12 +360,16 @@ class BrowserFixtureSocketTestCase: XCTestCase {
                   let responseData = response.data(using: .utf8) else {
                 return nil
             }
-            return (try? JSONSerialization.jsonObject(with: responseData)) as? [String: Any]
+            guard let envelope = (try? JSONSerialization.jsonObject(with: responseData)) as? [String: Any] else {
+                print("Browser socket returned a non-JSON response at \(path): \(response)")
+                return nil
+            }
+            return envelope
         }
 
         func sendLine(_ line: String) -> String? {
             let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-            guard fd >= 0 else { return nil }
+            guard fd >= 0 else { return socketFailure("socket") }
             defer { close(fd) }
 
             var timeout = timeval(
@@ -388,21 +402,28 @@ class BrowserFixtureSocketTestCase: XCTestCase {
                     Darwin.connect(fd, sockaddrPtr, addrLen)
                 }
             }
-            guard connected == 0 else { return nil }
+            guard connected == 0 else { return socketFailure("connect") }
 
             let payload = Array((line + "\n").utf8)
             let wrote = payload.withUnsafeBytes { rawBuffer in
                 guard let baseAddress = rawBuffer.baseAddress else { return true }
                 return Darwin.write(fd, baseAddress, rawBuffer.count) == rawBuffer.count
             }
-            guard wrote else { return nil }
+            guard wrote else { return socketFailure("write") }
 
             var buffer = [UInt8](repeating: 0, count: 4096)
             var accumulator = ""
             let deadline = Date().addingTimeInterval(responseTimeout)
             while Date() < deadline {
                 let count = Darwin.read(fd, &buffer, buffer.count)
-                guard count > 0 else { break }
+                guard count > 0 else {
+                    if count < 0 {
+                        _ = socketFailure("read")
+                    } else {
+                        print("Browser socket EOF at \(path); received \(accumulator.utf8.count) bytes")
+                    }
+                    break
+                }
                 if let chunk = String(bytes: buffer[0..<count], encoding: .utf8) {
                     accumulator.append(chunk)
                     if let newline = accumulator.firstIndex(of: "\n") {
@@ -411,6 +432,12 @@ class BrowserFixtureSocketTestCase: XCTestCase {
                 }
             }
             return accumulator.isEmpty ? nil : accumulator.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        private func socketFailure(_ operation: String) -> String? {
+            let code = errno
+            print("Browser socket \(operation) failed at \(path): errno=\(code) \(String(cString: strerror(code)))")
+            return nil
         }
     }
 }

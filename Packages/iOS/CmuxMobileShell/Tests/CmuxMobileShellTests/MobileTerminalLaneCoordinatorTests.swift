@@ -131,7 +131,7 @@ struct MobileTerminalLaneCoordinatorTests {
         let inputProvider = TerminalLaneTestProvider(lanes: [
             TerminalLaneTestConnection(
                 frames: [Self.frame(kind: .replay, sequence: 0, bytes: "")],
-                waitsAfterFrames: true
+                waitsAfterFrames: false
             ),
         ])
         let coordinator = MobileTerminalLaneCoordinator(
@@ -154,6 +154,7 @@ struct MobileTerminalLaneCoordinatorTests {
         await outputProvider.waitUntilRequested()
 
         #expect(await outputProvider.requestCount() > 0)
+        await coordinator.waitUntilCurrentAttemptCompletes(surfaceID: Self.surfaceID)
         #expect(await inputProvider.requestCount() == 0)
         await coordinator.deactivateAll()
         #expect(await coordinator.isOutputReady(surfaceID: Self.surfaceID) == false)

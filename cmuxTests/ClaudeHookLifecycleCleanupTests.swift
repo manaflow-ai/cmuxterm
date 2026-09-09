@@ -228,6 +228,13 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
+        try assertJournalTarget(
+            commands, kind: "agent.turn.started", nativeEvent: "UserPromptSubmit",
+            sessionID: sessionId, workspaceID: newWorkspaceId
+        )
+        // The journal reconciler clears only invalidated notification identities.
+        // Hook-side blanket clears would erase unrelated attention on this pane.
+        #expect(!commands.contains { $0.hasPrefix("clear_notifications ") })
         let turnStarted = AgentJournalAppendCapture.first(
             in: commands, kind: "agent.turn.started", agentKey: "claude_code", sessionId: sessionId
         )
@@ -298,6 +305,11 @@ struct ClaudeHookLifecycleCleanupTests {
             !commands.contains { $0.contains("--panel=\(Self.fallbackSurfaceId)") },
             "PreToolUse must not mutate the old workspace's focused pane; saw \(commands)"
         )
+        try assertJournalTarget(
+            commands, kind: "agent.state.changed", nativeEvent: "PreToolUse",
+            sessionID: sessionId, workspaceID: newWorkspaceId
+        )
+        #expect(!commands.contains { $0.hasPrefix("clear_notifications ") })
         let stateChanged = AgentJournalAppendCapture.first(
             in: commands, kind: "agent.state.changed", agentKey: "claude_code", sessionId: sessionId
         )
@@ -450,6 +462,23 @@ struct ClaudeHookLifecycleCleanupTests {
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
         #expect(!commands.contains { $0.hasPrefix("set_status ") || $0.hasPrefix("clear_notifications ") })
+    }
+    private func assertJournalTarget(
+        _ commands: [String], kind: String, nativeEvent: String,
+        sessionID: String, workspaceID: String
+    ) throws {
+        let prefix = "agent_journal_append "
+        let journalCommands = commands.filter { $0.hasPrefix(prefix) }
+        #expect(journalCommands.count == 1)
+        let command = try #require(journalCommands.first)
+        let event = try #require(
+            JSONSerialization.jsonObject(with: Data(command.dropFirst(prefix.count).utf8)) as? [String: Any]
+        )
+        #expect(event["kind"] as? String == kind)
+        #expect(event["native_event"] as? String == nativeEvent)
+        #expect(event["session_id"] as? String == sessionID)
+        #expect(event["workspace_id"] as? String == workspaceID)
+        #expect(event["surface_id"] as? String == Self.liveSurfaceId)
     }
     private func assertSuccessfulHook(_ result: ClaudeHookLiveDeliveryHarness.ProcessRunResult) {
         #expect(!result.timedOut, Comment(rawValue: result.stderr))

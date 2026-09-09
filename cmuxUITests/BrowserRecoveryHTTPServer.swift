@@ -1,17 +1,39 @@
 import Darwin
 import Foundation
+import Network
 
+/// A tiny loopback HTTP origin used by browser navigation regressions.
+///
+/// The UI-test runner is sandboxed. Keeping the listener in this process avoids
+/// relying on an unsigned child interpreter inheriting the runner's network
+/// entitlements and sandbox extensions.
 final class BrowserRecoveryHTTPServer {
     let port: UInt16
 
-    private let inputPipe = Pipe()
-    private let outputPipe = Pipe()
-    private var outputBuffer = Data()
-    private var process: Process?
-    private var hasHeldRequest = false
+    private enum ServerError: Error {
+        case couldNotReservePort
+        case listenerDidNotBecomeReady
+        case listenerPortUnavailable
+        case requestTimedOut
+    }
+
+    private let listener: NWListener
+    private let queue = DispatchQueue(label: "cmux.browser.recovery-http-server")
+    private let stateLock = NSLock()
+    private let requestSignal = DispatchSemaphore(value: 0)
+    private var heldConnection: NWConnection?
+    private var expectedPath: String?
+    private var isStarted = false
 
     init() throws {
-        self.port = try Self.availablePort()
+        let port = try Self.availablePort()
+        let parameters = NWParameters.tcp
+        parameters.requiredLocalEndpoint = .hostPort(
+            host: NWEndpoint.Host("127.0.0.1"),
+            port: NWEndpoint.Port(rawValue: port)!
+        )
+        listener = try NWListener(using: parameters)
+        self.port = port
     }
 
     deinit {
@@ -19,73 +41,149 @@ final class BrowserRecoveryHTTPServer {
     }
 
     func start() throws {
-        guard process == nil else { return }
+        stateLock.lock()
+        guard !isStarted else {
+            stateLock.unlock()
+            return
+        }
+        isStarted = true
+        stateLock.unlock()
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-        process.arguments = [
-            "-u",
-            "-c",
-            Self.serverScript,
-            String(port),
-        ]
-        process.standardInput = inputPipe
-        process.standardOutput = outputPipe
-        process.standardError = Pipe()
-        try process.run()
-        self.process = process
+        let listenerReady = DispatchSemaphore(value: 0)
+        listener.stateUpdateHandler = { state in
+            switch state {
+            case .ready:
+                listenerReady.signal()
+            case .failed, .cancelled:
+                listenerReady.signal()
+            default:
+                break
+            }
+        }
+        listener.newConnectionHandler = { [weak self] connection in
+            self?.handle(connection)
+        }
+        listener.start(queue: queue)
 
-        guard try nextSignal(timeoutMilliseconds: 5_000) == "READY" else {
-            throw ServerError.unexpectedSignal
+        guard listenerReady.wait(timeout: .now() + 5) == .success,
+              listener.state == .ready else {
+            listener.cancel()
+            throw ServerError.listenerDidNotBecomeReady
+        }
+        guard listener.port?.rawValue == port else {
+            listener.cancel()
+            throw ServerError.listenerPortUnavailable
         }
     }
 
     func waitForRequest() throws {
-        guard try nextSignal(timeoutMilliseconds: 15_000) == "REQUEST" else {
-            throw ServerError.unexpectedSignal
+        guard requestSignal.wait(timeout: .now() + 15) == .success else {
+            throw ServerError.requestTimedOut
         }
-        hasHeldRequest = true
+        stateLock.lock()
+        let hasHeldConnection = heldConnection != nil
+        stateLock.unlock()
+        guard hasHeldConnection else {
+            throw ServerError.requestTimedOut
+        }
+    }
+
+    /// Arms the next matching HTTP path to be held until `releaseResponse()`.
+    /// Browser engines may issue favicon or other follow-up requests around a
+    /// document navigation; those requests are answered immediately instead of
+    /// consuming the synchronization signal for the navigation under test.
+    func expectRequest(path: String) {
+        stateLock.lock()
+        expectedPath = path
+        stateLock.unlock()
     }
 
     func releaseResponse() throws {
-        guard hasHeldRequest else { return }
-        hasHeldRequest = false
-        try inputPipe.fileHandleForWriting.write(contentsOf: Data("RELEASE\n".utf8))
+        stateLock.lock()
+        let connection = heldConnection
+        heldConnection = nil
+        stateLock.unlock()
+        if let connection {
+            sendResponse(on: connection)
+        }
     }
 
     func stop() {
-        guard let process else { return }
-        self.process = nil
-        try? releaseResponse()
-        if process.isRunning {
-            process.terminate()
+        listener.cancel()
+        stateLock.lock()
+        let connection = heldConnection
+        heldConnection = nil
+        stateLock.unlock()
+        connection?.cancel()
+    }
+
+    private func handle(_ connection: NWConnection) {
+        connection.start(queue: queue)
+        receiveRequest(on: connection)
+    }
+
+    private func receiveRequest(on connection: NWConnection, buffer: Data = Data()) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 8_192) { [weak self] data, _, isComplete, error in
+            guard let self else {
+                connection.cancel()
+                return
+            }
+            if error != nil {
+                connection.cancel()
+                return
+            }
+
+            var nextBuffer = buffer
+            if let data {
+                nextBuffer.append(data)
+            }
+            guard nextBuffer.range(of: Data([13, 10, 13, 10])) != nil else {
+                guard !isComplete else {
+                    connection.cancel()
+                    return
+                }
+                self.receiveRequest(on: connection, buffer: nextBuffer)
+                return
+            }
+
+            let requestPath = Self.requestPath(from: nextBuffer)
+            self.stateLock.lock()
+            let shouldHold = self.heldConnection == nil
+                && self.expectedPath == requestPath
+            if shouldHold {
+                self.expectedPath = nil
+                self.heldConnection = connection
+            }
+            self.stateLock.unlock()
+            if shouldHold {
+                self.requestSignal.signal()
+            } else {
+                self.sendResponse(on: connection)
+            }
         }
     }
 
-    private func nextSignal(timeoutMilliseconds: Int32) throws -> String {
-        while true {
-            if let newline = outputBuffer.firstIndex(of: 0x0A) {
-                let line = outputBuffer[..<newline]
-                outputBuffer.removeSubrange(...newline)
-                return String(decoding: line, as: UTF8.self)
+    private func sendResponse(on connection: NWConnection) {
+        let body = Data("<!doctype html><body data-cmux-recovered=\"true\">recovered</body>".utf8)
+        let header = Data(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n".utf8
+        )
+        connection.send(
+            content: header + body,
+            completion: .contentProcessed { _ in
+                connection.cancel()
             }
+        )
+    }
 
-            var readiness = pollfd(
-                fd: outputPipe.fileHandleForReading.fileDescriptor,
-                events: Int16(POLLIN),
-                revents: 0
-            )
-            guard Darwin.poll(&readiness, 1, timeoutMilliseconds) > 0 else {
-                throw ServerError.signalTimedOut
-            }
-
-            var bytes = [UInt8](repeating: 0, count: 128)
-            let count = Darwin.read(readiness.fd, &bytes, bytes.count)
-            guard count > 0 else {
-                throw ServerError.signalStreamClosed
-            }
-            outputBuffer.append(contentsOf: bytes[..<count])
-        }
+    private static func requestPath(from data: Data) -> String? {
+        guard let request = String(data: data, encoding: .utf8),
+              let requestLine = request.split(separator: "\r\n", maxSplits: 1).first
+        else { return nil }
+        return requestLine.split(separator: " ", omittingEmptySubsequences: true)
+            .dropFirst()
+            .first
+            .map(String.init)
     }
 
     private static func availablePort() throws -> UInt16 {
@@ -116,38 +214,4 @@ final class BrowserRecoveryHTTPServer {
         guard didResolve == 0 else { throw ServerError.couldNotReservePort }
         return UInt16(bigEndian: resolvedAddress.sin_port)
     }
-
-    private enum ServerError: Error {
-        case couldNotReservePort
-        case signalStreamClosed
-        case signalTimedOut
-        case unexpectedSignal
-    }
-
-    private static let serverScript = #"""
-import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-port = int(sys.argv[1])
-
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        print('REQUEST', flush=True)
-        if sys.stdin.readline().strip() != 'RELEASE':
-            self.send_error(500)
-            return
-        body = b'<!doctype html><body data-cmux-recovered="true">recovered</body>'
-        self.send_response(200)
-        self.send_header('Content-Type', 'text/html; charset=utf-8')
-        self.send_header('Content-Length', str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, format, *args):
-        pass
-
-server = HTTPServer(('127.0.0.1', port), Handler)
-print('READY', flush=True)
-server.serve_forever()
-"""#
 }

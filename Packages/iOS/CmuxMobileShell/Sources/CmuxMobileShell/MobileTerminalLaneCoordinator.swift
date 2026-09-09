@@ -198,6 +198,16 @@ actor MobileTerminalLaneCoordinator {
         return entriesByKey[key]?.outputReady == true
     }
 
+    /// Test seam: wait for the currently launched lane task to settle before
+    /// asserting the coordinator's state after `ensure`.
+    func waitUntilCurrentAttemptCompletes(surfaceID: String) async {
+        guard let key = focusedKeyBySurfaceID[surfaceID],
+              let task = entriesByKey[key]?.task else {
+            return
+        }
+        await task.value
+    }
+
     private func deactivate(keys: [LaneKey]) async {
         let entries = keys.compactMap { key -> Entry? in
             entriesByKey.removeValue(forKey: key)
