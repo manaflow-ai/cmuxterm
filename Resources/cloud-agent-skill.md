@@ -176,7 +176,7 @@ cmux file receive <path> [--mode <octal>]                                       
 cmux vm ls                          # the owner's machines: this one marked *, reachable/linked/connected
 cmux vm exec <peer> -- <command>    # run on the peer (durable terminal there)
 cmux vm tree <peer>                 # the peer's workspace/terminal snapshot
-cmux vm terminal send|read|wait|close <peer> <term> … ; cmux vm send-key <peer> <term> <keys…>
+cmux vm terminal send|read|wait|close <peer> <term> … ; cmux vm terminal send <peer> <term> --keys <keys>
 cmux vm workspace new|rename|close|rm <peer> … ; cmux vm layout export|apply <peer> … ; cmux vm env set|ls|rm <peer> …
 cmux vm agent <peer> --agent <claude|codex|opencode|pi> [--name <n>] [--cwd <dir>] [--wait [--output]] -- <prompt>   # a durable agent terminal on the peer; --wait blocks until it exits
 cmux vm push <peer> <local-file> <remote-path> [--mode <octal>]   # one file to the peer, always over the link (secret-safe by construction)

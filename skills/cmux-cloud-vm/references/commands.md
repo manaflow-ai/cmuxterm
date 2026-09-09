@@ -2,6 +2,64 @@
 
 `cloud` is an alias for `vm` (`cmux cloud ls` == `cmux vm ls`). The global `--json` flag works on every subcommand and may appear before or after the subcommand. All of this requires the cmux app running and a signed-in account, except the guest `cmux self` and `cmux vm ls`, which run inside a machine on its edge-injected credential.
 
+## Current dispatch aliases and socket map
+
+Use the canonical spellings in the examples below. These aliases are accepted by the current CLI and are useful when reading existing scripts or `--help` output:
+
+```bash
+# Top-level vm aliases
+cmux vm domains [list|zones|verify|publish|access|grant|ungrant|grants|rm] …  # domain publication commands
+cmux vm list [--json]                           # alias for vm ls
+cmux vm port <machine> <port-or-target>         # alias for vm open; same target grammar
+cmux vm info <machine>                          # alias for vm status
+cmux vm prompt [--open <agent>]                 # alias for vm skill; install/show the cloud prompt
+cmux vm skill [--open <agent>]                  # alias for vm prompt
+cmux vm top <machine>                           # alias for vm stats
+cmux vm create [options]                        # alias for vm new
+cmux vm vnc <machine>                           # alias for vm desktop
+cmux vm checkpoint <machine> [options]           # alias for vm snapshot
+cmux vm attach <machine>                         # alias for vm shell
+cmux vm delete <machine>                         # alias for vm rm
+cmux vm destroy <machine>                        # alias for vm rm
+cmux vm upload <machine> <local> [remote]        # alias for vm push
+cmux vm download <machine> <remote> [local]      # alias for vm pull
+cmux vm tool-inspector <machine>                 # alias for vm tools
+cmux vm ssh-attach --id <machine>                # interactive managed SSH attach; normally use vm ssh
+
+# Workspace and terminal aliases
+cmux vm workspace delete <machine> <workspace>   # alias for workspace rm; kills terminals in it
+cmux vm terminal write <machine> <terminal> [text] [--keys <k1,k2,…>]  # alias for terminal send
+cmux vm terminal screen <machine> <terminal>     # alias for terminal read
+cmux vm terminal rename <machine> <terminal> <name>
+cmux vm tab rename <machine> <tab> <name>        # rename one placement, not every terminal view
+
+# Surface catalog aliases
+cmux surface catalog [<machine>|local] [--json]  # alias for surface ls
+cmux surface list [<machine>|local] [--json]     # alias for surface ls
+cmux surface tree [<machine>|local] [--json]     # alias for surface ls
+cmux surface project <resource>                  # alias for surface open
+cmux surface new --machine <machine> [-- <command…>]  # alias for surface new-terminal
+
+# VPN aliases
+cmux vpn on                                       # alias for vpn up
+cmux vpn off                                      # alias for vpn down
+cmux vpn revoke                                   # revoke this Mac’s machine-network enrollment (canonical)
+```
+
+For diagnostics, the app advertises these socket method names. Use the CLI verbs above; this list is a source map for logs and compatibility checks, not a second public command interface:
+
+```text
+surface.catalog surface.new_terminal surface.project
+vm.attach_info vm.base_open vm.base_reset vm.cloud_agent_open vm.cloud_prompt vm.cmux_remote_info
+vm.create vm.desktop_open vm.destroy vm.domain_list vm.domain_verify vm.fork vm.link_socket vm.list
+vm.open_port vm.port_open vm.publication_create vm.publication_delete vm.publication_grant vm.publication_grants
+vm.publication_list vm.publication_ungrant vm.publication_update vm.publication_verify vm.rename vm.restore
+vm.session_attach_info vm.sessions vm.snapshot vm.ssh_info vm.stats vm.status vm.tab_rename
+vm.terminal_close vm.terminal_new vm.terminal_open vm.terminal_read vm.terminal_rename vm.terminal_wait vm.terminal_write
+vm.tree vm.tunnel_config vm.tunnel_down vm.tunnel_revoke vm.tunnel_status vm.tunnel_up vm.tunnel_wait
+vm.workspace_close vm.workspace_delete vm.workspace_new vm.workspace_open vm.workspace_rename
+```
+
 ## Discovery: the cloud tree
 
 ```bash
@@ -267,7 +325,7 @@ alone — no Mac step, no enrollment, no credential in the guest. Peer route fil
 by the earlier `vm link` broker keep working and take precedence. From inside a
 machine the installed `cmux` shim can run `cmux vm exec <dst> -- <command>`,
 `cmux vm tree <dst>`, `cmux vm terminal send|read|wait|close <dst> <term> …`,
-`cmux vm send-key <dst> <term> <keys…>`, `cmux vm workspace new|rename|close|rm <dst> …`,
+`cmux vm terminal send <dst> <term> --keys <keys>`, `cmux vm workspace new|rename|close|rm <dst> …`,
 `cmux vm agent <dst> --agent <a> [--name <n>] [--cwd <dir>] -- <prompt>` (a durable
 terminal on the peer running `cmux agent <a> …` with the peer's own CodeRouter config),
 `cmux vm layout export|apply <dst> …`, `cmux vm env set|ls|rm <dst> …`, and
