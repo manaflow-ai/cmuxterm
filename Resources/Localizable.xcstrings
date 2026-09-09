@@ -201019,124 +201019,6 @@
         }
       }
     },
-    "featureFlags.cloudVM.description": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shows Cloud VM entrypoints in the new-workspace dropdown and command palette."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新規ワークスペースのドロップダウンとコマンドパレットにクラウドVMのエントリーポイントを表示します。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在新建工作区下拉菜单和命令面板中显示 Cloud VM 入口。"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zeigt Cloud-VM-Einstiegspunkte im Dropdown-Menü für neue Arbeitsbereiche und in der Befehlspalette an."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Affiche les points d’entrée Cloud VM dans le menu déroulant du nouvel espace de travail et la palette de commandes."
-          }
-        },
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "يعرض نقاط دخول Cloud VM في القائمة المنسدلة لـ 'مساحة عمل جديدة' ولوحة الأوامر."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Muestra los puntos de entrada de VM en la nube en el menú desplegable de nuevo espacio de trabajo y la paleta de comandos."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在「新增工作區」下拉選單和命令面板中顯示雲端虛擬機器 (Cloud VM) 入口。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "새 작업 공간 드롭다운 및 명령 팔레트에 클라우드 VM 진입점을 표시합니다."
-          }
-        }
-      }
-    },
-    "featureFlags.cloudVM.title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cloud VM UI"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "クラウドVM UI"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cloud VM 界面"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cloud-VM-Benutzeroberfläche"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Interface utilisateur Cloud VM"
-          }
-        },
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "واجهة مستخدم Cloud VM"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "IU de VM en la nube"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "雲端虛擬機器介面"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "클라우드 VM UI"
-          }
-        }
-      }
-    },
     "featureFlags.column.current": {
       "extractionState": "manual",
       "localizations": {
@@ -305657,55 +305539,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hides every Cloud Machines surface unless remote rollout enables it."
+            "value": "Hides every Cloud Machines surface, and keeps the Cloud tunnel and fleet polling off, until you enable it here."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "リモートロールアウトで有効化されない限り、クラウドマシンのすべての画面を非表示にします。"
+            "value": "ここで有効にするまで、クラウドマシンのすべての画面を非表示にし、クラウドトンネルとフリートのポーリングもオフのままにします。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "隐藏所有云端机器表面，除非远程灰度将其启用。"
+            "value": "隐藏云端机器的所有界面，并保持云端隧道和机群轮询关闭，直到你在此启用。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Blendet alle Cloud-Maschinen-Oberflächen aus, es sei denn, ein Remote-Rollout aktiviert sie."
+            "value": "Blendet alle Oberflächen für Cloud-Maschinen aus und lässt den Cloud-Tunnel und die Flottenabfragen ausgeschaltet, bis Sie die Funktion hier aktivieren."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Masque toutes les surfaces d’affichage Machines cloud à moins que le déploiement à distance ne les active."
+            "value": "Masque toutes les interfaces des machines cloud et désactive le tunnel cloud ainsi que l’interrogation de la flotte jusqu’à ce que vous activiez cette option ici."
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يخفي كل سطح للأجهزة السحابية ما لم يقم النشر عن بُعد بتمكينه."
+            "value": "يخفي جميع واجهات الأجهزة السحابية، ويبقي النفق السحابي والاستعلام الدوري عن الأسطول متوقفين حتى تفعّل هذه الميزة هنا."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oculta todas las superficies de Máquinas en la nube a menos que el despliegue remoto las habilite."
+            "value": "Oculta todas las interfaces de Máquinas en la nube y mantiene desactivados el túnel en la nube y las consultas periódicas a la flota hasta que lo actives aquí."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "隱藏所有雲端機器介面，除非遠端部署已啟用此功能。"
+            "value": "隱藏雲端機器的所有介面，並維持雲端通道與機群輪詢關閉，直到您在此啟用。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "원격 출시로 활성화되지 않는 한 모든 클라우드 머신 화면을 숨깁니다."
+            "value": "여기에서 활성화할 때까지 모든 클라우드 머신 화면을 숨기고 클라우드 터널과 플릿 폴링을 꺼 둡니다."
           }
         }
       }
@@ -488685,6 +488567,537 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 작업은 cmux Cloud 터널을 다시 켜서 이 Mac의 모든 앱이 Cloud VM 네트워크에 연결할 수 있도록 합니다. cmux 자체에는 이 터널이 필요하지 않습니다. 터미널, Ports, Desktop은 내장된 사용자 공간 터널을 사용합니다."
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.invalidTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Missing or invalid title"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "タイトルが指定されていないか無効です"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel fehlt oder ist ungültig"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titre manquant ou non valide"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "العنوان مفقود أو غير صالح"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Falta el título o no es válido"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缺少標題或標題無效"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缺少标题或标题无效"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "제목이 없거나 올바르지 않습니다"
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.asyncDispatchRequired": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "surface.sync_codex_native_title requires asynchronous socket dispatch"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "surface.sync_codex_native_title には非同期ソケットディスパッチが必要です"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "surface.sync_codex_native_title erfordert asynchrone Socket-Verarbeitung"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "surface.sync_codex_native_title nécessite un traitement asynchrone des commandes du socket"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يتطلب surface.sync_codex_native_title معالجة غير متزامنة لأوامر المقبس"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "surface.sync_codex_native_title requiere el procesamiento asíncrono de comandos del socket"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "surface.sync_codex_native_title 需要非同步通訊端派送"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "surface.sync_codex_native_title 需要异步套接字分发"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "surface.sync_codex_native_title에는 비동기 소켓 디스패치가 필요합니다"
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.tabManagerUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TabManager not available"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TabManager は利用できません"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TabManager nicht verfügbar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TabManager indisponible"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TabManager غير متاح"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TabManager no disponible"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TabManager 無法使用"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TabManager 不可用"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TabManager를 사용할 수 없습니다"
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.workspaceIdInvalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Missing or invalid workspace_id"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "workspace_id が指定されていないか無効です"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "workspace_id fehlt oder ist ungültig"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "workspace_id manquant ou invalide"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "workspace_id مفقود أو غير صالح"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Falta workspace_id o no es válido"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "workspace_id 遺失或無效"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "workspace_id 缺失或无效"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "workspace_id가 없거나 유효하지 않습니다"
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.panelIdInvalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Missing or invalid panel_id"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "panel_id が指定されていないか無効です"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "panel_id fehlt oder ist ungültig"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "panel_id manquant ou invalide"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "panel_id مفقود أو غير صالح"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Falta panel_id o no es válido"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "panel_id 遺失或無效"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "panel_id 缺失或无效"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "panel_id가 없거나 유효하지 않습니다"
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.panelNotFound": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panel not found"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "パネルが見つかりません"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panel nicht gefunden"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panneau introuvable"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم يتم العثور على اللوحة"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panel no encontrado"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到面板"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未找到面板"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "패널을 찾을 수 없습니다"
+          }
+        }
+      }
+    },
+    "cloudTunnel.error.cloudMachinesOff": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud Machines is turned off. Turn it on in Settings › Beta Features, then retry."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラウドマシンはオフになっています。設定 › ベータ機能でオンにしてから、もう一度お試しください。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud-Maschinen sind ausgeschaltet. Aktivieren Sie sie unter Einstellungen › Beta-Funktionen und versuchen Sie es erneut."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les machines cloud sont désactivées. Activez-les dans Réglages › Fonctionnalités bêta, puis réessayez."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الأجهزة السحابية متوقفة. فعّلها من الإعدادات › ميزات تجريبية، ثم حاول مرة أخرى."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las máquinas en la nube están desactivadas. Actívalas en Ajustes › Características beta y vuelve a intentarlo."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雲端機器已關閉。請在「設定 › Beta 功能」中開啟，再重試。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "云端机器已关闭。请在“设置 › 测试版功能”中启用，然后重试。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "클라우드 머신이 꺼져 있습니다. 설정 › 베타 기능에서 켠 후 다시 시도하세요."
+          }
+        }
+      }
+    },
+    "cloudTunnel.error.noCloudMachine": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a Cloud machine first. The cmux Cloud Tunnel runs only for an account with at least one machine."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先にクラウドマシンを作成してください。cmux Cloud Tunnelは、マシンを1台以上持つアカウントでのみ動作します。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erstellen Sie zuerst eine Cloud-Maschine. cmux Cloud Tunnel wird nur für Konten mit mindestens einer Maschine ausgeführt."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Créez d’abord une machine cloud. cmux Cloud Tunnel fonctionne uniquement pour les comptes disposant d’au moins une machine."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أنشئ جهازًا سحابيًا أولًا. يعمل cmux Cloud Tunnel فقط للحسابات التي لديها جهاز واحد على الأقل."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primero crea una máquina en la nube. cmux Cloud Tunnel solo funciona en cuentas con al menos una máquina."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請先建立雲端機器。cmux Cloud Tunnel 僅適用於至少有一台機器的帳號。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先创建云端机器。cmux Cloud Tunnel 仅适用于至少拥有一台机器的账号。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "먼저 클라우드 머신을 만드세요. cmux Cloud Tunnel은 머신이 하나 이상 있는 계정에서만 작동합니다."
+          }
+        }
+      }
+    },
+    "cli.vpn.status.unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tunnel: unavailable (%@)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "トンネル: 利用不可（%@）"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tunnel: nicht verfügbar (%@)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tunnel : indisponible (%@)"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "النفق: غير متاح (%@)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Túnel: no disponible (%@)"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通道：無法使用（%@）"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隧道：不可用（%@）"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "터널: 사용 불가 (%@)"
           }
         }
       }

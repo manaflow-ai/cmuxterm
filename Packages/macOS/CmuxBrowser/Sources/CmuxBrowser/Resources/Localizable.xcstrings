@@ -280,19 +280,19 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無法載入差異檢視器。請再試一次。"
+            "value": "無法載入Diff 檢視器。請再試一次。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无法加载差异查看器。请重试。"
+            "value": "无法加载Diff 查看器。请重试。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "차이 뷰어를 불러올 수 없습니다. 다시 시도하세요."
+            "value": "Diff 뷰어를 불러올 수 없습니다. 다시 시도하세요."
           }
         }
       }
@@ -339,19 +339,19 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無法開啟差異檢視器。請再試一次。"
+            "value": "無法開啟Diff 檢視器。請再試一次。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无法打开差异查看器。请重试。"
+            "value": "无法打开Diff 查看器。请重试。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "차이 뷰어를 열 수 없습니다. 다시 시도하세요."
+            "value": "Diff 뷰어를 열 수 없습니다. 다시 시도하세요."
           }
         }
       }
