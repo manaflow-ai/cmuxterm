@@ -360,6 +360,60 @@ struct CLIClaudeHookTimeoutRegressionTests {
         #expect(environment["CMUX_CLAUDE_PID"] as? String == "8535")
     }
 
+    @Test("Local queue admission preserves an existing route snapshot when reprobe fails")
+    func localQueueAdmissionPreservesRouteSnapshotWhenReprobeFails() throws {
+        let cliPath = try BundledCLITestSupport.bundledCLIPath(
+            for: BundledCLILinkageTests.self
+        )
+        let socketPath = makeCodexHookSocketPath("local-route-snapshot-fallback")
+        let listenerFD = try bindCodexHookUnixSocket(at: socketPath)
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+        }
+        let capturedCommands = CodexHookCapturedSocketCommands()
+        startCodexHookMockSocketServerAccepting(
+            listenerFD: listenerFD,
+            commands: capturedCommands,
+            surfaceId: "44444444-4444-4444-4444-444444444444",
+            connectionLimit: 2
+        )
+
+        let result = runCodexHookProcess(
+            executablePath: cliPath,
+            arguments: [
+                "--socket", socketPath,
+                "hooks", "enqueue", "claude", "stop",
+            ],
+            environment: [
+                "HOME": FileManager.default.temporaryDirectory.path,
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                "CMUX_CLI_SENTRY_DISABLED": "1",
+                "CMUX_CLAUDE_PID": "8535",
+                "CMUX_WORKSPACE_ID": "33333333-3333-3333-3333-333333333333",
+                "CMUX_SURFACE_ID": "44444444-4444-4444-4444-444444444444",
+                "CMUX_AGENT_HOOK_ROUTE_SNAPSHOT": "1",
+            ],
+            standardInput: #"{"session_id":"local-route-snapshot-fallback"}"#,
+            timeout: 5
+        )
+
+        #expect(!result.timedOut, Comment(rawValue: result.stderr))
+        #expect(result.status == 0, Comment(rawValue: result.stderr))
+        let requests = capturedCommands.snapshot().compactMap(codexHookJSONObject)
+        #expect(requests.compactMap { $0["method"] as? String } == [
+            "agent.resolve_delivery_target",
+            "agent.hook.enqueue",
+        ])
+        let enqueue = try #require(requests.last)
+        let params = try #require(enqueue["params"] as? [String: Any])
+        let environment = try #require(params["environment"] as? [String: Any])
+        #expect(environment["CMUX_WORKSPACE_ID"] as? String == "33333333-3333-3333-3333-333333333333")
+        #expect(environment["CMUX_SURFACE_ID"] as? String == "44444444-4444-4444-4444-444444444444")
+        #expect(environment["CMUX_AGENT_HOOK_ROUTE_SNAPSHOT"] as? String == "1")
+        #expect(environment["CMUX_CLAUDE_PID"] as? String == "8535")
+    }
+
     @Test(
         "Queued replay rehomes its route without probing and preserves the admitted PID",
         arguments: [

@@ -27753,19 +27753,17 @@ struct CMUXCLI {
                 return
             }
             if let acceptedSessionId {
-                if shouldPromoteActiveSession {
-                    publishAgentSurfaceResumeBinding(
-                        client: client,
-                        workspaceId: workspaceId,
-                        surfaceId: surfaceId,
-                        kind: "claude",
-                        displayName: String(localized: "cli.claude-hook.notification.title", defaultValue: "Claude Code"),
-                        sessionId: acceptedSessionId,
-                        cwd: hookCwd,
-                        launchCommand: launchCommand,
-                        observedPermissionMode: observedHookPermissionMode
-                    )
-                }
+                publishAgentSurfaceResumeBinding(
+                    client: client,
+                    workspaceId: workspaceId,
+                    surfaceId: surfaceId,
+                    kind: "claude",
+                    displayName: String(localized: "cli.claude-hook.notification.title", defaultValue: "Claude Code"),
+                    sessionId: acceptedSessionId,
+                    cwd: hookCwd,
+                    launchCommand: launchCommand,
+                    observedPermissionMode: observedHookPermissionMode
+                )
                 emitAgentJournalEvent(
                     client: client,
                     kind: .sessionStarted,
@@ -32388,9 +32386,11 @@ struct CMUXCLI {
         return Self.timeoutSecondsFromMilliseconds(timeoutMs)
     }
 
-    private func feedHookTimeoutMs(for def: AgentHookDef, agentEvent _: String) -> Int {
+    private func feedHookTimeoutMs(for def: AgentHookDef, agentEvent: String) -> Int {
         if def.name == "codex" {
-            return 5_000
+            return CodexHookInjectionSchema.current.events.first {
+                $0.agentEvent == agentEvent
+            }?.timeoutMs ?? 5_000
         }
         return Self.feedHookProcessTimeoutMilliseconds
     }

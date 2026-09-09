@@ -77,6 +77,7 @@ struct CLICodexHookTimeoutRegressionTests {
         let permissionHook = try #require(feedHooksByEvent["PermissionRequest"])
         #expect(permissionHook.body.contains("hooks feed --source codex --event PermissionRequest"))
         #expect(permissionHook.body.contains("CMUX_CODEX_HOOK_PID"))
+        #expect(permissionHook.timeout == 120)
         for event in ["PreCompact", "PostCompact", "SubagentStart", "SubagentStop"] {
             let hook = try #require(feedHooksByEvent[event])
             #expect(hook.body.contains("hooks feed --source codex --event \(event)"))

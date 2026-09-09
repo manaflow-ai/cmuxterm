@@ -86,6 +86,8 @@ extension CMUXCLI {
             environment[pidEnvironmentKey] = String(inferredPID)
         }
         guard client.isRelayBacked else {
+            let routeWasAlreadySnapshotted =
+                environment[Self.agentHookRouteSnapshotEnvironmentKey] == "1"
             if let processID = environment[pidEnvironmentKey].flatMap(Int.init),
                let binding = admittedAgentHookRoute(
                    processID: processID,
@@ -95,7 +97,7 @@ extension CMUXCLI {
                 environment["CMUX_WORKSPACE_ID"] = binding.workspaceId
                 environment["CMUX_SURFACE_ID"] = binding.surfaceId
                 environment[Self.agentHookRouteSnapshotEnvironmentKey] = "1"
-            } else {
+            } else if !routeWasAlreadySnapshotted {
                 environment.removeValue(forKey: Self.agentHookRouteSnapshotEnvironmentKey)
             }
             return environment
@@ -711,7 +713,7 @@ extension CMUXCLI {
             "CMUX_AGENT_LAUNCH_ARGV_B64", "CMUX_AGENT_LAUNCH_CWD",
             "CMUX_AGENT_LAUNCH_EXECUTABLE", "CMUX_AGENT_LAUNCH_KIND",
             "CMUX_AGENT_MANAGED_SUBAGENT", "CMUX_SUPPRESS_SUBAGENT_NOTIFICATIONS",
-            "CMUX_SURFACE_ID", "CMUX_WORKSPACE_ID",
+            "CMUX_SURFACE_ID", "CMUX_WORKSPACE_ID", agentHookRouteSnapshotEnvironmentKey,
             agentHookPIDEnvironmentVariable(agentName: agent),
         ]
     }
