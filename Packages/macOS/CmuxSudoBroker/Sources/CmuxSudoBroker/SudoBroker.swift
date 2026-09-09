@@ -182,6 +182,14 @@ public actor SudoBroker {
                 return notBefore <= now
             }
             .sorted { $0.id < $1.id }
+        let deferredRecoveryIDs = Set<String>(
+            recoveryStatesByID.values.compactMap { state in
+                guard let notBefore = cleanupRetryNotBefore[state.id], notBefore > now else {
+                    return nil
+                }
+                return state.id
+            }
+        )
         let recoveries = recoveryStates.isEmpty
             ? [:]
             : await dependencies.recovery.recover(
@@ -218,6 +226,11 @@ public actor SudoBroker {
         for snapshot in snapshots {
             try Task.checkCancellation()
             let id = snapshot.request.id
+            // Keep an unsettled recovery out of the in-memory records while its
+            // backoff timer is active. The scheduled retry must remain the owner
+            // of that state, otherwise a refresh makes it look like a new run and
+            // the retry can no longer reconcile its cleanup.
+            if deferredRecoveryIDs.contains(id) { continue }
             let wasKnown = records[id] != nil
             let phase = phasesByID[id] ?? snapshot.phase
             if phase == .approved || phase == .executing {

@@ -84,6 +84,10 @@ struct SudoExecutionEventWaiter: Sendable {
 
         while true {
             do {
+                // A single drain can observe both the password prompt and the
+                // readiness marker. Never send reviewed bytes after fallback to
+                // password authentication has been detected.
+                if collector.authenticationFailed { return .authenticationFailed }
                 if collector.inputReady,
                    process.standardInput != nil,
                    !(try Self.writeInput(
