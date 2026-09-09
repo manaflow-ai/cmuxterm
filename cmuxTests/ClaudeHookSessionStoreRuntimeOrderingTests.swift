@@ -174,6 +174,7 @@ extension CLICodexHookTimeoutRegressionTests {
         currentEventTime: TimeInterval?,
         siblingEventTime: TimeInterval?
     ) throws {
+        let now = Date().timeIntervalSince1970
         var current: [String: Any] = [
             "sessionId": currentSessionId,
             "workspaceId": workspaceId,
@@ -186,8 +187,8 @@ extension CLICodexHookTimeoutRegressionTests {
             "activePromptTurnId": "current-turn",
             "activePromptTurnIds": ["current-turn"],
             "lastPromptTurnId": "current-turn",
-            "startedAt": 1,
-            "updatedAt": 1,
+            "startedAt": now,
+            "updatedAt": now,
         ]
         var sibling: [String: Any] = [
             "sessionId": siblingSessionId,
@@ -201,8 +202,8 @@ extension CLICodexHookTimeoutRegressionTests {
             "activePromptTurnId": "sibling-turn",
             "activePromptTurnIds": ["sibling-turn"],
             "lastPromptTurnId": "sibling-turn",
-            "startedAt": 1,
-            "updatedAt": 1,
+            "startedAt": now,
+            "updatedAt": now,
         ]
         if let currentEventTime {
             current["runtimeStatusEventTime"] = currentEventTime
