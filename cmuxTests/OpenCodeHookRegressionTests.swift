@@ -129,10 +129,17 @@ import Testing
             "/opt/homebrew/bin/bun",
             "/usr/local/bin/bun",
         ]
-        if let path = candidates.first(where: { fileManager.isExecutableFile(atPath: $0) }) {
-            return URL(fileURLWithPath: path)
-        }
-        throw XCTSkip("Bun runtime is required for the OpenCode plugin harness")
+        // CI isolates HOME but forwards the installed tool PATH into the host.
+        // Do not require the Bun installation to live inside the fixture home.
+        candidates += (ProcessInfo.processInfo.environment["PATH"] ?? "")
+            .split(separator: ":")
+            .filter { $0.hasPrefix("/") }
+            .map { URL(fileURLWithPath: String($0)).appendingPathComponent("bun").path }
+        let path = try #require(
+            candidates.first(where: { fileManager.isExecutableFile(atPath: $0) }),
+            "Bun runtime is required for the OpenCode plugin harness"
+        )
+        return URL(fileURLWithPath: path)
     }
 
     private static let openCodeFeedEventHarness = #"""
