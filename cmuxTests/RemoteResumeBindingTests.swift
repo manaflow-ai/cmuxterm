@@ -609,7 +609,7 @@ struct RemoteResumeBindingTests {
         let forbidden = rewriter.rewriteRemoteRelayCommandLine(
             try requestData([
                 "id": "relay-forbidden",
-                "method": "surface.send_text",
+                "method": "workspace.close",
                 "params": [
                     "workspace_id": workspace.id.uuidString,
                     "surface_id": surfaceID.uuidString,
@@ -732,10 +732,13 @@ struct RemoteResumeBindingTests {
             remotePTYSessionID: remotePTYSessionID,
             restoredPanelId: surfaceID
         )
+        workspace.trackRemoteTerminalSurface(surfaceID)
 
+        let eventTime = Date.now.timeIntervalSince1970
         let hook = try runBundledKiroSessionStart(
             workspaceID: relayedWorkspaceID,
-            surfaceID: relayedSurfaceID
+            surfaceID: relayedSurfaceID,
+            eventTime: eventTime
         )
         #expect(!hook.timedOut, Comment(rawValue: hook.stderr))
         #expect(hook.status == 0, Comment(rawValue: hook.stderr))
@@ -756,6 +759,7 @@ struct RemoteResumeBindingTests {
         #expect(hookParams["kind"] as? String == "kiro")
         #expect(hookParams["checkpoint_id"] as? String == "kiro-remote-session")
         #expect(hookParams["auto_resume"] as? Bool == true)
+        #expect(hookParams["agent_event_time"] as? Double == eventTime)
 
         let relayedData = workspace.rewriteRemoteRelayCommandLine(try requestData(resumeRequest))
         let remoteResult = try v2Result(requestData: relayedData)
@@ -993,9 +997,11 @@ struct RemoteResumeBindingTests {
         #expect(startupCommand.contains("ssh-pty-attach"), "\(startupCommand)")
         #expect(startupCommand.contains("--require-existing"), "\(startupCommand)")
         #expect(restoredPanel.surface.debugInitialInputForTesting() == nil)
-        #expect(!startupCommand.contains("--command-b64"), "\(startupCommand)")
-        #expect(!startupCommand.contains("session-remote-7989"), "\(startupCommand)")
-        #expect(!startupCommand.contains("REMOTE_FLAG"), "\(startupCommand)")
+        let decodedRemoteCommand = try decodedRemoteCommandIfPresent(from: startupCommand)
+        if let decodedRemoteCommand {
+            let decodedAgentCommand = try decodedInitialCommandIfPresent(from: decodedRemoteCommand)
+            #expect(decodedAgentCommand == nil, "Mismatched remote ownership must not stage an agent command")
+        }
     }
 
     @Test
@@ -1199,6 +1205,7 @@ struct RemoteResumeBindingTests {
             remotePTYSessionID: remotePTYSessionID,
             restoredPanelId: surfaceID
         )
+        workspace.trackRemoteTerminalSurface(surfaceID)
 
         let relayedRequest: [String: Any] = [
             "id": "relayed-resume-set",
@@ -1269,28 +1276,6 @@ struct RemoteResumeBindingTests {
         )
     }
 
-    private func remoteResumeParams(
-        workspaceID: UUID,
-        surfaceID: UUID,
-        command: String
-    ) -> [String: Any] {
-        [
-            "workspace_id": workspaceID.uuidString,
-            "surface_id": surfaceID.uuidString,
-            "name": "Codex",
-            "kind": "codex",
-            "checkpoint_id": "session-remote-7989",
-            "source": "agent-hook",
-            "command": command,
-            "cwd": "/srv/remote project",
-            "environment": [
-                "REMOTE_FLAG": "value with spaces",
-                "ANTHROPIC_API_KEY": "must-not-persist",
-            ],
-            "auto_resume": true,
-        ]
-    }
-
     private func requestData(_ request: [String: Any]) throws -> Data {
         var data = try JSONSerialization.data(withJSONObject: request)
         data.append(0x0A)
@@ -1301,38 +1286,43 @@ struct RemoteResumeBindingTests {
         try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
-    private func v2Result(request: [String: Any]) throws -> [String: Any] {
+    func v2Result(request: [String: Any]) throws -> [String: Any] {
         let envelope = try v2Envelope(request: request)
         #expect(envelope["ok"] as? Bool == true, "\(envelope)")
         return try #require(envelope["result"] as? [String: Any])
     }
 
-    private func v2Envelope(request: [String: Any]) throws -> [String: Any] {
+    func v2Envelope(request: [String: Any]) throws -> [String: Any] {
         try v2Envelope(requestData: requestData(request))
     }
 
-    private func v2Envelope(requestData: Data) throws -> [String: Any] {
+    func v2Envelope(requestData: Data) throws -> [String: Any] {
         let requestLine = try #require(String(data: requestData, encoding: .utf8))
         let response = TerminalController.shared.handleSocketLine(requestLine)
         let responseData = try #require(response.data(using: .utf8))
         return try #require(JSONSerialization.jsonObject(with: responseData) as? [String: Any])
     }
 
-    private func v2Result(requestData: Data) throws -> [String: Any] {
+    func v2Result(requestData: Data) throws -> [String: Any] {
         let envelope = try v2Envelope(requestData: requestData)
         #expect(envelope["ok"] as? Bool == true, "\(envelope)")
         return try #require(envelope["result"] as? [String: Any])
     }
 
     private func decodedRemoteCommand(from startupCommand: String) throws -> String {
-        let words = TerminalStartupWorkingDirectoryPrefix.shellWordRanges(startupCommand).map(\.value)
-        let script = try #require(words.dropFirst(2).first)
-        let range = try #require(
-            script.range(of: #"--command-b64 [A-Za-z0-9+/=]+"#, options: .regularExpression)
-        )
+        let decodedCommand = try decodedRemoteCommandIfPresent(from: startupCommand)
+        return try #require(decodedCommand)
+    }
+
+    private func decodedRemoteCommandIfPresent(from startupCommand: String) throws -> String? {
+        let script = try #require(TerminalStartupWorkingDirectoryPrefix.shellWordRanges(startupCommand).dropFirst(2).first?.value)
+        guard let range = script.range(of: #"--command-b64 [A-Za-z0-9+/=]+"#, options: .regularExpression) else {
+            return nil
+        }
         let encoded = String(script[range]).split(separator: " ", maxSplits: 1).last.map(String.init)
         let data = try #require(encoded.flatMap { Data(base64Encoded: $0) })
-        return try #require(String(data: data, encoding: .utf8))
+        let remoteCommand: String = try #require(String(data: data, encoding: .utf8))
+        return remoteCommand
     }
 
     private func snapshotWithoutLaunchFlavorOrWorkspaceID(
@@ -1410,20 +1400,29 @@ struct RemoteResumeBindingTests {
     }
 
     private func decodedInitialCommand(from bootstrap: String) throws -> String {
-        let payloadLine = try #require(bootstrap.split(separator: "\n").first { line in
+        let decodedCommand = try decodedInitialCommandIfPresent(from: bootstrap)
+        return try #require(decodedCommand)
+    }
+
+    private func decodedInitialCommandIfPresent(from bootstrap: String) throws -> String? {
+        guard let payloadLine = bootstrap.split(separator: "\n").first(where: { line in
             line.contains("printf %s '") && line.contains("> \"$cmux_initial_command_tmp\"")
-        })
+        }) else {
+            return nil
+        }
         let prefixRange = try #require(payloadLine.range(of: "printf %s '"))
         let encodedSuffix = payloadLine[prefixRange.upperBound...]
         let closingQuote = try #require(encodedSuffix.firstIndex(of: "'"))
         let encodedCommand = String(encodedSuffix[..<closingQuote])
         let data = try #require(Data(base64Encoded: encodedCommand))
-        return try #require(String(data: data, encoding: .utf8))
+        let decodedCommand: String = try #require(String(data: data, encoding: .utf8))
+        return decodedCommand
     }
 
     private func runBundledKiroSessionStart(
         workspaceID: UUID,
-        surfaceID: UUID
+        surfaceID: UUID,
+        eventTime: TimeInterval
     ) throws -> HookRunResult {
         let cliPath = try BundledCLITestSupport.bundledCLIPath(for: BundledCLILinkageTests.self)
         let fileManager = FileManager.default
@@ -1472,6 +1471,7 @@ struct RemoteResumeBindingTests {
             "session_id": "kiro-remote-session",
             "cwd": workingDirectory.path,
             "hook_event_name": "SessionStart",
+            "event_time": eventTime,
         ]
         let input = String(
             decoding: try JSONSerialization.data(withJSONObject: inputObject),
@@ -1597,7 +1597,7 @@ struct RemoteResumeBindingTests {
         try? FileManager.default.removeItem(atPath: path + ".lock")
     }
 
-    private func makeMainWindow(id: UUID) -> NSWindow {
+    func makeMainWindow(id: UUID) -> NSWindow {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 500, height: 320),
             styleMask: [.titled, .closable],

@@ -5,6 +5,7 @@ on:
       - Packages/macOS/CmuxAgentJournal/**
       - CLI/*Notification*.swift
       - CLI/CMUXCLI+AgentJournalEmission.swift
+      - CLI/CMUXCLI+AgentHookClock.swift
       - CLI/CMUXCLI+VMTui.swift
       - CLI/VMRemoteWorkspaceResolver.swift
       - CLI/cmux.swift
@@ -13,6 +14,9 @@ on:
       - Sources/AgentFeedSemanticInput.swift
       - Sources/Feed/**
       - cmuxTests/**
+      - tests/test_agent_hook_clock_contention.py
+      - tests/test_claude_wrapper_hooks.py
+      - Resources/bin/cmux-claude-wrapper
       - Packages/macOS/CMUXAgentLaunch/**
       - .github/workflows/test-depot.yml
       - Sources/AgentJournalLifecycleCenter*.swift
@@ -27,8 +31,14 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           persist-credentials: false
+      - name: Set up wrapper behavior fixture runtime
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24'
       - name: Test semantic lifecycle and durable notification admission
         run: swift test --package-path Packages/macOS/CmuxAgentJournal -Xswiftc -warnings-as-errors
+      - name: Test generated hook delivery under clock contention
+        run: python3 tests/test_agent_hook_clock_contention.py
       - name: Test immutable Feed ingestion
         run: swift test --package-path Packages/macOS/CMUXAgentLaunch --filter Workstream -Xswiftc -warnings-as-errors
 
@@ -42,4 +52,4 @@ jobs:
       # change: its seeded Stop predates the Codex turn ledger's foreground
       # admission, the mock never answers agent.resolve_delivery_target, and its
       # fixture timestamp has aged past the seven-day session prune.
-      unit_test_suites: AgentNotificationRegressionTests,AgentJournalLifecycleCenterTests,FeedWaiterRegistryTests,ClaudeBackgroundWorkNotifyTests,OpenCodeHookRegressionTests
+      unit_test_suites: AgentNotificationRegressionTests,AgentJournalLifecycleCenterTests,FeedWaiterRegistryTests,ClaudeBackgroundWorkNotifyTests,CLIPinnedHookClockTests,CLICodexHookTimeoutRegressionTests,RemoteResumeBindingTests,CompletedRestoredAgentGenerationTests,OpenCodeHookRegressionTests

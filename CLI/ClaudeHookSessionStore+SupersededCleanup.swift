@@ -178,7 +178,7 @@ extension ClaudeHookSessionStore {
             && rhs.pidStartMicroseconds == startMicroseconds
     }
 
-    private static func processGenerationIsConfirmedDead(_ record: ClaudeHookSessionRecord) -> Bool {
+    static func processGenerationIsConfirmedDead(_ record: ClaudeHookSessionRecord) -> Bool {
         guard let pid = record.pid,
               pid > 0,
               pid <= Int(Int32.max),

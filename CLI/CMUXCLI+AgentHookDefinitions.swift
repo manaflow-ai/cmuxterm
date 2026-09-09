@@ -297,50 +297,7 @@ extension CMUXCLI {
         }
     }
 
-    static let stdinDrainingHookNoOpShellCommand = "cat >/dev/null 2>/dev/null || true; echo '{}'"
-
-    private static func shellNoOpSnippet(_ noOpCommand: String) -> String {
-        let command = noOpCommand == "echo '{}'"
-            ? stdinDrainingHookNoOpShellCommand
-            : noOpCommand
-        return "{ \(command); }"
-    }
-
-    static func agentHookShellCommand(
-        _ command: String,
-        for def: AgentHookDef,
-        noOpCommand: String = "echo '{}'"
-    ) -> String {
-        if case .pinned = def.dispatch {
-            return pinnedAgentHookShellCommand(command, for: def, noOpCommand: noOpCommand)
-        }
-        let routedArguments = command.hasPrefix("cmux ") ? String(command.dropFirst("cmux ".count)) : command
-        let noOpSnippet = shellNoOpSnippet(noOpCommand)
-        return "cmux_cli=\"${CMUX_BUNDLED_CLI_PATH:-}\"; if [ -z \"$cmux_cli\" ] || [ ! -x \"$cmux_cli\" ]; then cmux_cli=\"$(command -v cmux 2>/dev/null || true)\"; fi; if [ -n \"$CMUX_SURFACE_ID\" ] && [ \"$\(def.disableEnvVar)\" != \"1\" ] && [ -n \"$cmux_cli\" ]; then { if [ -n \"${CMUX_SOCKET_PATH:-}\" ]; then \"$cmux_cli\" --socket \"$CMUX_SOCKET_PATH\" \(routedArguments); else \"$cmux_cli\" \(routedArguments); fi; } || \(noOpSnippet); else \(noOpSnippet); fi"
-    }
-
-    /// Synchronous Codex lifecycle hook command. Capturing the callback's
-    /// parent PID before dispatch prevents a descendant from reusing an
-    /// inherited `CMUX_CODEX_PID` as its own owner identity.
-    static func codexSynchronousAgentHookShellCommand(
-        _ command: String,
-        for def: AgentHookDef
-    ) -> String {
-        let dispatch = agentHookShellCommand(command, for: def)
-        return "CMUX_CODEX_HOOK_PID=\"${PPID:-}\"; export CMUX_CODEX_HOOK_PID; \(dispatch)"
-    }
-
-    private static func exitTwoPropagatingAgentHookShellCommand(
-        _ command: String,
-        for def: AgentHookDef,
-        noOpCommand: String = "echo '{}'"
-    ) -> String {
-        let routedArguments = command.hasPrefix("cmux ") ? String(command.dropFirst("cmux ".count)) : command
-        let noOpSnippet = shellNoOpSnippet(noOpCommand)
-        return "cmux_cli=\"${CMUX_BUNDLED_CLI_PATH:-}\"; if [ -z \"$cmux_cli\" ] || [ ! -x \"$cmux_cli\" ]; then cmux_cli=\"$(command -v cmux 2>/dev/null || true)\"; fi; if [ -n \"$CMUX_SURFACE_ID\" ] && [ \"$\(def.disableEnvVar)\" != \"1\" ] && [ -n \"$cmux_cli\" ]; then if [ -n \"${CMUX_SOCKET_PATH:-}\" ]; then \"$cmux_cli\" --socket \"$CMUX_SOCKET_PATH\" \(routedArguments); else \"$cmux_cli\" \(routedArguments); fi; status=$?; if [ \"$status\" -eq 2 ]; then exit 2; fi; if [ \"$status\" -ne 0 ]; then \(noOpSnippet); fi; else \(noOpSnippet); fi"
-    }
-
-    private static func pinnedAgentHookShellCommand(
+    static func pinnedAgentHookShellCommand(
         _ command: String,
         for def: AgentHookDef,
         noOpCommand: String = "echo '{}'"
@@ -397,7 +354,8 @@ extension CMUXCLI {
         } else {
             dispatch = "if \(ambientGuard) && \(ambientInvocation); then :; elif command -v cmux >/dev/null 2>&1; then \(fallbackInvocation); else \(noOpSnippet); fi"
         }
-        return ": \(marker); \(shellTraceStart); printenv \(def.disableEnvVar) | grep -qx 1 && { \(shellTraceDisabled); \(noOpSnippet); } || { \(dispatch); cmux_hook_status=$?; \(shellTraceExit); exit $cmux_hook_status; }"
+        let capturedDispatch = timestampedAgentHookDispatch(dispatch, noOpSnippet: noOpSnippet)
+        return ": \(marker); \(shellTraceStart); printenv \(def.disableEnvVar) | grep -qx 1 && { \(shellTraceDisabled); \(noOpSnippet); } || { \(capturedDispatch); cmux_hook_status=$?; \(shellTraceExit); exit $cmux_hook_status; }"
     }
 
     /// Shell test that is true only when the hook inherited a live cmux terminal
@@ -524,7 +482,7 @@ extension CMUXCLI {
         return trimmed
     }
 
-    private static func shellSingleQuote(_ value: String) -> String {
+    static func shellSingleQuote(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 

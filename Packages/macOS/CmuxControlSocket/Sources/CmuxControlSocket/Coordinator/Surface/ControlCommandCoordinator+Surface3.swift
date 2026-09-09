@@ -8,26 +8,8 @@ internal import Foundation
 extension ControlCommandCoordinator {
     // MARK: - resume target param validation
 
-    /// The byte-faithful twin of `v2SurfaceResumeTargetValidationError`: an
-    /// `invalid_params` error when any of `window_id` / `workspace_id` /
-    /// `surface_id` / `terminal_id` / `tab_id` is present-but-non-null yet
-    /// does not resolve.
-    private func surfaceResumeTargetValidationError(
-        _ params: [String: JSONValue]
-    ) -> ControlCallResult? {
-        for key in ["window_id", "workspace_id", "surface_id", "terminal_id", "tab_id"] where hasNonNull(params, key) {
-            if uuid(params, key) == nil {
-                return .err(code: "invalid_params", message: "Missing or invalid \(key)", data: nil)
-            }
-        }
-        return nil
-    }
 
-    /// The legacy `v2PublicSurfaceResumeSource`: `process-detected` → `manual`.
-    private func publicResumeSource(_ params: [String: JSONValue]) -> String? {
-        let source = optionalTrimmedRawString(params, "source")
-        return source == "process-detected" ? "manual" : source
-    }
+
 
     // MARK: - resume.set
 
@@ -45,6 +27,8 @@ extension ControlCommandCoordinator {
         }
 
         let source = publicResumeSource(params)
+        let agentEventTime = surfaceAgentEventTime(params)
+        if let error = agentEventTime.error { return error }
         let remoteWorkspaceID = uuid(params, "_cmux_remote_workspace_id")
         if hasNonNull(params, "_cmux_remote_workspace_id"), remoteWorkspaceID == nil {
             return .err(
@@ -79,6 +63,7 @@ extension ControlCommandCoordinator {
                 ?? optionalTrimmedRawString(params, "checkpointId"),
             source: source,
             environment: stringMap(params, "environment"),
+            agentEventTime: agentEventTime.value,
             launchCommand: launchCommand,
             permissionMode: optionalTrimmedRawString(params, "permission_mode"),
             autoResume: source == "agent-hook" ? (bool(params, "auto_resume") ?? false) : false,
@@ -148,6 +133,8 @@ extension ControlCommandCoordinator {
         guard context?.controlSurfaceRoutingResolvesTabManager(routing: routing) ?? false else {
             return .err(code: "unavailable", message: Self.surfaceWindowUnavailableMessage, data: nil)
         }
+        let agentEventTime = surfaceAgentEventTime(params)
+        if let error = agentEventTime.error { return error }
         let agentSessionEnded: Bool
         switch params["agent_session_ended"] {
         case .none:
@@ -169,6 +156,7 @@ extension ControlCommandCoordinator {
                 ?? optionalTrimmedRawString(params, "checkpointId"),
             expectedSource: optionalTrimmedRawString(params, "source"),
             expectedUpdatedAt: double(params, "expected_updated_at"),
+            agentEventTime: agentEventTime.value,
             agentSessionEnded: agentSessionEnded
         ) ?? .surfaceNotFound
         return surfaceResumeResult(resolution)

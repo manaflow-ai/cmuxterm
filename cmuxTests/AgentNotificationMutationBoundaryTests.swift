@@ -35,13 +35,13 @@ extension AgentNotificationRegressionTests {
         let readyMarker = root.appendingPathComponent("ready")
         let execMarker = root.appendingPathComponent("execed")
         try """
-        touch '\(readyMarker.path)'
         trap 'exec /bin/sh "\(scopedScript.path)"' USR1
+        touch '\(readyMarker.path)'
         while :; do sleep 1; done
         """.write(to: initialScript, atomically: true, encoding: .utf8)
         try """
         export CMUX_SURFACE_ID='\(fixture.panelId.uuidString)'
-        exec /bin/sh -c 'touch "\(execMarker.path)"; exec sleep 30'
+        exec /bin/sh -c 'touch "\(execMarker.path)"; while :; do sleep 1; done'
         """.write(to: scopedScript, atomically: true, encoding: .utf8)
 
         let process = Process()
@@ -62,17 +62,34 @@ extension AgentNotificationRegressionTests {
             }
             try? FileManager.default.removeItem(at: root)
         }
-        #expect(await waitForMarker(at: readyMarker))
+        try #require(await waitForMarker(at: readyMarker))
 
         let identity = try #require(agentLiveProcessIdentity(pid: process.processIdentifier))
+        try #require(CmuxTopProcessSnapshot.cmuxScopeProbe(
+            for: Int(process.processIdentifier), expectedCacheKey: identity.scopeCacheKey
+        ) == .resolved(nil))
+        let cacheTime = DispatchTime.now().uptimeNanoseconds
         let cachedMiss = CmuxTopProcessSnapshot.cachedCMUXScope(
             for: Int(process.processIdentifier),
             cacheKey: identity.scopeCacheKey,
-            nowNanoseconds: DispatchTime.now().uptimeNanoseconds
+            nowNanoseconds: cacheTime
         )
-        #expect(cachedMiss == nil)
-        #expect(Darwin.kill(process.processIdentifier, SIGUSR1) == 0)
-        #expect(await waitForMarker(at: execMarker))
+        try #require(cachedMiss == nil)
+        try #require(Darwin.kill(process.processIdentifier, SIGUSR1) == 0)
+        try #require(await waitForMarker(at: execMarker))
+
+        let scopedIdentity = try #require(agentLiveProcessIdentity(pid: process.processIdentifier))
+        try #require(scopedIdentity.scopeCacheKey == identity.scopeCacheKey)
+        try #require(CmuxTopProcessSnapshot.cmuxScopeProbe(
+            for: Int(process.processIdentifier), expectedCacheKey: scopedIdentity.scopeCacheKey
+        ) == .resolved(CmuxTopProcessScope(
+            workspaceID: nil, surfaceID: fixture.panelId, attributionReason: "cmux-environment"
+        )))
+        // Pin cache time so slow CI cannot accidentally test an expired miss.
+        try #require(CmuxTopProcessSnapshot.cachedCMUXScope(
+            for: Int(process.processIdentifier), cacheKey: identity.scopeCacheKey,
+            nowNanoseconds: cacheTime
+        ) == nil)
 
         #expect(
             fixture.appDelegate.liveAgentDeliveryTarget(forAgentPID: process.processIdentifier)
@@ -272,7 +289,8 @@ extension AgentNotificationRegressionTests {
             target: .workspace(dockOwnerId),
             key: sessionKey,
             panelID: fixture.panelId,
-            clearStatus: true
+            clearStatus: true,
+            agentEventTime: nil
         )
         bus.drainForTesting()
         #expect(fixture.destination.statusEntries["omp"] == nil)
@@ -282,6 +300,8 @@ extension AgentNotificationRegressionTests {
                 == nil
         )
     }
+
+
 
     @Test("A stale source clear preserves a destination-confined stored notification")
     func staleSourceClearPreservesDestinationConfinedStoredNotification() throws {
@@ -539,48 +559,8 @@ extension AgentNotificationRegressionTests {
         )
     }
 
-    @Test("Agent runtime mutations follow a pane that moves before queue drain")
-    func queuedAgentRuntimeMutationsResolveLivePanelOwner() throws {
-        let fixture = try makeFixture()
-        defer { fixture.restore() }
-        let bus = TerminalMutationBus.shared
-        bus.discardPendingNotifications()
-        bus.setDrainsSuspendedForTesting(true)
-        defer {
-            bus.setDrainsSuspendedForTesting(false)
-            bus.discardPendingNotifications()
-        }
 
-        TerminalController.shared.controlSidebarScheduleStatusUpsert(
-            target: .workspace(fixture.source.id),
-            key: "claude_code",
-            value: "Running",
-            icon: "bolt.fill",
-            color: "#4C8DFF",
-            url: nil,
-            priority: 0,
-            format: .plain,
-            panelID: fixture.panelId,
-            pid: 43_210
-        )
-        TerminalController.shared.controlSidebarScheduleAgentLifecycle(
-            target: .workspace(fixture.source.id),
-            key: "claude_code",
-            lifecycleRawValue: AgentHibernationLifecycleState.running.rawValue,
-            panelID: fixture.panelId
-        )
 
-        try movePanel(fixture)
-        bus.setDrainsSuspendedForTesting(false)
-        bus.drainForTesting()
-
-        #expect(fixture.source.statusEntries["claude_code"] == nil)
-        #expect(fixture.destination.statusEntries["claude_code"]?.value == "Running")
-        #expect(fixture.destination.agentPIDs["claude_code"] == 43_210)
-        #expect(
-            fixture.destination.agentLifecycleStatesByPanelId[fixture.panelId]?["claude_code"] == .running
-        )
-    }
 
     @Test("An authorized-workspace clear cancels a confined in-flight relay delivery")
     func authorizedWorkspaceClearCancelsConfinedInFlightRelayDelivery() async throws {

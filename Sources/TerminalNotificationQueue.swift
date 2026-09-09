@@ -3,39 +3,6 @@ import CmuxNotifications
 import CmuxSettings
 import Foundation
 
-fileprivate struct QueuedTerminalNotificationKey: Hashable, Sendable {
-    let tabId: UUID
-    let surfaceId: UUID?
-}
-
-fileprivate struct QueuedTerminalNotification: Sendable {
-    let key: QueuedTerminalNotificationKey
-    let title: String
-    let subtitle: String
-    let body: String
-    let replyShape: TerminalNotificationReplyShape
-    let agent: TerminalNotificationPolicyAgentContext?
-    let soundContext: NotificationSoundOverrideContext?
-    let correlationKey: String?
-}
-
-fileprivate enum TerminalSocketMutation {
-    case deliverNotification(QueuedTerminalNotification)
-    case clearAllNotifications(through: UInt64)
-    case clearNotificationsForTab(UUID, through: UInt64)
-    case clearNotificationsForSurface(UUID, UUID, through: UInt64)
-    case clearNotificationsForCorrelation(UUID, UUID, String, through: UInt64)
-    case perform(@MainActor () -> Void)
-}
-
-fileprivate struct TerminalSocketMutationEntry {
-    let sequence: UInt64
-    let mutation: TerminalSocketMutation
-    let notificationGeneration: UInt64?
-    let notificationCoalescingKey: TerminalNotificationCoalescingKey?
-    let performReplaceKey: TerminalMutationReplaceKey?
-}
-
 /// Identity for last-write-wins `.perform` mutations: a fresh enqueue removes
 /// the pending same-key entry, bounding `pending` at one entry per key even
 /// while the main actor is blocked and cannot drain. Shell activity is keyed
@@ -52,11 +19,6 @@ enum TerminalMutationReplaceKey: Hashable, Sendable {
     case shellActivity(surfaceId: UUID)
     /// Metadata whose mutation closure still resolves the claimed workspace.
     case scoped(tabId: UUID, surfaceId: UUID, kind: ScopedKind)
-}
-
-fileprivate struct TerminalNotificationCoalescingKey: Hashable {
-    let generation: UInt64
-    let notificationKey: QueuedTerminalNotificationKey
 }
 
 final class TerminalMutationBus: @unchecked Sendable {
@@ -82,6 +44,8 @@ final class TerminalMutationBus: @unchecked Sendable {
         agent: TerminalNotificationPolicyAgentContext? = nil,
         soundContext: NotificationSoundOverrideContext? = nil,
         correlationKey: String? = nil,
+        agentStatusKey: String? = nil,
+        agentEventTime: TimeInterval? = nil,
         coalesces: Bool = true
     ) {
         enqueueNotification(QueuedTerminalNotification(
@@ -92,7 +56,9 @@ final class TerminalMutationBus: @unchecked Sendable {
             replyShape: replyShape,
             agent: agent,
             soundContext: soundContext,
-            correlationKey: correlationKey
+            correlationKey: correlationKey,
+            agentStatusKey: agentStatusKey,
+            agentEventTime: agentEventTime
         ), coalesces: coalesces)
     }
 
@@ -130,6 +96,64 @@ final class TerminalMutationBus: @unchecked Sendable {
             notification.key.surfaceId == surfaceId
                 && notification.correlationKey == correlationKey
         }
+    }
+
+    /// Enqueues an ordered agent clear and coalesces older clears for the same
+    /// pane/status key before the main-actor drain observes them.
+    nonisolated func enqueueAgentNotificationClear(
+        forTabId tabId: UUID,
+        surfaceId: UUID,
+        statusKey: String,
+        agentEventTime: TimeInterval
+    ) {
+        let shouldScheduleDrain: Bool
+        lock.lock()
+        let boundary = currentNotificationGeneration
+        currentNotificationGeneration &+= 1
+        var coalescedEventTime = agentEventTime
+        pending.removeAll { entry in
+            if case .deliverNotification(let notification) = entry.mutation,
+               notification.key.surfaceId == surfaceId,
+               notification.agentStatusKey == statusKey,
+               notification.agentEventTime == nil || notification.agentEventTime! <= agentEventTime {
+                return true
+            }
+            guard case .clearAgentNotifications(
+                claimedTabId: _,
+                surfaceId: let queuedSurfaceId,
+                statusKey: let queuedStatusKey,
+                eventTime: let queuedEventTime,
+                through: _
+            ) = entry.mutation,
+            queuedSurfaceId == surfaceId,
+            queuedStatusKey == statusKey else {
+                return false
+            }
+            coalescedEventTime = max(coalescedEventTime, queuedEventTime)
+            return true
+        }
+        nextSequence &+= 1
+        pending.append(TerminalSocketMutationEntry(
+            sequence: nextSequence,
+            mutation: .clearAgentNotifications(
+                claimedTabId: tabId,
+                surfaceId: surfaceId,
+                statusKey: statusKey,
+                eventTime: coalescedEventTime,
+                through: boundary
+            ),
+            notificationGeneration: nil,
+            notificationCoalescingKey: nil,
+            performReplaceKey: nil
+        ))
+        shouldScheduleDrain = !drainScheduled
+        if shouldScheduleDrain {
+            drainScheduled = true
+        }
+        lock.unlock()
+
+        guard shouldScheduleDrain else { return }
+        scheduleDrain()
     }
 
     nonisolated func enqueueMainActorMutation(_ mutation: @escaping @MainActor () -> Void) {
@@ -482,90 +506,4 @@ final class TerminalMutationBus: @unchecked Sendable {
         scheduleDrain()
     }
 
-    @MainActor
-    private func perform(_ batch: [TerminalSocketMutationEntry]) {
-        for entry in batch {
-            switch entry.mutation {
-            case .deliverNotification(let notification):
-#if DEBUG
-                cmuxDebugLog(
-                    "notification.queue.perform seq=\(entry.sequence) workspace=\(notification.key.tabId.uuidString.prefix(8)) surface=\(notification.key.surfaceId?.uuidString.prefix(8) ?? "nil") titleLen=\(notification.title.count) subtitleLen=\(notification.subtitle.count) bodyLen=\(notification.body.count)"
-                )
-#endif
-                TerminalNotificationStore.shared.deliverQueuedNotification(
-                    claimedTabId: notification.key.tabId,
-                    surfaceId: notification.key.surfaceId,
-                    title: notification.title,
-                    subtitle: notification.subtitle,
-                    body: notification.body,
-                    replyShape: notification.replyShape,
-                    agent: notification.agent,
-                    correlationKey: notification.correlationKey,
-                    notificationGeneration: entry.notificationGeneration ?? 0,
-                    soundContext: notification.soundContext
-                )
-            case .clearAllNotifications(let boundary):
-                TerminalNotificationStore.shared.clearAll(discardQueuedNotifications: false, throughNotificationGeneration: boundary)
-            case .clearNotificationsForTab(let tabId, let boundary):
-                TerminalNotificationStore.shared.clearNotifications(
-                    forTabId: tabId,
-                    discardQueuedNotifications: false,
-                    throughNotificationGeneration: boundary
-                )
-            case .clearNotificationsForSurface(let tabId, let surfaceId, let boundary):
-                TerminalNotificationStore.shared.clearNotifications(
-                    forTabId: tabId,
-                    surfaceId: surfaceId,
-                    discardQueuedNotifications: false,
-                    throughNotificationGeneration: boundary
-                )
-            case .clearNotificationsForCorrelation(let tabId, let surfaceId, let correlationKey, let boundary):
-                TerminalNotificationStore.shared.clearNotifications(
-                    forTabId: tabId,
-                    surfaceId: surfaceId,
-                    correlationKey: correlationKey,
-                    throughNotificationGeneration: boundary
-                )
-            case .perform(let mutation):
-                mutation()
-            }
-        }
-    }
-}
-
-extension TerminalNotificationStore {
-    static func cachedDeliveryAuthorizationDecision(
-        for state: NotificationAuthorizationState,
-        isAppActive: Bool
-    ) -> Bool? {
-        switch state {
-        case .authorized, .provisional, .ephemeral:
-            return nil
-        case .denied:
-            return false
-        case .notDetermined:
-            return isAppActive ? nil : false
-        case .unknown:
-            return nil
-        }
-    }
-
-    /// Effects for the out-of-band fallback path, where cmux plays feedback
-    /// itself because the OS will not deliver the banner.
-    ///
-    /// A user who explicitly turned cmux notifications off (`.denied`) asked
-    /// for silence, so the direct `NSSound` fallback must not punch through
-    /// the denial (https://github.com/manaflow-ai/cmux/issues/5650). Every
-    /// other state keeps the audible fallback: fresh installs
-    /// (`.notDetermined`) have expressed no preference, and granted states
-    /// only reach the fallback when delivery itself failed.
-    nonisolated static func fallbackEffects(
-        _ effects: TerminalNotificationPolicyEffects,
-        authorizationState: NotificationAuthorizationState
-    ) -> TerminalNotificationPolicyEffects {
-        guard authorizationState == .denied else { return effects }
-        var silenced = effects
-        silenced.sound = false
-        return silenced
-    }
 }

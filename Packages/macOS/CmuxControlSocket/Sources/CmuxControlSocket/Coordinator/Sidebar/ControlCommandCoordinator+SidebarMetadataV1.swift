@@ -1,4 +1,4 @@
-internal import Foundation
+public import Foundation
 
 /// The v1 sidebar metadata commands (`set_status` / `report_meta` /
 /// `report_meta_block` / agent PID + lifecycle / `log` / `set_progress` and
@@ -79,6 +79,16 @@ extension ControlCommandCoordinator {
             }
             return nil
         }()
+        let agentEventTimeResult = sidebarParseAgentEventTime(parsed.options["agent-event-time"])
+        let agentEventTime: TimeInterval?
+        switch agentEventTimeResult {
+        case .absent:
+            agentEventTime = nil
+        case .valid(let value):
+            agentEventTime = value
+        case .invalid(let raw):
+            return sidebarInvalidAgentEventTimeError(raw, context: context)
+        }
 
         context?.controlSidebarScheduleStatusUpsert(
             target: target,
@@ -90,9 +100,41 @@ extension ControlCommandCoordinator {
             priority: priority,
             format: format,
             panelID: panelResolution.panelId,
-            pid: pidValue
+            pid: pidValue,
+            agentEventTime: agentEventTime
         )
         return "OK"
+    }
+
+    enum SidebarAgentEventTimeParseResult {
+        case absent
+        case valid(TimeInterval)
+        case invalid(String)
+    }
+
+    nonisolated func sidebarParseAgentEventTime(_ raw: String?) -> SidebarAgentEventTimeParseResult {
+        guard let raw else {
+            return .absent
+        }
+        let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else {
+            return .invalid(raw)
+        }
+        guard let value = TimeInterval(normalized),
+              value.isPlausibleControlAgentEventTime else {
+            return .invalid(normalized)
+        }
+        return .valid(value)
+    }
+
+    nonisolated func sidebarInvalidAgentEventTimeError(
+        _ raw: String,
+        context: (any ControlCommandContext)?
+    ) -> String {
+        // Standalone package callers have no app localization bundle; preserve
+        // a stable English wire reply only for that non-production fallback.
+        context?.controlSidebarInvalidAgentEventTimeError(raw)
+            ?? "ERROR: Invalid agent event time '\(raw)' - must be between 2000-01-01 and 5 minutes from now"
     }
 
     /// The shared `clear_status`/`clear_meta` body (parse + bus enqueue; zero
@@ -321,122 +363,6 @@ extension ControlCommandCoordinator {
 
     // MARK: - Agent PID / lifecycle
 
-    /// `set_agent_pid` — register an agent PID for stale-session detection
-    /// (parse + bus enqueue; zero main hops).
-    nonisolated func sidebarSetAgentPID(_ args: String, context: (any ControlCommandContext)?) -> String {
-        let parsed = sidebarParseOptions(args)
-        let usage = "set_agent_pid <key> <pid> [--tab=<id>] [--panel=<id>]"
-        guard parsed.positional.count >= 2,
-              let pid = Int32(parsed.positional[1]), pid > 0 else {
-            return "ERROR: Usage: \(usage)"
-        }
-        let key = parsed.positional[0]
-        let targetResolution = sidebarParseMutationTabTarget(options: parsed.options)
-        guard let target = targetResolution.target else {
-            return targetResolution.error ?? "ERROR: No tab selected"
-        }
-        let panelResolution = sidebarParseOptionalPanelIdOption(options: parsed.options, usage: usage)
-        if let error = panelResolution.error {
-            return error
-        }
-        context?.controlSidebarScheduleAgentPIDRecord(
-            target: target,
-            key: key,
-            pid: pid,
-            panelID: panelResolution.panelId
-        )
-        return "OK"
-    }
-
-    /// `set_agent_lifecycle` — record a restorable agent session's lifecycle.
-    /// The vault-registry allowlist check
-    /// (`controlSidebarIsAllowedAgentLifecycleKey`) owns this command's single
-    /// main hop app-side: it snapshots the tab/panel directory candidates on
-    /// main and runs the registry disk IO on the calling thread.
-    nonisolated func sidebarSetAgentLifecycle(_ args: String, context: (any ControlCommandContext)?) -> String {
-        let parsed = sidebarParseOptions(args)
-        let usage = "set_agent_lifecycle <key> <unknown|running|idle|needsInput> [--tab=<id>] [--panel=<id>]"
-        guard parsed.positional.count >= 2 else {
-            return "ERROR: Usage: \(usage)"
-        }
-        let key = parsed.positional[0]
-        let rawLifecycle = parsed.positional[1]
-        guard let lifecycleRawValue = context?.controlSidebarParseAgentLifecycle(rawLifecycle) else {
-            return "ERROR: Invalid agent lifecycle '\(parsed.positional[1])' — usage: \(usage)"
-        }
-        let targetResolution = sidebarParseMutationTabTarget(options: parsed.options)
-        guard let target = targetResolution.target else {
-            return targetResolution.error ?? "ERROR: No tab selected"
-        }
-        let panelResolution = sidebarParseOptionalPanelIdOption(options: parsed.options, usage: usage)
-        if let error = panelResolution.error {
-            return error
-        }
-        guard context?.controlSidebarIsAllowedAgentLifecycleKey(
-            key,
-            target: target,
-            panelID: panelResolution.panelId
-        ) ?? false else {
-            return "ERROR: Unsupported agent lifecycle key '\(key)'"
-        }
-        context?.controlSidebarScheduleAgentLifecycle(
-            target: target,
-            key: key,
-            lifecycleRawValue: lifecycleRawValue,
-            panelID: panelResolution.panelId
-        )
-        return "OK"
-    }
-
-    /// `agent_hibernation` — the global hibernation toggle (the seam witness
-    /// applies the settings write in its own single main hop so the change
-    /// notification still posts on the main thread and the reply stays
-    /// apply-then-reply, as the legacy body was).
-    nonisolated func sidebarAgentHibernation(_ args: String, context: (any ControlCommandContext)?) -> String {
-        let parsed = sidebarParseOptions(args)
-        let subcommand = parsed.positional.first?.lowercased()
-        let usage = "agent_hibernation <on|off>"
-
-        switch subcommand {
-        case "on", "enable", "enabled", "true":
-            context?.controlSidebarSetAgentHibernation(enabled: true)
-            return "OK"
-        case "off", "disable", "disabled", "false":
-            context?.controlSidebarSetAgentHibernation(enabled: false)
-            return "OK"
-        default:
-            return "ERROR: Usage: \(usage)"
-        }
-    }
-
-    /// `clear_agent_pid` — unregister an agent PID (parse + bus enqueue; zero
-    /// main hops).
-    nonisolated func sidebarClearAgentPID(_ args: String, context: (any ControlCommandContext)?) -> String {
-        let parsed = sidebarParseOptions(args)
-        let usage = "clear_agent_pid <key> [--tab=<id>] [--panel=<id>] [--clear-status]"
-        guard let key = parsed.positional.first else {
-            return "ERROR: Usage: \(usage)"
-        }
-        let targetResolution = sidebarParseMutationTabTarget(options: parsed.options)
-        guard let target = targetResolution.target else {
-            return targetResolution.error ?? "ERROR: No tab selected"
-        }
-        let panelResolution = sidebarParseOptionalPanelIdOption(options: parsed.options, usage: usage)
-        if let error = panelResolution.error {
-            return error
-        }
-        context?.controlSidebarScheduleAgentPIDClear(
-            target: target,
-            key: key,
-            panelID: panelResolution.panelId,
-            clearStatus: parsed.options["clear-status"] != nil,
-            requireOwnedKey: parsed.options["require-owned-key"] != nil
-        )
-        return "OK"
-    }
-
-    // MARK: - Log / progress
-
     /// `log` — append a sidebar log entry. The tab-resolution reply
     /// (`Tab not found` / `No tab selected`) requires the synchronous append
     /// result, so the write is the command's single main hop; level
@@ -557,5 +483,14 @@ extension ControlCommandCoordinator {
             return "ERROR: Tab not found"
         }
         return "OK"
+    }
+}
+
+extension TimeInterval {
+    /// Whether the value is a current, plausible Unix timestamp for agent event ordering.
+    public var isPlausibleControlAgentEventTime: Bool {
+        isFinite
+            && self >= 946_684_800
+            && self <= Date.now.timeIntervalSince1970 + 5 * 60
     }
 }
