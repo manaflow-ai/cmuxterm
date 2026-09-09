@@ -81,25 +81,6 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
-      # OpenCodeHookRegressionTests executes the installed OpenCode plugin
-      # with the production Node runtime. Keep that runtime explicit on the
-      # reusable macOS test lane instead of relying on runner image contents.
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: "22.14.0"
-
-      - name: Export Node path for XCTest host
-        run: |
-          set -euo pipefail
-          node_binary="$(command -v node)"
-          test -x "$node_binary"
-          # xcodebuild strips TEST_RUNNER_ when it launches the test host.
-          # Pass the absolute runtime path because the host does not inherit
-          # the workflow shell's PATH updates from setup-node.
-          echo "TEST_RUNNER_CMUX_NODE_BINARY=$node_binary" >> "$GITHUB_ENV"
-          echo "Using Node runtime: $node_binary"
-
       - name: Download pre-built GhosttyKit.xcframework
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
