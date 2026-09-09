@@ -463,6 +463,7 @@ struct CLICodexHookTimeoutRegressionTests {
         let surfaceId = "22222222-2222-2222-2222-222222222222"
         let sessionId = "codex-monitor-replay-session"
         let turnId = "codex-monitor-replay-turn"
+        let ownerPID = 4242
         let stateURL = root.appendingPathComponent("codex-hook-sessions.json")
         let transcriptURL = root.appendingPathComponent("transcript.jsonl")
         // Keep the persisted fixture deterministic while remaining inside the
@@ -507,7 +508,7 @@ struct CLICodexHookTimeoutRegressionTests {
         let ledgerURL = root.appendingPathComponent("codex-turn-ledger.json")
         let ledgerRecord: [String: Any] = [
             "workspaceID": workspaceId, "surfaceID": surfaceId,
-            "owner": ["pid": Int(ProcessInfo.processInfo.processIdentifier)], "activeTurnID": turnId,
+            "owner": ["pid": ownerPID], "activeTurnID": turnId,
             "activeChildrenByTurn": [:], "unknownChildrenByTurn": [:],
             "terminalChildrenByTurn": [:], "pendingTurns": [:],
             "settledTurnIDs": [], "notifiedTurnIDs": [], "updatedAt": now,
@@ -543,7 +544,8 @@ struct CLICodexHookTimeoutRegressionTests {
                 "CMUX_AGENT_HOOK_STATE_DIR": root.path,
                 "CMUX_CODEX_TURN_LEDGER_PATH": ledgerURL.path,
                 "CMUX_AGENT_HOOK_CAPTURED_AT": AgentHookWireFormat.eventTime(inheritedEventTime),
-                "CMUX_CODEX_PID": "\(ProcessInfo.processInfo.processIdentifier)",
+                "CMUX_CODEX_PID": "\(ownerPID)",
+                "CMUX_CODEX_HOOK_PID": "\(ownerPID)",
                 "CMUX_CLI_SENTRY_DISABLED": "1",
             ],
             timeout: 10
