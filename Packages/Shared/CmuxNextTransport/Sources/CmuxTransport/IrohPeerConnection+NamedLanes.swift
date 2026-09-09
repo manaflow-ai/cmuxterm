@@ -27,19 +27,7 @@ extension IrohPeerConnection {
                 })
             try await channel.sendFrame(
                 Frame(type: Self.laneOpenType, payload: ["name": .string(name)]))
-            guard !closedFlag, !Task.isCancelled, lanes.count < Self.maxLaneCount else {
-                throw TransportError.pipeClosed
-            }
-            let lane = makeLane(name: name, channel: channel)
-            lanes[name] = lane
-            if TransportDebugLog.enabled {
-                TransportDebugLog.core.notice(
-                    """
-                    conn \(TransportDebugLog.id(self), privacy: .public) lane opened \
-                    (dialer) name=\(name, privacy: .public)
-                    """)
-            }
-            return lane
+            return try await completeNamedLaneOpen(name, stream: stream, channel: channel)
         } catch {
             if let openedStream { await closeUnadoptedStream(openedStream) }
             if TransportDebugLog.enabled {
@@ -52,5 +40,25 @@ extension IrohPeerConnection {
             }
             return DeadLane(name: name)
         }
+    }
+
+    /// Takes ownership after the native opening handshake has suspended.
+    /// The caller closes the unadopted stream if registration throws.
+    func completeNamedLaneOpen(
+        _ name: String, stream: BiStream, channel: IrohLaneChannel
+    ) async throws -> IrohLane {
+        guard !closedFlag, !Task.isCancelled, lanes.count < Self.maxLaneCount else {
+            throw TransportError.pipeClosed
+        }
+        let lane = makeLane(name: name, channel: channel)
+        lanes[name] = lane
+        if TransportDebugLog.enabled {
+            TransportDebugLog.core.notice(
+                """
+                conn \(TransportDebugLog.id(self), privacy: .public) lane opened \
+                (dialer) name=\(name, privacy: .public)
+                """)
+        }
+        return lane
     }
 }

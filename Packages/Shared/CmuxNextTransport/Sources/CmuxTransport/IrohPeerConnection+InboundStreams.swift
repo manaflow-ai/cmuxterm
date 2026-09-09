@@ -49,7 +49,7 @@ extension IrohPeerConnection {
     /// Handles one stream independently of the accept loop. A peer that opens
     /// a stream and never sends its preamble therefore consumes only one
     /// bounded worker and cannot block later control/application lanes.
-    private func processInboundStream(_ stream: BiStream, taskID: UInt64) async {
+    func processInboundStream(_ stream: BiStream, taskID: UInt64) async {
         defer { inboundStreamTasks.removeValue(forKey: taskID) }
         let channel = IrohLaneChannel(
             send: stream.send(), recv: stream.recv(),
