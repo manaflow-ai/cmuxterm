@@ -19989,8 +19989,7 @@ private extension NSWindow {
         guard let contentView = window.contentView else {
             return nil
         }
-        let pointInContent = contentView.convert(event.locationInWindow, from: nil)
-        return contentView.hitTest(pointInContent)
+        return contentView.cmuxHitTest(windowPoint: event.locationInWindow)
     }
 
     private static func cmuxTopHitViewForEvent(in window: NSWindow, event: NSEvent) -> NSView? {
