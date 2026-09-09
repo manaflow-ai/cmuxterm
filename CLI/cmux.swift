@@ -422,6 +422,21 @@ final class ClaudeHookSessionStore {
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
 
+    enum PromptStopResult: Equatable {
+        case applied(nested: Bool)
+        case rejectedByLifecycleFence
+
+        var nested: Bool {
+            guard case .applied(let nested) = self else { return false }
+            return nested
+        }
+
+        var wasRejectedByLifecycleFence: Bool {
+            if case .rejectedByLifecycleFence = self { return true }
+            return false
+        }
+    }
+
     init(
         processEnv: [String: String] = ProcessInfo.processInfo.environment,
         fileManager: FileManager = .default,
@@ -1302,9 +1317,9 @@ final class ClaudeHookSessionStore {
         settleOnlyIfPromptActive: Bool = false,
         expectedPromptLifecycleRevision: Int64? = nil,
         autoNameMessages: [AutoNamingTranscriptMessage] = []
-    ) throws -> Bool {
+    ) throws -> PromptStopResult {
         let normalized = normalizeSessionId(sessionId)
-        guard !normalized.isEmpty else { return false }
+        guard !normalized.isEmpty else { return .applied(nested: false) }
         return try withLockedState { state in
             let now = Date().timeIntervalSince1970
             var record = makeSessionRecord(
@@ -1328,7 +1343,7 @@ final class ClaudeHookSessionStore {
             guard !settleOnlyIfPromptActive || (
                 depthBeforeStop > 0 && promptRevisionMatches
             ) else {
-                return false
+                return .rejectedByLifecycleFence
             }
             let shouldSettleAuthoritativeBoundary = promptDepthPolicy.closesActivePrompt
                 && (!settleOnlyIfPromptActive || (depthBeforeStop > 0 && promptRevisionMatches))
@@ -1376,7 +1391,7 @@ final class ClaudeHookSessionStore {
             if promptDepthPolicy.closesActivePrompt {
                 record.endAuthoritativePrompt()
                 state.sessions[normalized] = record
-                return false
+                return .applied(nested: false)
             }
             if let normalizedTurnId {
                 var turnStack = activePromptTurnStack(from: record)
@@ -1408,7 +1423,7 @@ final class ClaudeHookSessionStore {
                         )
                         markPromptTurnTerminal(normalizedTurnId, on: &record)
                         state.sessions[normalized] = record
-                        return nested
+                        return .applied(nested: nested)
                     }
                     if let staleIndex = turnStack.lastIndex(of: normalizedTurnId) {
                         turnStack.remove(at: staleIndex)
@@ -1427,16 +1442,16 @@ final class ClaudeHookSessionStore {
                         markPromptTurnTerminal(normalizedTurnId, on: &record)
                     }
                     state.sessions[normalized] = record
-                    return true
+                    return .applied(nested: true)
                 }
                 if totalDepthBeforeStop == 0, terminalPromptTurnSet(from: record).contains(normalizedTurnId) {
                     state.sessions[normalized] = record
-                    return true
+                    return .applied(nested: true)
                 }
                 markPromptTurnTerminal(normalizedTurnId, on: &record)
                 if totalDepthBeforeStop == 0 {
                     state.sessions[normalized] = record
-                    return false
+                    return .applied(nested: false)
                 }
                 let depthAfterTurnStop = max(0, totalDepthBeforeStop - 1)
                 if depthAfterTurnStop == 0 {
@@ -1447,7 +1462,7 @@ final class ClaudeHookSessionStore {
                 record.activePromptTurnId = nil
                 record.activePromptTurnIds = nil
                 state.sessions[normalized] = record
-                return totalDepthBeforeStop > 1
+                return .applied(nested: totalDepthBeforeStop > 1)
             }
             if depthAfterStop == 0 {
                 record.activePromptDepth = nil
@@ -1470,7 +1485,7 @@ final class ClaudeHookSessionStore {
                 }
             }
             state.sessions[normalized] = record
-            return depthBeforeStop > 1
+            return .applied(nested: depthBeforeStop > 1)
         }
     }
 
@@ -36039,6 +36054,7 @@ export default CMUXSessionRestore;
             } else {
                 terminalActivePromptTurnIdsForStop = []
             }
+            var promptStopRejectedByLifecycleFence = false
             let nestedPromptStop: Bool
             if skipCodexLegacyPromptStop {
                 nestedPromptStop = false
@@ -36054,7 +36070,7 @@ export default CMUXSessionRestore;
                 // a prior pending Stop's tombstone make it look nested.
                 nestedPromptStop = false
             } else if !sessionId.isEmpty, !staleIdleStopHasNewerRunningSession {
-                nestedPromptStop = (try? store.recordPromptStop(
+                let promptStopResult = try? store.recordPromptStop(
                     sessionId: sessionId,
                     workspaceId: workspaceId,
                     surfaceId: surfaceId,
@@ -36080,7 +36096,9 @@ export default CMUXSessionRestore;
                         client: client,
                         workspaceId: workspaceId
                     )
-                )) ?? false
+                )
+                promptStopRejectedByLifecycleFence = promptStopResult?.wasRejectedByLifecycleFence ?? false
+                nestedPromptStop = promptStopResult?.nested ?? false
             } else {
                 nestedPromptStop = false
             }
@@ -36147,7 +36165,7 @@ export default CMUXSessionRestore;
                     nestedPromptEvent: nestedPromptStop,
                     precomputedNestedDetection: isNestedAgentSession,
                     env: env
-                ) || staleIdleStopHasNewerRunningSession
+                ) || staleIdleStopHasNewerRunningSession || promptStopRejectedByLifecycleFence
             }
             if def.name == "cursor", !sessionId.isEmpty {
                 guard acquireCursorLifecycleLease(surfaceId: surfaceId) else {
@@ -36758,6 +36776,7 @@ export default CMUXSessionRestore;
                 return
             }
 
+            var notificationPromptStopRejectedByLifecycleFence = false
             if !sessionId.isEmpty {
                 let pid = preferredAgentHookEventPID(agentName: def.name, mappedPID: mapped?.pid, inferredPID: inferredPID)
                 let launchCommand = agentLaunchCommandFromEnvironment(
@@ -36774,7 +36793,7 @@ export default CMUXSessionRestore;
                         || def.name == "grok"
                         || def.name == "antigravity"),
                    summary.status == .idle || summary.status == .error {
-                    _ = try? store.recordPromptStop(
+                    let promptStopResult = try? store.recordPromptStop(
                         sessionId: sessionId,
                         workspaceId: workspaceId,
                         surfaceId: surfaceId,
@@ -36802,6 +36821,7 @@ export default CMUXSessionRestore;
                             workspaceId: workspaceId
                         )
                     )
+                    notificationPromptStopRejectedByLifecycleFence = promptStopResult?.wasRejectedByLifecycleFence ?? false
                 } else {
                     _ = try? store.upsert(
                         sessionId: sessionId,
@@ -36853,7 +36873,7 @@ export default CMUXSessionRestore;
                 category: summary.notifyCategory,
                 body: summary.body
             )
-            if !summary.body.isEmpty {
+            if !summary.body.isEmpty, !notificationPromptStopRejectedByLifecycleFence {
                 // One ancestry walk per delivered notification, feeding the
                 // notify payload's subagent tag below.
                 let notificationEventPID = preferredAgentHookEventPID(
@@ -36943,33 +36963,35 @@ export default CMUXSessionRestore;
 #endif
             }
 
-            switch summary.status {
-            case .needsInput? where suppressPendingWaitingState:
-                // Suppressed pending waiting cue: leave the Running pill in
-                // place; the fullyIdle turn boundary reconciles.
-                break
-            case .needsInput?:
-                let statusValue = agentNeedsInputStatusValue(for: def)
-                if cursorShellNeedsApproval {
-                    sendCursorCriticalCommand(
-                        "set_status \(def.statusKey) \(statusValue) --icon=bell.fill --color=#4C8DFF --priority=100 --tab=\(workspaceId)\(socketPanelOption(surfaceId))"
-                    )
-                } else {
+            if !notificationPromptStopRejectedByLifecycleFence {
+                switch summary.status {
+                case .needsInput? where suppressPendingWaitingState:
+                    // Suppressed pending waiting cue: leave the Running pill in
+                    // place; the fullyIdle turn boundary reconciles.
+                    break
+                case .needsInput?:
+                    let statusValue = agentNeedsInputStatusValue(for: def)
+                    if cursorShellNeedsApproval {
+                        sendCursorCriticalCommand(
+                            "set_status \(def.statusKey) \(statusValue) --icon=bell.fill --color=#4C8DFF --priority=100 --tab=\(workspaceId)\(socketPanelOption(surfaceId))"
+                        )
+                    } else {
+                        _ = try? sendV1Command(
+                            "set_status \(def.statusKey) \(statusValue) --icon=bell.fill --color=#4C8DFF --priority=100 --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
+                            client: client
+                        )
+                    }
+                case .error?:
+                    let statusValue = agentErrorStatusValue(for: def)
                     _ = try? sendV1Command(
-                        "set_status \(def.statusKey) \(statusValue) --icon=bell.fill --color=#4C8DFF --priority=100 --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
+                        "set_status \(def.statusKey) \(statusValue) --icon=exclamationmark.triangle.fill --color=#FF453A --priority=100 --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
                         client: client
                     )
+                case .idle?:
+                    setIdleStatusUnlessAnotherSessionIsRunning(workspaceId: workspaceId, surfaceId: surfaceId)
+                case nil:
+                    break
                 }
-            case .error?:
-                let statusValue = agentErrorStatusValue(for: def)
-                _ = try? sendV1Command(
-                    "set_status \(def.statusKey) \(statusValue) --icon=exclamationmark.triangle.fill --color=#FF453A --priority=100 --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
-                    client: client
-                )
-            case .idle?:
-                setIdleStatusUnlessAnotherSessionIsRunning(workspaceId: workspaceId, surfaceId: surfaceId)
-            case nil:
-                break
             }
             cursorLifecycleLease?.release()
             cursorLifecycleLease = nil
