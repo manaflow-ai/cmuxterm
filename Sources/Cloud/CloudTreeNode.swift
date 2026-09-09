@@ -1019,12 +1019,12 @@ enum CloudTreeNodeBuilder {
             let nested = hiddenTabs.map { tab in
                 placementNode(
                     tab, workspace: workspace, machine: machine, info: info, snapshot: snapshot,
-                    projectionIndex: projectionIndex, openInLocal: openInLocal, hiddenTabCount: 0, children: []
+                    projectionIndex: projectionIndex, openInLocal: openInLocal, hiddenTabCount: 0, children: [], paneRow: false
                 )
             }
             result.rows.append(placementNode(
                 placement, workspace: workspace, machine: machine, info: info, snapshot: snapshot,
-                projectionIndex: projectionIndex, openInLocal: openInLocal, hiddenTabCount: hiddenTabs.count, children: nested
+                projectionIndex: projectionIndex, openInLocal: openInLocal, hiddenTabCount: hiddenTabs.count, children: nested, paneRow: true
             ))
             result.placements.append(placement)
             result.placements.append(contentsOf: hiddenTabs)
@@ -1047,10 +1047,11 @@ enum CloudTreeNodeBuilder {
         projectionIndex: LocalProjectionIndex,
         openInLocal: UUID?,
         hiddenTabCount: Int,
-        children: [CloudTreeNode]
+        children: [CloudTreeNode],
+        paneRow: Bool
     ) -> CloudTreeNode {
         let id: String
-        if let paneID = placement.view?.paneID, !paneID.isEmpty, !children.isEmpty {
+        if paneRow, let paneID = placement.view?.paneID, !paneID.isEmpty {
             id = nodeID(
                 pane: paneID,
                 screenID: placement.view?.screenID,
