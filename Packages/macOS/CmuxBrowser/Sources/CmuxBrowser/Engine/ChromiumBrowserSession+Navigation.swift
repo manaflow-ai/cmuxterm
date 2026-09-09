@@ -7,7 +7,11 @@ extension ChromiumBrowserSession {
     /// - Throws: A CDP transport error or Chromium navigation rejection.
     public func navigate(to url: URL) async throws {
         if let owlRuntime {
-            beginOwlNavigation(.destination(url))
+            let baselineDocumentEpoch = owlDocumentEpoch(runtime: owlRuntime)
+            beginOwlNavigation(
+                .destination(url),
+                baselineDocumentEpoch: baselineDocumentEpoch
+            )
             do {
                 try owlRuntime.navigate(url)
             } catch {
@@ -42,12 +46,16 @@ extension ChromiumBrowserSession {
     ///
     /// - Throws: A CDP transport error or malformed navigation history.
     public func goBack() async throws {
-        if owlRuntime != nil {
+        if let owlRuntime {
             guard let target = owlHistory?.targetURL(offset: -1) else {
                 completeOwlNoOpNavigation()
                 return
             }
-            beginOwlNavigation(.back(target))
+            let baselineDocumentEpoch = owlDocumentEpoch(runtime: owlRuntime)
+            beginOwlNavigation(
+                .back(target),
+                baselineDocumentEpoch: baselineDocumentEpoch
+            )
             do {
                 _ = try await evaluateJavaScript("history.back()", awaitPromise: false)
             } catch {
@@ -78,12 +86,16 @@ extension ChromiumBrowserSession {
     ///
     /// - Throws: A CDP transport error or malformed navigation history.
     public func goForward() async throws {
-        if owlRuntime != nil {
+        if let owlRuntime {
             guard let target = owlHistory?.targetURL(offset: 1) else {
                 completeOwlNoOpNavigation()
                 return
             }
-            beginOwlNavigation(.forward(target))
+            let baselineDocumentEpoch = owlDocumentEpoch(runtime: owlRuntime)
+            beginOwlNavigation(
+                .forward(target),
+                baselineDocumentEpoch: baselineDocumentEpoch
+            )
             do {
                 _ = try await evaluateJavaScript("history.forward()", awaitPromise: false)
             } catch {
@@ -125,8 +137,12 @@ extension ChromiumBrowserSession {
     }
 
     private func reload(ignoreCache: Bool) async throws {
-        if owlRuntime != nil {
-            beginOwlNavigation(.reload(currentURL))
+        if let owlRuntime {
+            let baselineDocumentEpoch = owlDocumentEpoch(runtime: owlRuntime)
+            beginOwlNavigation(
+                .reload(currentURL),
+                baselineDocumentEpoch: baselineDocumentEpoch
+            )
             do {
                 // OWL has no cache-control Mojo command. A location reload
                 // still exercises the native renderer and preserves the same
@@ -222,9 +238,13 @@ extension ChromiumBrowserSession {
         throw CDPError.disconnected(ChromiumBrowserDiagnostic.navigationStreamEnded.message)
     }
 
-    func beginOwlNavigation(_ intent: OwlNavigationIntent) {
+    func beginOwlNavigation(
+        _ intent: OwlNavigationIntent,
+        baselineDocumentEpoch: Double? = nil
+    ) {
         owlNavigationIntent = intent
         owlNavigationSawLoadingEvent = false
+        owlNavigationBaselineDocumentEpoch = baselineDocumentEpoch
         isLoading = true
         publish()
     }
@@ -234,12 +254,14 @@ extension ChromiumBrowserSession {
         owlNavigationReadinessTask = nil
         owlNavigationIntent = nil
         owlNavigationSawLoadingEvent = false
+        owlNavigationBaselineDocumentEpoch = nil
         failNavigation()
     }
 
     func completeOwlNoOpNavigation() {
         owlNavigationIntent = nil
         owlNavigationSawLoadingEvent = false
+        owlNavigationBaselineDocumentEpoch = nil
         isLoading = false
         navigationRevision &+= 1
         publish()
@@ -269,6 +291,7 @@ extension ChromiumBrowserSession {
         }
         owlNavigationIntent = nil
         owlNavigationSawLoadingEvent = false
+        owlNavigationBaselineDocumentEpoch = nil
         isLoading = false
         navigationRevision &+= 1
         owlNavigationReadinessTask?.cancel()
@@ -302,28 +325,54 @@ extension ChromiumBrowserSession {
         }
     }
 
-    private func owlNavigationReadinessMatches(
-        _ intent: OwlNavigationIntent,
-        object: [String: Any]
+    private func owlDocumentEpoch(runtime: OwlFreshRuntime) -> Double? {
+        guard let raw = try? runtime.evaluate("Number(performance.timeOrigin || 0)"),
+              let data = raw.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) else {
+            return nil
+        }
+        return CDPValue(any: object).doubleValue
+    }
+
+    private func owlNavigationDocumentEpochAdvanced(
+        _ object: [String: Any]
     ) -> Bool {
-        guard case .reload = intent else { return true }
-        return object["navigationType"] as? String == "reload"
+        guard let baseline = owlNavigationBaselineDocumentEpoch else {
+            return true
+        }
+        guard let documentEpoch = CDPValue(any: object["documentEpoch"]).doubleValue else {
+            return false
+        }
+        return documentEpoch > baseline + 0.001
     }
 
     private func readOwlReadiness(generation: UInt64) -> Bool {
         guard lifecycleGeneration == generation,
               let runtime = owlRuntime,
               let intent = owlNavigationIntent else { return true }
-        let script = "({href: String(location.href || ''), readyState: String(document.readyState || ''), title: String(document.title || ''), navigationType: String((performance.getEntriesByType('navigation')[0] || {}).type || '')})"
+        let script = "({href: String(location.href || ''), readyState: String(document.readyState || ''), title: String(document.title || ''), navigationType: String((performance.getEntriesByType('navigation')[0] || {}).type || ''), documentEpoch: Number(performance.timeOrigin || 0)})"
         guard let raw = try? runtime.evaluate(script),
               let data = raw.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let href = object["href"] as? String,
               let readyState = object["readyState"] as? String,
-              readyState == "complete",
-              let eventURL = URL(string: href),
-              owlNavigationTargetMatches(intent, eventURL: eventURL),
-              owlNavigationReadinessMatches(intent, object: object) else {
+              let eventURL = URL(string: href) else {
+            return false
+        }
+        let requiresReloadNavigation: Bool
+        if case .reload = intent {
+            requiresReloadNavigation = true
+        } else {
+            requiresReloadNavigation = false
+        }
+        guard OwlNavigationCompletionPredicate.readinessAccepts(
+            sawLoadingEvent: owlNavigationSawLoadingEvent,
+            targetMatches: owlNavigationTargetMatches(intent, eventURL: eventURL),
+            readyState: readyState,
+            documentEpochAdvanced: owlNavigationDocumentEpochAdvanced(object),
+            requiresReloadNavigation: requiresReloadNavigation,
+            navigationType: object["navigationType"] as? String ?? ""
+        ) else {
             return false
         }
         if let title = object["title"] as? String, !title.isEmpty { self.title = title }

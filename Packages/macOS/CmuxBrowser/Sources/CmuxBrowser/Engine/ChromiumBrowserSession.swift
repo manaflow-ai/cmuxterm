@@ -36,6 +36,7 @@ public actor ChromiumBrowserSession {
     var owlHistory: OwlNavigationHistoryState?
     var owlNavigationIntent: OwlNavigationIntent?
     var owlNavigationSawLoadingEvent = false
+    var owlNavigationBaselineDocumentEpoch: Double?
     var nativeSurfaceContextID: UInt32?
     var connection: ChromiumCDPConnection?
     var state: ChromiumSessionState = .stopped
@@ -138,6 +139,7 @@ public actor ChromiumBrowserSession {
         owlHistory = nil
         owlNavigationIntent = nil
         owlNavigationSawLoadingEvent = false
+        owlNavigationBaselineDocumentEpoch = nil
         for child in pendingProcesses.values {
             child.terminate()
         }
@@ -379,6 +381,7 @@ public actor ChromiumBrowserSession {
         owlHistory = OwlNavigationHistoryState(initialURL: initialURL)
         owlNavigationIntent = nil
         owlNavigationSawLoadingEvent = false
+        owlNavigationBaselineDocumentEpoch = nil
         syncOwlHistorySnapshot()
         publish()
         owlPollTask = Task.detached(priority: .userInitiated) { [runtime] in
@@ -407,17 +410,13 @@ public actor ChromiumBrowserSession {
                 if owlNavigationIntent == nil, let eventURL, !Self.matches(url: currentURL, target: eventURL) {
                     owlNavigationIntent = .destination(eventURL)
                 }
-            } else if let intent = owlNavigationIntent,
-                      OwlNavigationCompletionPredicate.accepts(
-                          loading: false,
-                          sawLoadingEvent: owlNavigationSawLoadingEvent,
-                          targetMatches: owlNavigationTargetMatches(intent, eventURL: eventURL)
-                      ) {
-                commitOwlNavigation(intent, eventURL: eventURL)
             } else if owlNavigationIntent == nil, let eventURL,
                       !Self.matches(url: currentURL, target: eventURL) {
-                // Accommodate a renderer-side same-document or restored
-                // navigation that was not initiated by cmux.
+                // A terminal callback for an OWL operation is only a hint:
+                // the readiness monitor must prove that a newer document is
+                // complete before it commits the operation. Renderer-side
+                // navigations without a pending cmux intent can still be
+                // committed directly here.
                 currentURL = eventURL
                 owlHistory?.commitDestination(eventURL)
                 syncOwlHistorySnapshot()
@@ -425,16 +424,26 @@ public actor ChromiumBrowserSession {
                 navigationRevision &+= 1
             }
         case 5:
-            owlNavigationReadinessTask?.cancel()
-            owlNavigationReadinessTask = nil
+            teardownOwlRuntime()
             state = .crashed(-1)
             isLoading = false
-            owlNavigationIntent = nil
-            owlNavigationSawLoadingEvent = false
         default:
             break
         }
         publish()
+    }
+
+    func teardownOwlRuntime() {
+        owlNavigationReadinessTask?.cancel()
+        owlNavigationReadinessTask = nil
+        owlPollTask?.cancel()
+        owlPollTask = nil
+        owlRuntime = nil
+        owlHistory = nil
+        owlNavigationIntent = nil
+        owlNavigationSawLoadingEvent = false
+        owlNavigationBaselineDocumentEpoch = nil
+        nativeSurfaceContextID = nil
     }
 
     /// Stops CDP and requests asynchronous termination of the managed child.
@@ -452,6 +461,7 @@ public actor ChromiumBrowserSession {
         owlHistory = nil
         owlNavigationIntent = nil
         owlNavigationSawLoadingEvent = false
+        owlNavigationBaselineDocumentEpoch = nil
         nativeSurfaceContextID = nil
         let connectionToClose = connection
         connectionToClose?.close()

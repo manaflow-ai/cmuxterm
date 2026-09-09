@@ -108,4 +108,19 @@ enum OwlNavigationCompletionPredicate {
     ) -> Bool {
         !loading && sawLoadingEvent && targetMatches
     }
+
+    static func readinessAccepts(
+        sawLoadingEvent: Bool,
+        targetMatches: Bool,
+        readyState: String,
+        documentEpochAdvanced: Bool,
+        requiresReloadNavigation: Bool,
+        navigationType: String
+    ) -> Bool {
+        sawLoadingEvent &&
+            targetMatches &&
+            readyState == "complete" &&
+            documentEpochAdvanced &&
+            (!requiresReloadNavigation || navigationType == "reload")
+    }
 }

@@ -64,4 +64,56 @@ struct OwlNavigationStateTests {
             targetMatches: true
         ))
     }
+
+    @Test("OWL readiness requires a fresh complete document")
+    func readinessRequiresFreshDocument() {
+        #expect(!OwlNavigationCompletionPredicate.readinessAccepts(
+            sawLoadingEvent: false,
+            targetMatches: true,
+            readyState: "complete",
+            documentEpochAdvanced: true,
+            requiresReloadNavigation: false,
+            navigationType: "navigate"
+        ))
+        #expect(!OwlNavigationCompletionPredicate.readinessAccepts(
+            sawLoadingEvent: true,
+            targetMatches: true,
+            readyState: "complete",
+            documentEpochAdvanced: false,
+            requiresReloadNavigation: false,
+            navigationType: "navigate"
+        ))
+        #expect(!OwlNavigationCompletionPredicate.readinessAccepts(
+            sawLoadingEvent: true,
+            targetMatches: false,
+            readyState: "complete",
+            documentEpochAdvanced: true,
+            requiresReloadNavigation: false,
+            navigationType: "navigate"
+        ))
+        #expect(!OwlNavigationCompletionPredicate.readinessAccepts(
+            sawLoadingEvent: true,
+            targetMatches: true,
+            readyState: "complete",
+            documentEpochAdvanced: true,
+            requiresReloadNavigation: true,
+            navigationType: "back_forward"
+        ))
+        #expect(OwlNavigationCompletionPredicate.readinessAccepts(
+            sawLoadingEvent: true,
+            targetMatches: true,
+            readyState: "complete",
+            documentEpochAdvanced: true,
+            requiresReloadNavigation: false,
+            navigationType: "navigate"
+        ))
+        #expect(OwlNavigationCompletionPredicate.readinessAccepts(
+            sawLoadingEvent: true,
+            targetMatches: true,
+            readyState: "complete",
+            documentEpochAdvanced: true,
+            requiresReloadNavigation: true,
+            navigationType: "reload"
+        ))
+    }
 }
