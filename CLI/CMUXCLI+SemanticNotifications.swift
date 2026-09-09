@@ -7,7 +7,8 @@ extension CMUXCLI {
     func semanticNotificationCommand(
         source: String, agentKey: String, sessionId: String?,
         workspaceId: String, surfaceId: String, kind: AgentJournalEventKind,
-        rawObject: [String: Any]?, payload: String, pendingWork: Bool = false
+        rawObject: [String: Any]?, payload: String, pendingWork: Bool = false,
+        eventTimeOverride: TimeInterval? = nil
     ) throws -> String {
         let fields = payload.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
         guard fields.count >= 3 else { throw CLIError(message: String(localized: "cli.notification.invalidPayload", defaultValue: "Invalid notification payload")) }
@@ -23,13 +24,15 @@ extension CMUXCLI {
             category: category, correlationKey: correlationKey)
         return try semanticNotificationCommand(source: source, agentKey: agentKey, sessionId: sessionId,
             workspaceId: workspaceId, surfaceId: surfaceId, kind: kind, rawObject: rawObject,
-            notification: notification, pendingWork: pendingWork || meta.contains("p=1"), isSubagent: meta.contains("n=1"))
+            notification: notification, pendingWork: pendingWork || meta.contains("p=1"), isSubagent: meta.contains("n=1"),
+            eventTimeOverride: eventTimeOverride)
     }
 
     func semanticNotificationCommand(
         source: String, agentKey: String, sessionId: String?, workspaceId: String, surfaceId: String,
         kind: AgentJournalEventKind, rawObject: [String: Any]?, notification: AgentJournalNotification,
-        pendingWork: Bool = false, isSubagent: Bool = false
+        pendingWork: Bool = false, isSubagent: Bool = false,
+        eventTimeOverride: TimeInterval? = nil
     ) throws -> String {
         var context = Self.semanticAttentionContext(rawObject)
         var notification = notification
@@ -44,7 +47,8 @@ extension CMUXCLI {
         if context.requestIdentity == nil { context.requestIdentity = notification.correlationKey }
         let rejectedCapture = Self.agentHookCaptureTimeIsInvalid
         let draft = AgentJournalEventDraft(kind: kind,
-            occurredAtMs: Self.semanticOccurredAtMs(rawObject) ?? Int64(Date().timeIntervalSince1970 * 1000),
+            occurredAtMs: Self.semanticOccurredAtMs(rawObject, eventTimeOverride: eventTimeOverride)
+                ?? Int64(Date().timeIntervalSince1970 * 1000),
             source: source, agentKey: agentKey, sessionId: sessionId,
             workspaceId: rejectedCapture ? nil : workspaceId, surfaceId: rejectedCapture ? nil : surfaceId,
             unattributedReason: rejectedCapture ? "invalid-hook-event-time" : nil,

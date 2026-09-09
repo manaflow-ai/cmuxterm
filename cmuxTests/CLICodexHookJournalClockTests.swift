@@ -244,10 +244,14 @@ extension CLICodexHookTimeoutRegressionTests {
         let journalCapture = try #require(AgentJournalAppendCapture.first(
             in: commands.snapshot(), kind: "agent.turn.completed", agentKey: "codex", sessionId: sessionId
         ))
+        let journalEventTime = try #require((journalCapture.draft["occurred_at_ms"] as? NSNumber)?.int64Value)
         #expect(
-            ((journalCapture.draft["occurred_at_ms"] as? NSNumber)?.int64Value ?? 0)
-                > Int64(inheritedEventTime * 1000),
+            journalEventTime > Int64(inheritedEventTime * 1000),
             "The monitor's journal replay must use its fresh sample, not the inherited start timestamp"
+        )
+        #expect(
+            journalEventTime == Int64((replayEventTime * 1000).rounded()),
+            "The journal and runtime watermark must share the monitor's captured replay time"
         )
         #expect(commands.snapshot().contains { $0.hasPrefix("set_status codex Idle ") })
     }

@@ -34729,7 +34729,8 @@ export default CMUXSessionRestore;
                     let evidence = remaining?.toolUseId.map { ["tool_use_id": $0] }
                     if let command = try? semanticNotificationCommand(source: def.name, agentKey: def.statusKey,
                         sessionId: sessionId, workspaceId: workspaceId, surfaceId: surfaceId,
-                        kind: .approvalRequested, rawObject: evidence, payload: pendingPayload) {
+                        kind: .approvalRequested, rawObject: evidence, payload: pendingPayload,
+                        eventTimeOverride: eventTimeOverride) {
                         sendCursorCriticalCommand(command)
                     }
                     return
@@ -36080,7 +36081,8 @@ export default CMUXSessionRestore;
                 let notifyCommand = try semanticNotificationCommand(source: def.name, agentKey: def.statusKey,
                     sessionId: sessionId, workspaceId: workspaceId, surfaceId: surfaceId,
                     kind: stopNotificationStatus == .error ? .errorReported : .turnCompleted,
-                    rawObject: input.rawObject, payload: payload, pendingWork: hasActiveBackgroundWork)
+                    rawObject: input.rawObject, payload: payload, pendingWork: hasActiveBackgroundWork,
+                    eventTimeOverride: eventTimeOverride)
 #if DEBUG
                 agentHookDebugLog(
                     "agentHook.stop.notify agent=\(def.name) session=\(agentHookDebugShort(sessionId)) resumed=\(env["CMUX_AGENT_RESUME_LAUNCH"] == "1" ? 1 : 0) fallback=\(shouldPublishGrokStopFallbackNotification ? 1 : 0) workspace=\(agentHookDebugShort(workspaceId)) surface=\(agentHookDebugShort(surfaceId)) subtitleLen=\(subtitle.count) bodyLen=\(body.count)",
@@ -36707,7 +36709,8 @@ export default CMUXSessionRestore;
                 )
                 let notifyCommand = try semanticNotificationCommand(source: def.name, agentKey: def.statusKey,
                     sessionId: sessionId, workspaceId: workspaceId, surfaceId: surfaceId,
-                    kind: notificationJournalKind, rawObject: input.rawObject, payload: payload)
+                    kind: notificationJournalKind, rawObject: input.rawObject, payload: payload,
+                    eventTimeOverride: eventTimeOverride)
 #if DEBUG
                 agentHookDebugLog(
                     "agentHook.notification.notify agent=\(def.name) session=\(agentHookDebugShort(sessionId)) workspace=\(agentHookDebugShort(workspaceId)) surface=\(agentHookDebugShort(surfaceId))",
