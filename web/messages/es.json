@@ -633,11 +633,11 @@
     "metaDescriptionNoVault": "cmux es un terminal macOS gratuito y de código abierto para agentes de codificación de IA. Actualice a Pro para máquinas virtuales en la nube aisladas. Enterprise agrega SSO y autohospedaje.",
     "metaDescriptionNoVaultShort": "cmux es un terminal macOS gratuito y de código abierto. Pro agrega máquinas virtuales en la nube aisladas; Enterprise agrega SSO y autohospedaje.",
     "title": "Precios",
-    "alreadyPaid": "¿Ya pagó? Conectar la edición del fundador",
+    "alreadyPaid": "¿Ya realizó el pago? Vincular Founder's Edition",
     "perMonth": "/mes",
     "perMonthBilledYearly": "/mes, facturado anualmente",
     "perUserMonth": "/usuario/mes",
-    "perUserMonthBilledYearly": "/usuario/mo, facturado anualmente",
+    "perUserMonthBilledYearly": "/usuario/mes, con facturación anual",
     "billingPeriod": "Periodo de facturación",
     "monthly": "Mensual",
     "annual": "Anual",
@@ -663,8 +663,8 @@
     },
     "pro": {
       "name": "Pro",
-      "cta": "Conviértete en profesional",
-      "featuresLead": "Todo Gratis, más:",
+      "cta": "Contratar Pro",
+      "featuresLead": "Todo lo incluido en el plan gratuito, más:",
       "features": [
         "Agentes en la nube en máquinas virtuales en la nube en entornos aislados y remotos",
         "Hasta 50 VM en la nube, cada una con sus propios recursos; tamaño predeterminado 8 GB de RAM y 32 GB de disco, con 4 a 64 GB de RAM disponibles",
@@ -680,9 +680,9 @@
       ]
     },
     "team": {
-      "name": "equipo",
-      "cta": "Obtener equipos",
-      "featuresLead": "Todo en Pro, más:",
+      "name": "Equipo",
+      "cta": "Contratar el plan Equipo",
+      "featuresLead": "Todo lo incluido en Pro, más:",
       "features": [
         "Facturación centralizada para todo tu equipo",
         "Apoyo prioritario"
@@ -690,9 +690,9 @@
     },
     "enterprise": {
       "name": "Empresa",
-      "price": "personalizado",
+      "price": "A medida",
       "cta": "Contactar con ventas",
-      "featuresLead": "Todo en Team, más:",
+      "featuresLead": "Todo lo incluido en el plan Equipo, más:",
       "features": [
         "Ejecución y conexión en red autohospedadas en la nube, para que nada salga de su red",
         "Inicio de sesión SSO y SAML",
@@ -728,7 +728,7 @@
         },
         {
           "label": "Historial de sesiones",
-          "free": "locales",
+          "free": "En el dispositivo",
           "pro": "Ilimitado",
           "team": "Ilimitado",
           "enterprise": "Ilimitado",
@@ -762,14 +762,14 @@
           "free": "false",
           "pro": "50",
           "team": "50 por usuario",
-          "enterprise": "personalizado"
+          "enterprise": "A medida"
         },
         {
           "label": "Recursos por máquina virtual en la nube",
           "free": "false",
           "pro": "Por defecto, 8 GB de RAM y 32 GB de disco; 4 a 64 GB de RAM, disco de hasta 256 GB",
           "team": "Por defecto, 8 GB de RAM y 32 GB de disco; 4 a 64 GB de RAM, disco de hasta 256 GB",
-          "enterprise": "personalizado"
+          "enterprise": "A medida"
         },
         {
           "label": "Espacios de trabajo",
@@ -779,15 +779,15 @@
           "enterprise": "Ilimitado"
         },
         {
-          "label": "aplicación para iOS",
+          "label": "Aplicación para iOS",
           "free": "false",
           "pro": "true",
           "team": "true",
           "enterprise": "true"
         },
         {
-          "label": "Redes para llegar a tu Mac",
-          "free": "Trae el tuyo",
+          "label": "Conexión de red al Mac",
+          "free": "Su propia red",
           "pro": "Alojado",
           "team": "Alojado",
           "enterprise": "Autohospedado",
@@ -801,7 +801,7 @@
           "enterprise": "true"
         },
         {
-          "label": "Ejecución autohospedada y aislada",
+          "label": "Ejecución autohospedada y sin conexión a redes externas",
           "free": "false",
           "pro": "false",
           "team": "false",
@@ -830,9 +830,9 @@
         },
         {
           "label": "Soporte",
-          "free": "Comunidad",
+          "free": "De la comunidad",
           "pro": "Correo electrónico",
-          "team": "Prioridad",
+          "team": "Prioritario",
           "enterprise": "Dedicado"
         }
       ]
@@ -847,28 +847,28 @@
         },
         {
           "q": "¿Qué son las máquinas virtuales en la nube?",
-          "a": "Máquinas Linux persistentes en la nube: mascotas, no ganado. Siguiendo el Zen de cmux, una máquina es una solución primitiva, no administrada: conserva sus archivos, sus herramientas instaladas y su estado, y lo que construyes en ella es tuyo. Los agentes clonan repositorios, ejecutan comandos y abren solicitudes de extracción allí sin tocar su Mac. Pro incluye hasta 50 máquinas. El equipo incluye hasta 50 máquinas virtuales en la nube por usuario. Cada máquina tiene su propia CPU, memoria y disco. El tamaño predeterminado es 8 GB de RAM y 32 GB de disco; Hay disponibles tamaños de 4 a 64 GB de RAM. Los discos pueden crecer hasta 256 GB. No hay medición ni facturación por exceso."
+          "a": "Máquinas Linux persistentes en la nube: mascotas que se conservan, no ganado intercambiable. Según la filosofía de cmux, una máquina es un componente básico, no una solución gestionada: conserva sus archivos, las herramientas instaladas y su estado, y lo que construya en ella le pertenece. Los agentes clonan repositorios, ejecutan comandos y abren pull requests allí sin modificar su Mac. Pro incluye hasta 50 máquinas; el plan Equipo incluye hasta 50 máquinas virtuales en la nube por usuario. Cada máquina tiene su propia CPU, memoria y disco. La configuración predeterminada es de 8 GB de RAM y 32 GB de disco, con opciones de 4 a 64 GB de RAM. Los discos pueden ampliarse hasta 256 GB. No se cobra por consumo ni se aplican cargos por exceso de uso."
         },
         {
           "q": "¿Qué es la bóveda cmux?",
-          "a": "Vault realiza una copia de seguridad de cada sesión de terminal en la nube y le permite buscar en todas ellas, con un historial ilimitado en sus máquinas. Gratis mantiene el historial localmente en cada máquina; Pro agrega respaldo y búsqueda en la nube.",
+          "a": "Vault guarda una copia de cada sesión de terminal en la nube y permite buscar en todas ellas, con un historial ilimitado entre sus máquinas. El plan gratuito conserva el historial en cada máquina; Pro añade copias de seguridad y búsquedas en la nube.",
           "vault": true
         },
         {
           "q": "¿Aún necesito Tailscale para la aplicación de iOS?",
-          "a": "No. La aplicación iOS se empareja con su Mac a través de la red cmux iroh incorporada. También puedes traer tu propia red, como Tailscale. La empresa puede autohospedarse."
+          "a": "No. La aplicación para iOS se vincula con el Mac mediante la red cmux iroh integrada. También puede utilizar su propia solución de red, como Tailscale. El plan Empresa permite el autohospedaje."
         },
         {
           "q": "¿Cómo funciona la facturación?",
-          "a": "Pro cuesta $50/mes, o $40/mes cuando se factura anualmente (un ahorro del 20%). El equipo cuesta $60/usuario/mes, o $48/usuario/mes cuando se factura anualmente. Los planes pagos incluyen hasta 50 máquinas virtuales en la nube por usuario. Cada máquina tiene su propia CPU, memoria y disco, sin medición ni facturación por exceso. La terminal y los agentes locales quedan gratuitos."
+          "a": "Pro cuesta 50 $ al mes, o el equivalente a 40 $ al mes con facturación anual, un ahorro del 20 %. El plan Equipo cuesta 60 $ por usuario al mes, o 48 $ por usuario al mes con facturación anual. Los planes de pago incluyen hasta 50 máquinas virtuales en la nube por usuario. Cada máquina tiene su propia CPU, memoria y disco, sin facturación por consumo ni cargos por exceso de uso. El terminal y los agentes locales siguen siendo gratuitos."
         },
         {
           "q": "¿Puedo alojar yo mismo la nube?",
-          "a": "Sí, en Enterprise. Ejecute la ejecución del agente en su propia infraestructura o completamente aislada, para que el código fuente nunca abandone su red."
+          "a": "Sí, con el plan Empresa. Ejecute los agentes en su propia infraestructura o en un entorno totalmente desconectado de redes externas, de modo que el código fuente nunca salga de su red."
         },
         {
-          "q": "¿Tienes un plan de equipo?",
-          "a": "Sí. El equipo cuesta $60/usuario/mes, o $48/usuario/mes cuando se factura anualmente, con facturación centralizada para todo su equipo y soporte prioritario."
+          "q": "¿Hay un plan para equipos?",
+          "a": "Sí. El plan Equipo cuesta 60 $ por usuario al mes, o 48 $ por usuario al mes con facturación anual, e incluye facturación centralizada para todo el equipo y soporte prioritario."
         }
       ]
     },
