@@ -146,7 +146,6 @@ extension ClaudeHookSessionStore {
         let excluded = normalizeOptional(excludingSessionId)
         return try withLockedState { state in
             let excludedRuntimeEventTime = excluded.flatMap { state.sessions[$0]?.runtimeStatusEventTime }
-            if onlyNewerThanExcludedSession, excludedRuntimeEventTime == nil { return false }
             var foundRunningSession = false
             let now = Date().timeIntervalSince1970
 
@@ -165,6 +164,10 @@ extension ClaudeHookSessionStore {
                           candidateEventTime > excludedRuntimeEventTime else {
                         continue
                     }
+                } else if onlyNewerThanExcludedSession {
+                    // An untimestamped excluded record has no ordering boundary. Treat
+                    // any live running sibling as newer enough to keep an untimestamped
+                    // idle observation from demoting the active surface.
                 }
 
                 if requireLiveProcess, !Self.processExists(record.pid) {
