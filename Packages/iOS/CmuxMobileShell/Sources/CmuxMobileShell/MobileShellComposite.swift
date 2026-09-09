@@ -3867,6 +3867,15 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
                     mobileShellLog.debug(
                         "presence stream ended: \(String(describing: error), privacy: .public)"
                     )
+                    let serverFloor = Duration.seconds(Int64(max(
+                        0,
+                        (error as? any CmxRetryAfterProviding)?.retryAfterSeconds ?? 0
+                    )))
+                    if serverFloor > backoff {
+                        guard (try? await clock.sleep(for: serverFloor)) != nil else { return }
+                        backoff = min(backoff * 2, .seconds(60))
+                        continue
+                    }
                 }
                 if Task.isCancelled { return }
                 guard (try? await clock.sleep(for: backoff)) != nil else { return }
@@ -11638,11 +11647,15 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
     /// off the connection startup path.
     public func applyMacCompatibilityPolicy(_ policy: MobileMacCompatPolicy) {
         macCompatPolicy = policy
-        let requiredMacVersion = policy
-            .tier(forIOSVersion: versionGateIOSAppVersion)?
-            .stableMinVersion
-            .description
-        MobileMacListAuthState.shared.applyPolicyMinimumSupportedMacVersion(requiredMacVersion)
+        let tier = policy.tier(forIOSVersion: versionGateIOSAppVersion)
+        let requiredStableMacVersion = tier?.stableMinVersion.description
+        let requiredNightlyMacVersion = tier?.nightly.map {
+            "\($0.minBaseVersion)-nightly.\($0.minBuild)"
+        }
+        MobileMacListAuthState.shared.applyPolicyMinimumSupportedMacVersions(
+            stable: requiredStableMacVersion,
+            nightly: requiredNightlyMacVersion
+        )
     }
 
     func noteMacVersionUpdateRequired(for macDeviceID: String) {
