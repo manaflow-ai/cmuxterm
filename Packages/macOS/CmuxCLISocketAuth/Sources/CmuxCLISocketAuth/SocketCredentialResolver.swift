@@ -56,7 +56,7 @@ public final class SocketCredentialResolver: @unchecked Sendable {
     private let environment: [String: String]
     private let socketPath: String
     private let filePasswordProvider: @Sendable () -> String?
-    private let keychainPasswordProvider: KeychainPasswordProvider
+    private let keychainPasswordProvider: DeadlineKeychainPasswordProvider
     private let now: @Sendable () -> Date
     /// Shared mode state for clients targeting this route.
     public let authenticationModeCoordinator: SocketAuthenticationModeCoordinator
@@ -82,8 +82,13 @@ public final class SocketCredentialResolver: @unchecked Sendable {
         keychainPasswordProvider: KeychainPasswordProvider? = nil,
         authenticationModeCoordinator: SocketAuthenticationModeCoordinator? = nil
     ) {
-        let deadlineKeychainPasswordProvider: DeadlineKeychainPasswordProvider? = keychainPasswordProvider.map { provider in
-            { services, _ in provider(services) }
+        let deadlineKeychainPasswordProvider: DeadlineKeychainPasswordProvider?
+        if let keychainPasswordProvider {
+            deadlineKeychainPasswordProvider = { services, _ in
+                keychainPasswordProvider(services)
+            }
+        } else {
+            deadlineKeychainPasswordProvider = nil
         }
         self.init(
             explicitPassword: explicitPassword,
@@ -132,7 +137,7 @@ public final class SocketCredentialResolver: @unchecked Sendable {
 
     /// The source selected so far, or the immediate source without forcing a deferred read.
     public var source: SocketCredentialSource? {
-        resolutionState.withLock { state in
+        resolutionState.withLock { (state: inout ResolutionState) -> String? in
             switch state {
             case .unresolved:
                 if explicitPassword != nil { return .explicit }
