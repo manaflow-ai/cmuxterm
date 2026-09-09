@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import {
   RelayAuthenticationError,
@@ -59,18 +59,17 @@ export function enforceRelayRateLimit(input: {
       void reportMissingRateLimitRule({ route: "relay", reason: "unset" });
     });
   }
+  const rateLimitKey = input.rateLimitKey === null
+    ? undefined
+    : input.rateLimitKey ?? [
+      input.deploymentPartition,
+      input.accountId,
+      input.devicePartition,
+    ].filter((part): part is string => Boolean(part)).join(":");
   return Effect.tryPromise({
     try: () => input.check(ruleId, {
       request: input.request,
-      ...(input.rateLimitKey === null
-        ? {}
-        : {
-          rateLimitKey: input.rateLimitKey ?? [
-            input.deploymentPartition,
-            input.accountId,
-            input.devicePartition,
-          ].filter((part): part is string => Boolean(part)).join(":"),
-        }),
+      ...(rateLimitKey === undefined ? {} : { rateLimitKey }),
     }),
     catch: () => new RelayRateLimitError({ code: "rate_limit_unavailable" }),
   }).pipe(
@@ -83,6 +82,10 @@ export function enforceRelayRateLimit(input: {
             : "account_budget";
         console.warn("relay.rate_limited", {
           source,
+          ruleId,
+          ...(rateLimitKey === undefined
+            ? {}
+            : { partitionHash: createHash("sha256").update(rateLimitKey).digest("hex").slice(0, 16) }),
           ...(input.requestId ? { requestId: input.requestId } : {}),
         });
         const retryAfterSeconds = input.retryAfterSeconds;
@@ -124,7 +127,7 @@ export function relayErrorResponse(
 ): Response {
   const tag = (error as { _tag?: string } | null)?._tag;
   if (tag === "RelayAuthenticationError") {
-    return authenticationErrorResponse(error as RelayAuthenticationError);
+    return authenticationErrorResponse(error as RelayAuthenticationError, context);
   }
   if (tag === "RelayRateLimitError") {
     return rateLimitErrorResponse(error as RelayRateLimitError, context);
@@ -159,16 +162,23 @@ export function relayErrorResponse(
   return jsonResponse({ error: "internal_error" }, 500);
 }
 
-function authenticationErrorResponse(error: RelayAuthenticationError): Response {
+function authenticationErrorResponse(
+  error: RelayAuthenticationError,
+  context: RelayErrorContext,
+): Response {
   const rateLimited = error.code === "rate_limited";
   const source = rateLimited ? { source: "auth_provider" } : {};
-  console.error("relay.auth.unavailable", { reason: error.code });
+  const requestId = context.requestId ?? randomUUID();
+  console.error("relay.auth.unavailable", { reason: error.code, requestId });
   return jsonResponse(
     { error: rateLimited ? "rate_limited" : "authentication_unavailable", ...source },
     rateLimited ? 429 : 503,
     error.retryAfterSeconds === undefined
       ? undefined
-      : { "retry-after": String(error.retryAfterSeconds) },
+      : {
+        "retry-after": String(error.retryAfterSeconds),
+        "x-cmux-request-id": requestId,
+      },
   );
 }
 
