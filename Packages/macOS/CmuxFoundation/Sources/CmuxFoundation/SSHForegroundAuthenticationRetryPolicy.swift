@@ -2512,7 +2512,7 @@ public struct SSHForegroundAuthenticationRetryPolicy: Sendable {
             "  fi",
             "  for cmux_ssh_auth_capture_pid in \"${cmux_ssh_auth_command_pid:-}\" \"${cmux_ssh_auth_classifier_pid:-}\"; do",
             "    if [ -n \"$cmux_ssh_auth_capture_pid\" ]; then",
-            "      /bin/kill \"$cmux_ssh_auth_capture_pid\" >/dev/null 2>&1 || true",
+            "      kill \"$cmux_ssh_auth_capture_pid\" >/dev/null 2>&1 || true",
             "      wait \"$cmux_ssh_auth_capture_pid\" 2>/dev/null || true",
             "    fi",
             "  done",

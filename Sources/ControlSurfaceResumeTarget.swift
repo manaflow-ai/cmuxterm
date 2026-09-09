@@ -148,7 +148,10 @@ enum ControlSurfaceResumeTarget {
                   let context = workspace.persistentSSHResumeContext(panelID: surfaceID) else {
                 return nil
             }
-            return binding.registeredForPersistentSSH(context)
+            return binding.registeredForPersistentSSH(
+                context,
+                restorableAgent: self.restorableAgent
+            )
         case .dock(_, let dock, let surfaceID):
             guard let registration = dock.persistentSSHResumeRegistration(panelId: surfaceID),
                   remoteWorkspaceID == registration.context.workspaceID,
@@ -158,7 +161,10 @@ enum ControlSurfaceResumeTarget {
                   ) else {
                 return nil
             }
-            return binding.registeredForPersistentSSH(registration.context)
+            return binding.registeredForPersistentSSH(
+                registration.context,
+                restorableAgent: self.restorableAgent
+            )
         }
     }
 }
@@ -337,60 +343,6 @@ extension TerminalController {
                 ? nil
                 : controlSurfaceRestoreRecord(target: target, binding: binding),
             resumeClaimed: claimSucceeded
-        )
-    }
-
-    func controlSurfaceRestoreRecord(
-        target: ControlSurfaceResumeTarget,
-        binding: SurfaceResumeBindingSnapshot?
-    ) -> ControlSurfaceRestoreRecord? {
-        // Structured fields remain untouched; only the explicit legacy fallback
-        // receives restore-time provider refreshes that older records depended on.
-        let compatibilityBinding = binding.map {
-            Workspace.makeSessionRestorePolicyService()
-                .bindingForCompatibilityShellRestore($0)
-        }
-        // A hook can replace the live binding after this surface was restored,
-        // while the restore-time agent snapshot still names the previous
-        // conversation. Reuse the session-restore identity gate so the record
-        // returned to the CLI always agrees with the binding that generated its
-        // typed `cmux restore`/`cmux fork` selector.
-        let restoredAgent = target.restorableAgent
-        let compatibleAgent: (
-            snapshot: SessionRestorableAgentSnapshot,
-            source: String,
-            restoredWorkingDirectory: String?
-        )?
-        if binding == nil || binding?.isAgentHookBinding == true {
-            if let restoredAgent = Workspace.restorableAgentForSessionRestore(
-                restoredAgent,
-                resumeBinding: binding
-            ) {
-                compatibleAgent = (
-                    restoredAgent,
-                    "session-snapshot",
-                    target.restoredResumeWorkingDirectory
-                )
-            } else {
-                compatibleAgent = nil
-            }
-        } else {
-            compatibleAgent = nil
-        }
-        if let compatibleAgent {
-            return controlSurfaceAgentContinuationRecord(
-                agent: compatibleAgent.snapshot,
-                source: compatibleAgent.source,
-                restoredWorkingDirectory: compatibleAgent.restoredWorkingDirectory,
-                binding: binding,
-                compatibilityBinding: compatibilityBinding
-            )
-        }
-        guard let binding else { return nil }
-        return controlSurfaceBindingContinuationRecord(
-            binding: binding,
-            compatibilityBinding: compatibilityBinding,
-            restoredAgentExists: restoredAgent != nil && binding.isAgentHookBinding
         )
     }
 
