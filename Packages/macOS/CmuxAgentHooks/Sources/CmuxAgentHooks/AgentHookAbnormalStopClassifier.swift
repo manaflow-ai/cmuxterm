@@ -468,6 +468,7 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
         let providerContext: Set<Substring> = ["api", "auth", "authentication", "capacity", "connection", "endpoint", "gateway", "http", "limit", "model", "network", "provider", "quota", "rate", "request", "response", "server", "service", "status", "stream", "timeout"]
         let tokens = Self.notificationCueTokens(lowercasedText)
         for index in tokens.indices where labels.contains(tokens[index]) {
+            guard lowercasedText.contains("\(tokens[index]):") else { continue }
             let lowerBound = max(tokens.startIndex, index - 4)
             let upperBound = min(tokens.endIndex, index + 5)
             if tokens[lowerBound..<upperBound].contains(where: { providerContext.contains($0) }) {
