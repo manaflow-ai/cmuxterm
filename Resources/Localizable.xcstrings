@@ -46308,533 +46308,1293 @@
     "cli.localTmux.error.cleanupSelector": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux cleanup does not take a session selector" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux cleanup ではセッションセレクターを指定できません" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux cleanup does not take a session selector"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux cleanup ではセッションセレクターを指定できません"
+          }
+        }
       }
     },
     "cli.localTmux.error.clientListFailed": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux could not inspect attached clients." } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux は接続中のクライアントを確認できませんでした。" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux could not inspect attached clients."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux は接続中のクライアントを確認できませんでした。"
+          }
+        }
       }
     },
     "cli.localTmux.error.clientNotFound": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux client not found for session %@: %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "セッション %@ の local-tmux クライアントが見つかりません: %@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux client not found for session %@: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セッション %@ の local-tmux クライアントが見つかりません: %@"
+          }
+        }
       }
     },
     "cli.localTmux.error.listFailed": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux could not list sessions; liveness is unknown." } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux はセッションを一覧表示できなかったため、生存状態を確認できません。" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux could not list sessions; liveness is unknown."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux はセッションを一覧表示できなかったため、生存状態を確認できません。"
+          }
+        }
       }
     },
     "cli.localTmux.error.listingIncomplete": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux session listing was incomplete; liveness is unknown." } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux のセッション一覧が不完全なため、生存状態を確認できません。" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux session listing was incomplete; liveness is unknown."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux のセッション一覧が不完全なため、生存状態を確認できません。"
+          }
+        }
       }
     },
     "cli.localTmux.error.closeFailed": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux close failed" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の終了に失敗しました" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux close failed"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の終了に失敗しました"
+          }
+        }
       }
     },
     "cli.localTmux.error.createDirectory": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "could not create local-tmux state directory" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の状態ディレクトリを作成できませんでした" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "could not create local-tmux state directory"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の状態ディレクトリを作成できませんでした"
+          }
+        }
       }
     },
     "cli.localTmux.error.cwdInvalid": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux working directory is not an accessible directory: %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の作業ディレクトリにアクセスできません: %@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux working directory is not an accessible directory: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の作業ディレクトリにアクセスできません: %@"
+          }
+        }
       }
     },
     "cli.localTmux.error.detachOnly": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux --client/--all are only valid with detach" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の --client/--all は detach でのみ使用できます" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux --client/--all are only valid with detach"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の --client/--all は detach でのみ使用できます"
+          }
+        }
       }
     },
     "cli.localTmux.error.attachOrStartOnly": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux workspace and attachment options are only valid with start or attach" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux のワークスペースとアタッチ用オプションは start または attach でのみ使用できます" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux workspace and attachment options are only valid with start or attach"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux のワークスペースとアタッチ用オプションは start または attach でのみ使用できます"
+          }
+        }
       }
     },
     "cli.localTmux.error.detachSelectorConflict": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux detach accepts either --client or --all, not both" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux detach では --client と --all のどちらか一方を指定してください" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux detach accepts either --client or --all, not both"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux detach では --client と --all のどちらか一方を指定してください"
+          }
+        }
       }
     },
     "cli.localTmux.error.duplicateName": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux: session name was supplied more than once" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux: セッション名が複数回指定されています" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux: session name was supplied more than once"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux: セッション名が複数回指定されています"
+          }
+        }
       }
     },
     "cli.localTmux.error.headlessOnly": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux --headless is only valid with attach or start" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の --headless は attach または start でのみ使用できます" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux --headless is only valid with attach or start"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の --headless は attach または start でのみ使用できます"
+          }
+        }
       }
     },
     "cli.localTmux.error.insecurePath": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux state path is not owned by the current user or is group/world accessible: %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の状態パスが現在のユーザー所有でないか、グループ/全ユーザーに公開されています: %@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux state path is not owned by the current user or is group/world accessible: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の状態パスが現在のユーザー所有でないか、グループ/全ユーザーに公開されています: %@"
+          }
+        }
       }
     },
     "cli.localTmux.error.interactiveExit": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux interactive client exited with status %d" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の対話クライアントがステータス %d で終了しました" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux interactive client exited with status %d"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の対話クライアントがステータス %d で終了しました"
+          }
+        }
       }
     },
     "cli.localTmux.error.interactiveStart": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux could not start an interactive client" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の対話クライアントを起動できませんでした" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux could not start an interactive client"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の対話クライアントを起動できませんでした"
+          }
+        }
       }
     },
     "cli.localTmux.error.existingSessionCommand": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux session already exists; use attach or close it before supplying a new command" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux セッションは既に存在します。新しいコマンドを指定する前に attach または close を使用してください" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux session already exists; use attach or close it before supplying a new command"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux セッションは既に存在します。新しいコマンドを指定する前に attach または close を使用してください"
+          }
+        }
       }
     },
     "cli.localTmux.error.existingSessionCwd": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux session already exists with a different working directory; use attach or close it first" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "別の作業ディレクトリを持つ local-tmux セッションが既に存在します。先に attach または close を使用してください" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux session already exists with a different working directory; use attach or close it first"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別の作業ディレクトリを持つ local-tmux セッションが既に存在します。先に attach または close を使用してください"
+          }
+        }
       }
     },
     "cli.localTmux.error.invalidFocus": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux: --focus must be true or false" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux: --focus は true または false で指定してください" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux: --focus must be true or false"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux: --focus は true または false で指定してください"
+          }
+        }
       }
     },
     "cli.localTmux.error.invalidID": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux: --id must be a UUID" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux: --id は UUID で指定してください" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux: --id must be a UUID"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux: --id は UUID で指定してください"
+          }
+        }
       }
     },
     "cli.localTmux.error.invalidName": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux session names must contain only letters, numbers, underscore, or dash (1–128 characters)" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux のセッション名には英数字、アンダースコア、ハイフンのみ使用できます（1～128文字）" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux session names must contain only letters, numbers, underscore, or dash (1–128 characters)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux のセッション名には英数字、アンダースコア、ハイフンのみ使用できます（1～128文字）"
+          }
+        }
       }
     },
     "cli.localTmux.error.invalidState": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux state is invalid: %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の状態が無効です: %@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux state is invalid: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の状態が無効です: %@"
+          }
+        }
       }
     },
     "cli.localTmux.error.listSelector": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux list does not take a session selector" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux list ではセッションセレクターを指定できません" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux list does not take a session selector"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux list ではセッションセレクターを指定できません"
+          }
+        }
       }
     },
     "cli.localTmux.error.lockFailed": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "could not lock local-tmux state: %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の状態をロックできませんでした: %@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "could not lock local-tmux state: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の状態をロックできませんでした: %@"
+          }
+        }
       }
     },
     "cli.localTmux.error.multipleClients": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux session has multiple clients; pass --client <id> or --all to detach explicitly" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux セッションに複数のクライアントがあります。明示的に切断するには --client <id> または --all を指定してください" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux session has multiple clients; pass --client <id> or --all to detach explicitly"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux セッションに複数のクライアントがあります。明示的に切断するには --client <id> または --all を指定してください"
+          }
+        }
       }
     },
     "cli.localTmux.error.newClientOnly": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux --new-client is only valid with attach" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の --new-client は attach でのみ使用できます" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux --new-client is only valid with attach"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の --new-client は attach でのみ使用できます"
+          }
+        }
       }
     },
     "cli.localTmux.error.noClients": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux session has no attached clients: %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux セッションに接続中のクライアントがありません: %@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux session has no attached clients: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux セッションに接続中のクライアントがありません: %@"
+          }
+        }
       }
     },
     "cli.localTmux.error.operationFailed": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux %@ failed (exit %d)" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux %@ に失敗しました（終了コード %d）" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux %@ failed (exit %d)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux %@ に失敗しました（終了コード %d）"
+          }
+        }
       }
     },
     "cli.localTmux.error.persistState": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "could not persist %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "%@ を保存できませんでした" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "could not persist %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ を保存できませんでした"
+          }
+        }
       }
     },
     "cli.localTmux.error.pruneOnly": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux --prune is only valid with cleanup" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の --prune は cleanup でのみ使用できます" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux --prune is only valid with cleanup"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の --prune は cleanup でのみ使用できます"
+          }
+        }
       }
     },
     "cli.localTmux.error.requiresApp": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux %@ requires a running cmux app; use --headless for a direct tmux client" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux %@ には実行中の cmux アプリが必要です。直接 tmux クライアントを使うには --headless を指定してください" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux %@ requires a running cmux app; use --headless for a direct tmux client"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux %@ には実行中の cmux アプリが必要です。直接 tmux クライアントを使うには --headless を指定してください"
+          }
+        }
       }
     },
     "cli.localTmux.error.requiresValue": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux: %@ requires a value" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux: %@ には値が必要です" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux: %@ requires a value"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux: %@ には値が必要です"
+          }
+        }
       }
     },
     "cli.localTmux.error.runFailed": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux could not run tmux" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux で tmux を実行できませんでした" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux could not run tmux"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux で tmux を実行できませんでした"
+          }
+        }
       }
     },
     "cli.localTmux.error.selectorConflict": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux: use either a session name or --id, not both" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux: セッション名または --id のどちらか一方を指定してください" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux: use either a session name or --id, not both"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux: セッション名または --id のどちらか一方を指定してください"
+          }
+        }
       }
     },
     "cli.localTmux.error.selectorRequired": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux %@ requires a session name or --id\n%@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux %@ にはセッション名または --id が必要です\n%@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux %@ requires a session name or --id\n%@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux %@ にはセッション名または --id が必要です\n%@"
+          }
+        }
       }
     },
     "cli.localTmux.error.sessionIDNotFound": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux session not found for id %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "指定された ID の local-tmux セッションが見つかりません: %@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux session not found for id %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "指定された ID の local-tmux セッションが見つかりません: %@"
+          }
+        }
       }
     },
     "cli.localTmux.error.sessionIdentityChanged": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux session identity changed; refusing to operate on replacement session: %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux セッションの識別子が変更されたため、置き換えられたセッションへの操作を拒否しました: %@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux session identity changed; refusing to operate on replacement session: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux セッションの識別子が変更されたため、置き換えられたセッションへの操作を拒否しました: %@"
+          }
+        }
       }
     },
     "cli.localTmux.error.sessionIdentityUnavailable": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux could not verify the tmux session identity: %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux で tmux セッションの識別子を確認できませんでした: %@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux could not verify the tmux session identity: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux で tmux セッションの識別子を確認できませんでした: %@"
+          }
+        }
       }
     },
     "cli.localTmux.error.sessionNotFound": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux session not found: %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux セッションが見つかりません: %@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux session not found: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux セッションが見つかりません: %@"
+          }
+        }
       }
     },
     "cli.localTmux.error.sessionNotRunning": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux session is no longer running: %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux セッションは実行されていません: %@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux session is no longer running: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux セッションは実行されていません: %@"
+          }
+        }
       }
     },
     "cli.localTmux.error.socketPathTooLong": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux state directory is too long for a Unix socket: %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の状態ディレクトリが Unix ソケットには長すぎます: %@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux state directory is too long for a Unix socket: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の状態ディレクトリが Unix ソケットには長すぎます: %@"
+          }
+        }
       }
     },
     "cli.localTmux.error.stateOperationFailed": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux state could not be accessed safely" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の状態に安全にアクセスできませんでした" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux state could not be accessed safely"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の状態に安全にアクセスできませんでした"
+          }
+        }
       }
     },
     "cli.localTmux.error.surfaceNotFound": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux surface target was not found" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux のサーフェス対象が見つかりません" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux surface target was not found"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux のサーフェス対象が見つかりません"
+          }
+        }
       }
     },
     "cli.localTmux.error.startID": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux start accepts a name, not --id" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux start では --id ではなく名前を指定してください" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux start accepts a name, not --id"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux start では --id ではなく名前を指定してください"
+          }
+        }
       }
     },
     "cli.localTmux.error.startOnly": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux --cwd and --command are only valid with start" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の --cwd と --command は start でのみ使用できます" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux --cwd and --command are only valid with start"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の --cwd と --command は start でのみ使用できます"
+          }
+        }
       }
     },
     "cli.localTmux.error.startRequiresName": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux start requires a session name" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux start にはセッション名が必要です" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux start requires a session name"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux start にはセッション名が必要です"
+          }
+        }
       }
     },
     "cli.localTmux.error.timedOut": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux command timed out" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux コマンドがタイムアウトしました" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux command timed out"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux コマンドがタイムアウトしました"
+          }
+        }
       }
     },
     "cli.localTmux.error.tmuxMissing": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux requires tmux. Install tmux or configure an executable tmux path" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux には tmux が必要です。tmux をインストールするか、実行可能な tmux のパスを設定してください" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux requires tmux. Install tmux or configure an executable tmux path"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux には tmux が必要です。tmux をインストールするか、実行可能な tmux のパスを設定してください"
+          }
+        }
       }
     },
     "cli.localTmux.error.tmuxAliasAttachOnly": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "the tmux alias only supports attach; use local-tmux for other session operations" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "tmux エイリアスは attach のみをサポートします。他のセッション操作には local-tmux を使用してください" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "the tmux alias only supports attach; use local-tmux for other session operations"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tmux エイリアスは attach のみをサポートします。他のセッション操作には local-tmux を使用してください"
+          }
+        }
       }
     },
     "cli.localTmux.error.targetNotFound": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux could not resolve %@ target %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux で %@ の対象 %@ を解決できませんでした" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux could not resolve %@ target %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux で %@ の対象 %@ を解決できませんでした"
+          }
+        }
       }
     },
     "cli.localTmux.error.livenessUnavailable": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux could not verify the existing surface; no new client was created" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux で既存サーフェスを確認できなかったため、新しいクライアントは作成されませんでした" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux could not verify the existing surface; no new client was created"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux で既存サーフェスを確認できなかったため、新しいクライアントは作成されませんでした"
+          }
+        }
       }
     },
     "cli.localTmux.error.workspaceNotFound": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux workspace target was not found" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux のワークスペース対象が見つかりません" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux workspace target was not found"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux のワークスペース対象が見つかりません"
+          }
+        }
       }
     },
     "cli.localTmux.error.workspaceRequiredForTarget": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux pane or surface targets require a workspace" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux の pane または surface 対象にはワークスペースが必要です" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux pane or surface targets require a workspace"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux の pane または surface 対象にはワークスペースが必要です"
+          }
+        }
       }
     },
     "cli.localTmux.error.unexpectedArgument": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux: unexpected argument '%@'" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux: 予期しない引数 '%@'" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux: unexpected argument '%@'"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux: 予期しない引数 '%@'"
+          }
+        }
       }
     },
     "cli.localTmux.error.unknownFlag": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux: unknown flag '%@'\n%@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local-tmux: 不明なフラグ '%@'\n%@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux: unknown flag '%@'\n%@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux: 不明なフラグ '%@'\n%@"
+          }
+        }
       }
     },
     "cli.localTmux.error.unknownSubcommand": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Unknown local-tmux subcommand '%@'.\n%@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "不明な local-tmux サブコマンド '%@' です。\n%@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown local-tmux subcommand '%@'.\n%@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不明な local-tmux サブコマンド '%@' です。\n%@"
+          }
+        }
       }
     },
     "cli.localTmux.error.writeState": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "could not write %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "%@ に書き込めませんでした" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "could not write %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ に書き込めませんでした"
+          }
+        }
       }
     },
     "cli.localTmux.error.workspaceCreateFailed": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "local-tmux could not create a workspace for %@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "%@ 用のワークスペースを local-tmux で作成できませんでした" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local-tmux could not create a workspace for %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 用のワークスペースを local-tmux で作成できませんでした"
+          }
+        }
       }
     },
     "cli.localTmux.output.attached": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "OK session=%@ surface=%@ mode=local-tmux" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "OK session=%@ surface=%@ mode=local-tmux" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK session=%@ surface=%@ mode=local-tmux"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK session=%@ surface=%@ mode=local-tmux"
+          }
+        }
       }
     },
     "cli.localTmux.output.closed": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "OK closed session=%@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "OK closed session=%@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK closed session=%@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK closed session=%@"
+          }
+        }
       }
     },
     "cli.localTmux.output.detached": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "OK detached session=%@ client=%@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "OK detached session=%@ client=%@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK detached session=%@ client=%@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK detached session=%@ client=%@"
+          }
+        }
       }
     },
     "cli.localTmux.output.detachedAll": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "OK detached all clients from session=%@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "OK detached all clients from session=%@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK detached all clients from session=%@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK detached all clients from session=%@"
+          }
+        }
       }
     },
     "cli.localTmux.output.foundStale": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Found %lld stale local tmux session(s); pass --prune to remove them" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "古い local tmux セッションが %lld 件見つかりました。削除するには --prune を指定してください" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Found %lld stale local tmux session(s); pass --prune to remove them"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "古い local tmux セッションが %lld 件見つかりました。削除するには --prune を指定してください"
+          }
+        }
       }
     },
     "cli.localTmux.output.idSuffix": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": " id=%@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": " id=%@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " id=%@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " id=%@"
+          }
+        }
       }
     },
     "cli.localTmux.output.noSessions": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "No local tmux sessions" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "local tmux セッションはありません" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No local tmux sessions"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "local tmux セッションはありません"
+          }
+        }
       }
     },
     "cli.localTmux.output.noStale": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "No stale local tmux sessions" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "古い local tmux セッションはありません" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No stale local tmux sessions"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "古い local tmux セッションはありません"
+          }
+        }
       }
     },
     "cli.localTmux.output.record": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "OK session=%@ id=%@ state=%@ socket=%@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "OK session=%@ id=%@ state=%@ socket=%@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK session=%@ id=%@ state=%@ socket=%@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK session=%@ id=%@ state=%@ socket=%@"
+          }
+        }
       }
     },
     "cli.localTmux.output.removedStale": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Removed %lld stale local tmux session(s)" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "古い local tmux セッションを %lld 件削除しました" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Removed %lld stale local tmux session(s)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "古い local tmux セッションを %lld 件削除しました"
+          }
+        }
       }
     },
     "cli.localTmux.output.sessionRow": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "%@ [%@] clients=%lld" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "%@ [%@] clients=%lld" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ [%@] clients=%lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ [%@] clients=%lld"
+          }
+        }
       }
     },
     "cli.localTmux.output.status": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "%@ [%@] clients=%lld socket=%@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "%@ [%@] clients=%lld socket=%@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ [%@] clients=%lld socket=%@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ [%@] clients=%lld socket=%@"
+          }
+        }
       }
     },
     "cli.localTmux.state.detached": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "detached" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "切断済み" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "detached"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切断済み"
+          }
+        }
       }
     },
     "cli.localTmux.state.live": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "live" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "稼働中" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "live"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稼働中"
+          }
+        }
       }
     },
     "cli.localTmux.state.stale": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "stale" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "古い" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "stale"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "古い"
+          }
+        }
       }
     },
     "cli.localTmux.state.unknown": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "unknown" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "不明" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "unknown"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不明"
+          }
+        }
       }
     },
     "cli.localTmux.target.pane": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "pane" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "ペイン" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pane"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ペイン"
+          }
+        }
       }
     },
     "cli.localTmux.target.surface": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "surface" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "サーフェス" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "surface"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーフェス"
+          }
+        }
       }
     },
     "cli.localTmux.usage": {
@@ -59456,13 +60216,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar set requires a mode: files, find, vault, sessions, feed, dock, cloud, or custom [sidebar-name]"
+            "value": "right-sidebar set requires a mode: files, find, vault, sessions, feed, dock, agents, cloud, machines, or custom [sidebar-name]"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar set にはモードが必要です: files, find, vault, sessions, feed, dock, cloud, custom [sidebar-name]"
+            "value": "right-sidebar set にはモードが必要です: files, find, vault, sessions, feed, dock, agents, cloud, machines, custom [sidebar-name]"
           }
         }
       }
@@ -59609,13 +60369,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set <files|find|vault|sessions|feed|dock|cloud|custom> [sidebar-name]\n                                 Show, switch mode, and focus. `custom` renders a\n                                 JS/Swift sidebar from ~/.config/cmux/sidebars as\n                                 a right panel; the optional name picks which one.\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  files|find|vault|sessions|feed|dock|cloud|custom\n                                 Alias for show + set + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set <files|find|vault|sessions|feed|dock|agents|cloud|machines|custom> [sidebar-name]\n                                 Show, switch mode, and focus. `custom` renders a\n                                 JS/Swift sidebar from ~/.config/cmux/sidebars as\n                                 a right panel; the optional name picks which one.\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  files|find|vault|sessions|feed|dock|agents|cloud|machines|custom\n                                 Alias for show + set + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用法: cmux right-sidebar <command> [flags]\n\nCLI から右サイドバーを操作します。\n\nコマンド:\n  toggle                         右サイドバーの表示を切り替えます\n  show                           右サイドバーを表示します\n  hide                           右サイドバーを隠します\n  focus                          現在の右サイドバーモードにフォーカスします\n  set <files|find|vault|sessions|feed|dock|cloud|custom> [sidebar-name]\n                                 表示して、モードを切り替え、フォーカスします。custom は\n                                 ~/.config/cmux/sidebars の JS/Swift サイドバーを右パネルに\n                                 表示します（名前で選択できます）\n  mode                           {\"visible\":bool,\"mode\":string} を出力します\n  files|find|vault|sessions|feed|dock|cloud|custom\n                                 show + set + focus のエイリアス\n\nフラグ:\n  --workspace <id|ref|index>     ワークスペースを含むウィンドウを対象にします\n  --window <id|ref|index>        ウィンドウを対象にします\n  --no-focus                     set で、フォーカスを移さずにモードだけ切り替えます\n\n例:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "使用法: cmux right-sidebar <command> [flags]\n\nCLI から右サイドバーを操作します。\n\nコマンド:\n  toggle                         右サイドバーの表示を切り替えます\n  show                           右サイドバーを表示します\n  hide                           右サイドバーを隠します\n  focus                          現在の右サイドバーモードにフォーカスします\n  set <files|find|vault|sessions|feed|dock|agents|cloud|machines|custom> [sidebar-name]\n                                 表示して、モードを切り替え、フォーカスします。custom は\n                                 ~/.config/cmux/sidebars の JS/Swift サイドバーを右パネルに\n                                 表示します（名前で選択できます）\n  mode                           {\"visible\":bool,\"mode\":string} を出力します\n  files|find|vault|sessions|feed|dock|agents|cloud|machines|custom\n                                 show + set + focus のエイリアス\n\nフラグ:\n  --workspace <id|ref|index>     ワークスペースを含むウィンドウを対象にします\n  --window <id|ref|index>        ウィンドウを対象にします\n  --no-focus                     set で、フォーカスを移さずにモードだけ切り替えます\n\n例:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         }
       }
@@ -167155,13 +167915,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar set <files|find|vault|sessions|feed|dock|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "ERROR: Usage: right_sidebar set <files|find|vault|sessions|feed|dock|agents|cloud|machines|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: 使用法: right_sidebar set <files|find|vault|sessions|feed|dock|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "ERROR: 使用法: right_sidebar set <files|find|vault|sessions|feed|dock|agents|cloud|machines|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         }
       }
@@ -296141,6 +296901,4372 @@
         }
       }
     },
+    "cli.coderouter.error.notFound": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذر العثور على أداة سطر الأوامر المطلوبة. ثبّت الأمر ثم أعد المحاولة."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Traženi CLI nije pronađen. Instalirajte naredbu i pokušajte ponovo."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Den nødvendige CLI blev ikke fundet. Installer kommandoen, og prøv igen."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die erforderliche CLI wurde nicht gefunden. Installieren Sie den Befehl und versuchen Sie es erneut."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Required CLI not found. Install the command and retry."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró la CLI necesaria. Instala el comando y vuelve a intentarlo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La CLI requise est introuvable. Installez la commande, puis réessayez."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La CLI richiesta non è stata trovata. Installa il comando e riprova."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "必要な CLI が見つかりません。コマンドをインストールして、もう一度お試しください。"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "រកមិនឃើញ CLI ដែលត្រូវការ។ សូមដំឡើងពាក្យបញ្ជា ហើយព្យាយាមម្ដងទៀត។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "필요한 CLI를 찾을 수 없습니다. 명령을 설치한 후 다시 시도하세요."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fant ikke den nødvendige CLI-en. Installer kommandoen og prøv igjen."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie znaleziono wymaganej CLI. Zainstaluj polecenie i spróbuj ponownie."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A CLI necessária não foi encontrada. Instale o comando e tente novamente."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось найти необходимый CLI. Установите команду и повторите попытку."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่พบ CLI ที่จำเป็น โปรดติดตั้งคำสั่งแล้วลองอีกครั้ง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gerekli CLI bulunamadı. Komutu yükleyip tekrar deneyin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не знайдено потрібний CLI. Установіть команду та повторіть спробу."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未找到所需的 CLI。请安装该命令后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到必要的 CLI。請安裝該命令後再試一次。"
+          }
+        }
+      }
+    },
+    "command.cloudVM.open.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM を開く"
+          }
+        }
+      }
+    },
+    "debug.menu.splitButtonLayoutDebug": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split Button Layout Debug…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分割ボタンレイアウトのデバッグ…"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.alwaysHover": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Always Show Hover State"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ホバー状態を常に表示"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.backdropOptions": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backdrop Options"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "背景オプション"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.caretSegment": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Caret Segment"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キャレットセグメント"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.cloudPreview": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud Split Button"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラウド分割ボタン"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.hoverSegment": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forced Hover Segment"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "強制ホバーセグメント"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.hoverSegment.both": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Both"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "両方"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.hoverSegment.caret": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Caret"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キャレット"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.hoverSegment.plus": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プラス"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.inUse": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Use"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用中"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.innerPadding": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inner Padding and Width"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内側の余白と幅"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.liveNote": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changes apply live."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更はライブで反映されます。"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.option.controlBackground": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "controlBackgroundColor"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "controlBackgroundColor"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.option.hidden": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hidden"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "非表示"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.option.precompositedBar": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pre-composited barBackground"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合成済み barBackground"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.option.precompositedPane": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pre-composited paneBackground"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合成済み paneBackground"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.option.rawBar": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "barBackground (tab chrome)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "barBackground（タブクローム）"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.option.rawPane": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Raw paneBackground (opaque)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未加工 paneBackground（不透明）"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.option.translucentChrome": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Translucent chrome"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "半透明クローム"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.option.windowBackground": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "windowBackgroundColor"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "windowBackgroundColor"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.padding.bottom": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bottom"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.padding.leading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leading"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.padding.top": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.padding.trailing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trailing"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "後"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.plusClicks": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus clicks: %d"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プラスのクリック数: %d"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.plusSegment": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus Segment"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プラスセグメント"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.resetPadding": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset Padding and Widths"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "余白と幅をリセット"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.sectionWidth": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Section Width"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セクション幅"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Button Backdrop Color"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ボタン背景色"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.width.caretOffset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Caret Width Offset"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キャレット幅オフセット"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.width.plusOffset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus Width Offset"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プラス幅オフセット"
+          }
+        }
+      }
+    },
+    "debug.splitButtonLayout.windowTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split Button Layout"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分割ボタンレイアウト"
+          }
+        }
+      }
+    },
+    "titlebar.cloudVM.accessibilityLabel": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cloud-VM"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud-VM"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cloud VM"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        }
+      }
+    },
+    "titlebar.cloudVM.menu.accessibilityLabel": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM メニュー"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM Menu"
+          }
+        }
+      }
+    },
+    "titlebar.cloudVM.menu.tooltip": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM アクション"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM actions"
+          }
+        }
+      }
+    },
+    "titlebar.cloudVM.tooltip": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM を開く"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Cloud VM"
+          }
+        }
+      }
+    },
+    "agent.generic.notification.body.needsAttention": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ needs your attention"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ の確認が必要です"
+          }
+        }
+      }
+    },
+    "agent.generic.notification.body.sentNotification": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ sent a notification"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ から通知が届きました"
+          }
+        }
+      }
+    },
+    "cli.hooks.kimi.legacyCleanupWarning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warning: cmux hooks are active at %@, but cmux could not remove its legacy hook block from %@. Check that path and re-run `cmux hooks setup kimi` to finish cleanup."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "警告: cmux hooks は %@ で有効ですが、従来の hook ブロックを %@ から削除できませんでした。そのパスを確認し、`cmux hooks setup kimi` を再実行してクリーンアップを完了してください。"
+          }
+        }
+      }
+    },
+    "cli.hooks.kimi.legacyUninstallWarning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warning: cmux could not remove its legacy hook block from %@. Check that path and re-run `cmux hooks uninstall kimi` to finish cleanup."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "警告: 従来の hook ブロックを %@ から削除できませんでした。そのパスを確認し、`cmux hooks uninstall kimi` を再実行してクリーンアップを完了してください。"
+          }
+        }
+      }
+    },
+    "cli.subrouter.disabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The subrouter integration is disabled. Enable it in Settings before running this command."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter 連携は無効です。このコマンドを実行する前に設定で有効にしてください。"
+          }
+        }
+      }
+    },
+    "cli.subrouter.gateUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cannot verify Subrouter integration. Open cmux, enable it in Settings, and retry."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subrouter 連携を確認できません。cmux を開き、設定で有効にしてから再試行してください。"
+          }
+        }
+      }
+    },
+    "cli.subrouter.install.manual": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter is not installed. Install it explicitly from github.com/manaflow-ai/subrouter, then run cmux subrouter again."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter がインストールされていません。github.com/manaflow-ai/subrouter から明示的にインストールして、cmux subrouter をもう一度実行してください。"
+          }
+        }
+      }
+    },
+    "cli.subrouter.remoteUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The configured remote subrouter is unavailable. Check the server connection and retry; cmux will not install a local daemon."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定したリモート subrouter を利用できません。サーバー接続を確認して再試行してください。cmux はローカルデーモンをインストールしません。"
+          }
+        }
+      }
+    },
+    "cli.subrouter.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usage: cmux subrouter [setup|status|accounts|usage|switch|sessions|reload] [--json]\n\n  cmux subrouter\n      First-run welcome: installs the sr CLI if missing, starts the\n      configured daemon, and shows how to add accounts. Safe to re-run.\n\nInspect and switch the AI-agent accounts managed by the configured\nsubrouter daemon (local or remote). Requires the subrouter integration to\nbe enabled in Settings.\n\n  cmux subrouter status [--json]\n      Daemon reachability, endpoint, account/session counts.\n\n  cmux subrouter accounts [--json]\n      Configured accounts per provider with active/auth state.\n\n  cmux subrouter usage [--json]\n      Accounts with live quota windows and reset times.\n\n  cmux subrouter switch <codex|claude> <account> [--json]\n      Switch the provider's active account via the sr CLI.\n\n  cmux subrouter sessions [--json]\n      Live agent-session to account pinning.\n\n  cmux subrouter reload [--json]\n      Ask the daemon to hot-reload its on-disk account store.\n\nExamples:\n  cmux subrouter usage\n  cmux subrouter switch codex dev@example.com\n  cmux subrouter switch claude work"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用法: cmux subrouter [setup|status|accounts|usage|switch|sessions|reload] [--json]\n\n  cmux subrouter\n      初回セットアップ: sr CLI がなければインストールし、デーモンを\n      起動してアカウント追加方法を表示します。何度でも実行できます。\n\n設定済み subrouter デーモン（ローカルまたはリモート）のアカウントを\n確認・切り替えます。設定で subrouter 連携を有効にしてください。\n\n  cmux subrouter status [--json]\n      デーモン接続状態、エンドポイント、アカウント/セッション数。\n\n  cmux subrouter accounts [--json]\n      プロバイダー別のアカウントと認証状態。\n\n  cmux subrouter usage [--json]\n      クォータ使用量とリセット時刻。\n\n  cmux subrouter switch <codex|claude> <account> [--json]\n      sr CLI でプロバイダーのアクティブアカウントを切り替えます。\n\n  cmux subrouter sessions [--json]\n      エージェントセッションとアカウントの割り当て。\n\n  cmux subrouter reload [--json]\n      デーモンにアカウントストアの再読み込みを依頼します。\n\n例:\n  cmux subrouter usage\n  cmux subrouter switch codex dev@example.com\n  cmux subrouter switch claude work"
+          }
+        }
+      }
+    },
+    "cli.subrouter.switchUsage": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter switch requires a provider and an account.\n\n  cmux subrouter switch codex dev@example.com\n  cmux subrouter switch claude work"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter switch にはプロバイダーとアカウントが必要です。\n\n  cmux subrouter switch codex dev@example.com\n  cmux subrouter switch claude work"
+          }
+        }
+      }
+    },
+    "cli.subrouter.switched": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switched %@ → %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ を %@ に切り替えました"
+          }
+        }
+      }
+    },
+    "cli.subrouter.warning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  warning: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  警告: %@"
+          }
+        }
+      }
+    },
+    "cli.subrouter.reloaded": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reloaded %lld account(s), %lld usage score(s) refreshed."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件のアカウントを再読み込みし、%lld 件の使用量を更新しました。"
+          }
+        }
+      }
+    },
+    "cli.subrouter.sessions.empty": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No active agent sessions."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アクティブなエージェントセッションはありません。"
+          }
+        }
+      }
+    },
+    "cli.subrouter.sessions.row": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@  %@  → %@  %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@  %@  → %@  %@"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux ⨯ subrouter — route agents across subscription accounts"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux ⨯ subrouter — サブスクリプションのアカウント間でエージェントを振り分けます"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.installed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "✓ sr CLI installed (%@)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "✓ sr CLI をインストールしました (%@)"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.disabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "✗ The cmux subrouter integration is disabled."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "✗ cmux の subrouter 連携は無効です。"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.enableHint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  Enable it in Settings → Agent Accounts, or set {\"subrouter\": {\"enabled\": true}} in ~/.config/cmux/cmux.json."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  設定 → Agent Accounts で有効にするか、~/.config/cmux/cmux.json に {\"subrouter\": {\"enabled\": true}} を設定してください。"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.starting": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starting the local subrouter daemon…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ローカル subrouter デーモンを起動しています…"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.installFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  ✗ install-daemon failed; run `%@ install-daemon` manually."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  ✗ install-daemon に失敗しました。`%@ install-daemon` を手動で実行してください。"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.addAccounts": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add your first accounts:"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最初のアカウントを追加:"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.manageAccounts": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manage accounts:"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントを管理:"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.import": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  sr import                    adopt your current ~/.codex login"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  sr import                    現在の ~/.codex ログインを取り込む"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.add": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  sr add                       add another Codex account (OAuth)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  sr add                       Codex アカウントを追加 (OAuth)"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.interactive": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  sr                           interactive usage overview"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  sr                           使用状況のインタラクティブ表示"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.then": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Then, in cmux:"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "次に cmux で:"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.live": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  Ctrl+7 (or the sidebar Subrouter tab)   live usage and switching"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  Ctrl+7 (またはサイドバーの Subrouter)   使用状況と切り替え"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.usage": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  cmux subrouter usage                    quota windows per account"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  cmux subrouter usage                    アカウントごとのクォータ"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.switch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  cmux subrouter switch codex <email>     switch the active account"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  cmux subrouter switch codex <email>     アクティブなアカウントを切り替え"
+          }
+        }
+      }
+    },
+    "cli.subrouter.welcome.teamServer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Team server? `sr server add <name> --url <url> --default` — cmux follows sr's selection automatically."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "チームサーバー? `sr server add <name> --url <url> --default` — cmux は sr の選択に従います。"
+          }
+        }
+      }
+    },
+    "cli.subrouter.status.healthy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daemon:   healthy (%@)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デーモン:   正常 (%@)"
+          }
+        }
+      }
+    },
+    "cli.subrouter.status.warning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  warning: data refresh failed (%@)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  警告: データ更新に失敗しました (%@)"
+          }
+        }
+      }
+    },
+    "cli.subrouter.status.unreachable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daemon:   unreachable (%@, %lld consecutive failure(s))"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デーモン:   到達不能 (%@、連続失敗 %lld 回)"
+          }
+        }
+      }
+    },
+    "cli.subrouter.status.error": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  error:  %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  エラー:  %@"
+          }
+        }
+      }
+    },
+    "cli.subrouter.status.localHint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  hint:   install or start it with: ~/bin/subrouter install-daemon"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  ヒント:   ~/bin/subrouter install-daemon でインストールまたは起動"
+          }
+        }
+      }
+    },
+    "cli.subrouter.status.remoteHint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  hint:   check the configured remote server and retry"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  ヒント:   リモートサーバーを確認して再試行"
+          }
+        }
+      }
+    },
+    "cli.subrouter.status.state": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daemon:   %@ (%@)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デーモン:   %@ (%@)"
+          }
+        }
+      }
+    },
+    "cli.subrouter.status.accountsAttention": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accounts: %lld (%lld need(s) attention)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウント: %lld (要確認 %lld)"
+          }
+        }
+      }
+    },
+    "cli.subrouter.status.accounts": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accounts: %lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウント: %lld"
+          }
+        }
+      }
+    },
+    "cli.subrouter.status.sessions": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessions: %lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セッション: %lld"
+          }
+        }
+      }
+    },
+    "cli.subrouter.status.updated": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updated:  %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新:  %@"
+          }
+        }
+      }
+    },
+    "cli.subrouter.accounts.empty": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No accounts configured. Add accounts with the sr CLI."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントが設定されていません。sr CLI で追加してください。"
+          }
+        }
+      }
+    },
+    "cli.subrouter.account.error": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "      error: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "      エラー: %@"
+          }
+        }
+      }
+    },
+    "cli.subrouter.account.reset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", resets in %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "、%@ 後にリセット"
+          }
+        }
+      }
+    },
+    "cli.subrouter.account.row": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  %@%@%@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "  %@%@%@"
+          }
+        }
+      }
+    },
+    "cli.subrouter.account.window": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "      %@: %lld%% used"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "      %@: 使用 %lld%%"
+          }
+        }
+      }
+    },
+    "cli.subrouter.account.provider": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@:"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@:"
+          }
+        }
+      }
+    },
+    "cli.subrouter.account.credits": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "      credits: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "      クレジット: %@"
+          }
+        }
+      }
+    },
+    "cli.subrouter.flag.active": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ACTIVE"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用中"
+          }
+        }
+      }
+    },
+    "cli.subrouter.flag.cooked": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "COOKED"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使い切り"
+          }
+        }
+      }
+    },
+    "cli.subrouter.flag.cooling": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "COOLING"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "冷却中"
+          }
+        }
+      }
+    },
+    "cli.subrouter.flag.authExpired": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AUTH-EXPIRED"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "認証期限切れ"
+          }
+        }
+      }
+    },
+    "cli.subrouter.duration.now": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "now"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今"
+          }
+        }
+      }
+    },
+    "cli.subrouter.duration.day": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldd"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld日"
+          }
+        }
+      }
+    },
+    "cli.subrouter.duration.hour": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldh"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld時間"
+          }
+        }
+      }
+    },
+    "cli.subrouter.duration.minute": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldm"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld分"
+          }
+        }
+      }
+    },
+    "cli.subrouter.duration.lessMinute": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "<1m"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "<1分"
+          }
+        }
+      }
+    },
+    "featureFlags.subrouter.description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows the Agents sidebar panel, footer account switcher, and cmux subrouter CLI backed by the local subrouter daemon."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ローカル subrouter デーモンによるエージェントサイドバーパネル、フッターのアカウントスイッチャー、cmux subrouter CLI を表示します。"
+          }
+        }
+      }
+    },
+    "featureFlags.subrouter.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subrouter integration"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subrouter 連携"
+          }
+        }
+      }
+    },
+    "mobile.pairing.getApp.prompt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don't have it yet?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "まだお持ちでないですか？"
+          }
+        }
+      }
+    },
+    "mobile.pairing.needsTailscale.body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Mac has no Tailscale address, so your iPhone can't reach it. Install Tailscale on this Mac and your iPhone (same account), then refresh."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この Mac には Tailscale アドレスがないため、iPhone から接続できません。この Mac と iPhone の両方に（同じアカウントで）Tailscale をインストールしてから、更新してください。"
+          }
+        }
+      }
+    },
+    "mobile.pairing.req.signIn.subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in to authorize this Mac for pairing."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この Mac のペアリングを許可するにはサインインしてください。"
+          }
+        }
+      }
+    },
+    "mobile.pairing.req.signIn.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signed in to cmux"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux にサインイン済み"
+          }
+        }
+      }
+    },
+    "mobile.pairing.req.tailscale.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale must be installed and connected on both this Mac and your iPhone. Both devices must be connected to the same Tailscale network."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この Mac と iPhone の両方に Tailscale をインストールして接続してください。両方のデバイスを同じ Tailscale ネットワークに接続する必要があります。"
+          }
+        }
+      }
+    },
+    "mobile.pairing.req.tailscale.reachable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale is connected on this Mac. It must also be installed and connected on your iPhone. Both devices must be connected to the same Tailscale network."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この Mac は Tailscale に接続済みです。iPhone にも Tailscale をインストールして接続してください。両方のデバイスを同じ Tailscale ネットワークに接続する必要があります。"
+          }
+        }
+      }
+    },
+    "mobile.pairing.req.tailscale.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale"
+          }
+        }
+      }
+    },
+    "mobile.pairing.signIn.button": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign In"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サインイン"
+          }
+        }
+      }
+    },
+    "mobile.pairing.signIn.connecting": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جارٍ الاتصال…"
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povezivanje…"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forbinder…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindung wird hergestellt…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectando…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexion…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connessione…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接続しています…"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "កំពុងភ្ជាប់…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연결 중…"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kobler til…"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Łączenie…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectando…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подключение…"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "กำลังเชื่อมต่อ…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlanıyor…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Підключення…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在连接…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在連接…"
+          }
+        }
+      }
+    },
+    "mobile.pairing.signIn.openInBrowser": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "فتح في المتصفح"
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori u pregledniku"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Åbn i browser"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Browser öffnen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in Browser"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir en el navegador"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir dans le navigateur"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri nel browser"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブラウザで開く"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "បើកក្នុងកម្មវិធីរុករក"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "브라우저에서 열기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Åpne i nettleser"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otwórz w przeglądarce"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir no navegador"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть в браузере"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เปิดในเบราว์เซอร์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tarayıcıda Aç"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкрити у браузері"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在浏览器中打开"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在瀏覽器中打開"
+          }
+        }
+      }
+    },
+    "mobile.pairing.signIn.prompt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in with your cmux account to pair your iPhone."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone をペアリングするには、cmux アカウントでサインインしてください。"
+          }
+        }
+      }
+    },
+    "mobile.pairing.signIn.slowHint": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "قد تتوقف نافذة تسجيل الدخول في النظام عن الاستجابة. إذا لم يحدث شيء، فافتح تسجيل الدخول في المتصفح الافتراضي بدلاً من ذلك."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistemski prozor za prijavu može prestati odgovarati. Ako se ništa ne dogodi, otvorite prijavu u zadanom pregledniku."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemets loginvindue kan holde op med at svare. Hvis der ikke sker noget, skal du i stedet åbne login i din standardbrowser."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das System-Anmeldefenster reagiert möglicherweise nicht mehr. Wenn nichts passiert, öffne die Anmeldung stattdessen in deinem Standardbrowser."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The system sign-in window may stop responding. If nothing happens, open sign-in in your default browser instead."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La ventana de inicio de sesión del sistema puede dejar de responder. Si no sucede nada, abre el inicio de sesión en tu navegador predeterminado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La fenêtre de connexion du système peut ne plus répondre. Si rien ne se passe, ouvrez plutôt la connexion dans votre navigateur par défaut."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La finestra di accesso di sistema potrebbe smettere di rispondere. Se non succede nulla, apri l’accesso nel browser predefinito."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "システムのサインインウィンドウが応答しなくなることがあります。何も起きない場合は、デフォルトのブラウザでサインインを開いてください。"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "បង្អួចចូលគណនីរបស់ប្រព័ន្ធអាចឈប់ឆ្លើយតប។ ប្រសិនបើគ្មានអ្វីកើតឡើង សូមបើកការចូលគណនីក្នុងកម្មវិធីរុករកលំនាំដើមរបស់អ្នកជំនួសវិញ។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시스템 로그인 창이 응답하지 않을 수 있습니다. 아무 반응이 없으면 기본 브라우저에서 로그인을 열어 주세요."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemets påloggingsvindu kan slutte å svare. Hvis ingenting skjer, åpner du påloggingen i standardnettleseren i stedet."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemowe okno logowania może przestać odpowiadać. Jeśli nic się nie dzieje, otwórz logowanie w domyślnej przeglądarce."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A janela de login do sistema pode parar de responder. Se nada acontecer, abra o login no navegador padrão."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Системное окно входа может перестать отвечать. Если ничего не происходит, откройте вход в браузере по умолчанию."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "หน้าต่างลงชื่อเข้าของระบบอาจหยุดตอบสนอง หากไม่มีอะไรเกิดขึ้น ให้เปิดการลงชื่อเข้าในเบราว์เซอร์เริ่มต้นแทน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistem oturum açma penceresi yanıt vermeyi durdurabilir. Hiçbir şey olmazsa oturum açmayı varsayılan tarayıcınızda açın."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Системне вікно входу може перестати відповідати. Якщо нічого не відбувається, відкрийте вхід у браузері за умовчанням."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统登录窗口可能会停止响应。如果没有任何反应，请改用默认浏览器打开登录。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系統登入視窗可能會停止回應。如果沒有任何反應，請改用預設瀏覽器開啟登入。"
+          }
+        }
+      }
+    },
+    "mobile.pairing.step.install": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install cmux on your iPhone and open it."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone に cmux をインストールして開きます。"
+          }
+        }
+      }
+    },
+    "mobile.pairing.step.scan": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On your iPhone, choose Tailscale, tap Scan QR Code, then scan the code above."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接続方法として Tailscale を選び、「QR コードをスキャン」をタップして上のコードにカメラを向けます。"
+          }
+        }
+      }
+    },
+    "mobile.pairing.step.signIn": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in with the same account you use on this Mac."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この Mac と同じアカウントでサインインします。"
+          }
+        }
+      }
+    },
+    "mobile.pairing.window.heading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pair your iPhone with Tailscale"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TailscaleでiPhoneをペアリング"
+          }
+        }
+      }
+    },
+    "mobile.pairing.window.subheading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhones on your cmux account connect automatically. Use this code only for Tailscale."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同じ cmux アカウントでサインインしている iPhone は自動的に接続されます。iPhone の接続方法で Tailscale を選択した場合は、このコードを使用してください。"
+          }
+        }
+      }
+    },
+    "rightSidebar.mode.agents": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subrouter"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subrouter"
+          }
+        }
+      }
+    },
+    "settings.search.alias.section.subrouter": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter agents accounts codex claude switch usage quota cooked sr daemon"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter エージェント アカウント codex claude 切り替え 使用量 クォータ sr デーモン"
+          }
+        }
+      }
+    },
+    "settings.search.alias.setting.subrouter.command-path": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter.commandPath subrouter sr binary executable path cli command custom"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter.commandPath subrouter sr バイナリ 実行ファイル パス CLI コマンド"
+          }
+        }
+      }
+    },
+    "settings.search.alias.setting.subrouter.enabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter.enabled subrouter agents accounts codex claude daemon switch usage quota"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter.enabled subrouter エージェント アカウント codex claude デーモン 切り替え 使用量"
+          }
+        }
+      }
+    },
+    "settings.search.alias.setting.subrouter.endpoint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter.endpoint subrouter daemon endpoint host port localhost"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter.endpoint subrouter デーモン エンドポイント ホスト ポート localhost"
+          }
+        }
+      }
+    },
+    "settings.search.alias.setting.subrouter.show-account-switcher": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sidebar.showAccountSwitcher subrouter agents accounts footer switcher status dot popover"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sidebar.showAccountSwitcher subrouter エージェント アカウント フッター スイッチャー ステータス"
+          }
+        }
+      }
+    },
+    "settings.section.subrouter": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent Accounts"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エージェントアカウント"
+          }
+        }
+      }
+    },
+    "settings.subrouter.commandPath": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sr Binary Path"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sr バイナリのパス"
+          }
+        }
+      }
+    },
+    "settings.subrouter.commandPath.placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "e.g. ~/bin/subrouter"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "例: ~/bin/subrouter"
+          }
+        }
+      }
+    },
+    "settings.subrouter.commandPath.subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom path to the sr/subrouter CLI used for account switches. Leave empty to use PATH and ~/bin."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウント切り替えに使う sr/subrouter CLI のカスタムパス。空欄の場合は PATH と ~/bin を使用します。"
+          }
+        }
+      }
+    },
+    "settings.subrouter.enabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable Subrouter Integration"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subrouter 連携を有効にする"
+          }
+        }
+      }
+    },
+    "settings.subrouter.enabled.subtitleOff": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux never contacts the subrouter daemon while this is off."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オフの間、cmux は subrouter デーモンに一切アクセスしません。"
+          }
+        }
+      }
+    },
+    "settings.subrouter.enabled.subtitleOn": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows the Agents right-sidebar panel and enables cmux subrouter CLI commands."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右サイドバーのエージェントパネルを表示し、cmux subrouter CLI コマンドを有効にします。"
+          }
+        }
+      }
+    },
+    "settings.subrouter.endpoint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daemon Endpoint"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デーモンのエンドポイント"
+          }
+        }
+      }
+    },
+    "settings.subrouter.endpoint.placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "e.g. 127.0.0.1:31415"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "例: 127.0.0.1:31415"
+          }
+        }
+      }
+    },
+    "settings.subrouter.endpoint.subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leave empty to follow the selected sr server; without one, cmux uses http://127.0.0.1:31415."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空欄の場合は sr server use で選択したサーバーに従い、選択がなければ http://127.0.0.1:31415 を使用します。"
+          }
+        }
+      }
+    },
+    "settings.subrouter.note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Integrates with the subrouter daemon (github.com/manaflow-ai/subrouter) to show AI-agent account usage and switch Codex and Claude accounts from cmux. Requires subrouter to be installed; cmux polls it only while its UI is visible."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter デーモン（github.com/manaflow-ai/subrouter）と連携し、AI エージェントアカウントの使用状況の表示と Codex / Claude アカウントの切り替えを cmux から行えます。subrouter のインストールが必要です。cmux は関連 UI が表示されている間のみポーリングします。"
+          }
+        }
+      }
+    },
+    "settings.subrouter.showAccountSwitcher": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Account Switcher in Sidebar Footer"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サイドバーフッターにアカウントスイッチャーを表示"
+          }
+        }
+      }
+    },
+    "settings.subrouter.showAccountSwitcher.subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A compact status dot and quick-switch popover in the left sidebar footer."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左サイドバーフッターにステータスドットとクイック切り替えポップオーバーを表示します。"
+          }
+        }
+      }
+    },
+    "shortcut.switchRightSidebarToAgents.label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Sidebar Subrouter"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サイドバーの Subrouter を表示"
+          }
+        }
+      }
+    },
+    "socket.subrouter.disabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The subrouter integration is disabled. Enable it in Settings before using Subrouter commands."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter 連携は無効です。Subrouter コマンドを使う前に設定で有効にしてください。"
+          }
+        }
+      }
+    },
+    "socket.subrouter.reloadFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The subrouter daemon reported that the account reload failed."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter デーモンがアカウントのリロードに失敗したと報告しました。"
+          }
+        }
+      }
+    },
+    "socket.subrouter.switchFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The account switch failed unexpectedly."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントの切り替えに予期しない失敗が発生しました。"
+          }
+        }
+      }
+    },
+    "socket.subrouter.unexpectedError": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The subrouter daemon could not be reached."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter デーモンに接続できませんでした。"
+          }
+        }
+      }
+    },
+    "subrouter.account.active": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Active"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用中"
+          }
+        }
+      }
+    },
+    "subrouter.account.authInvalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign-in expired"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サインインの期限切れ"
+          }
+        }
+      }
+    },
+    "subrouter.account.copyID": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Account ID"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントIDをコピー"
+          }
+        }
+      }
+    },
+    "subrouter.account.noUsageData": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No usage data."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用状況データがありません。"
+          }
+        }
+      }
+    },
+    "subrouter.account.removeAccount": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Account…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントを削除…"
+          }
+        }
+      }
+    },
+    "subrouter.account.signInAgain": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign In Again…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再サインイン…"
+          }
+        }
+      }
+    },
+    "subrouter.account.switch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切り替え"
+          }
+        }
+      }
+    },
+    "subrouter.account.switchTo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch to %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ に切り替え"
+          }
+        }
+      }
+    },
+    "subrouter.account.usageUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usage unavailable"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用状況を取得できません"
+          }
+        }
+      }
+    },
+    "subrouter.daemon.connectServer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use a server…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーを使用…"
+          }
+        }
+      }
+    },
+    "subrouter.daemon.connecting": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contacting subrouter daemon…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter デーモンに接続中…"
+          }
+        }
+      }
+    },
+    "subrouter.daemon.installHint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install or start it with: cmux subrouter setup"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インストール / 起動: cmux subrouter setup"
+          }
+        }
+      }
+    },
+    "subrouter.daemon.onboardingBody": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pool multiple agent accounts and route each session automatically. Run it on this Mac (default), or connect to a hosted server."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複数のエージェントアカウントをプールし、各セッションを自動で振り分けます。このMacで実行（デフォルト）するか、ホスト済みサーバーに接続します。"
+          }
+        }
+      }
+    },
+    "subrouter.daemon.onboardingTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set up Subrouter"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subrouterをセットアップ"
+          }
+        }
+      }
+    },
+    "subrouter.daemon.reconnecting": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection lost — showing last data"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接続が切断されました — 最後のデータを表示中"
+          }
+        }
+      }
+    },
+    "subrouter.daemon.refreshFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh failing — data may be stale"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新に失敗しています — データが古い可能性があります"
+          }
+        }
+      }
+    },
+    "subrouter.daemon.retry": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再試行"
+          }
+        }
+      }
+    },
+    "subrouter.daemon.serverUnreachable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't reach server %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバー %@ に接続できません"
+          }
+        }
+      }
+    },
+    "subrouter.daemon.setup": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set up subrouter"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter をセットアップ"
+          }
+        }
+      }
+    },
+    "subrouter.duration.days": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldd"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld日"
+          }
+        }
+      }
+    },
+    "subrouter.duration.hours": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldh"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld時間"
+          }
+        }
+      }
+    },
+    "subrouter.duration.minutes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldm"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld分"
+          }
+        }
+      }
+    },
+    "subrouter.duration.now": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "now"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今"
+          }
+        }
+      }
+    },
+    "subrouter.duration.underMinute": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "<1m"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1分未満"
+          }
+        }
+      }
+    },
+    "subrouter.error.decoding": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The subrouter daemon returned an invalid response."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter デーモンが無効な応答を返しました。"
+          }
+        }
+      }
+    },
+    "subrouter.error.httpStatus": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The subrouter daemon returned HTTP %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter デーモンが HTTP %@ を返しました。"
+          }
+        }
+      }
+    },
+    "subrouter.error.reloadFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daemon reload reported failure"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デーモンの再読み込みが失敗を報告しました"
+          }
+        }
+      }
+    },
+    "subrouter.error.unexpected": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The subrouter daemon returned an unexpected error."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter デーモンで予期しないエラーが発生しました。"
+          }
+        }
+      }
+    },
+    "subrouter.error.unexpectedReload": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The daemon reload could not be confirmed."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デーモンの再読み込みを確認できませんでした。"
+          }
+        }
+      }
+    },
+    "subrouter.error.unreachable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The subrouter daemon could not be reached."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter デーモンに接続できませんでした。"
+          }
+        }
+      }
+    },
+    "subrouter.footer.tooltip": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent Accounts"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エージェントアカウント"
+          }
+        }
+      }
+    },
+    "subrouter.panel.noAccounts": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No accounts configured. Add accounts with the sr CLI."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントが設定されていません。sr CLI でアカウントを追加してください。"
+          }
+        }
+      }
+    },
+    "subrouter.popover.allSignedOut": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All accounts signed out (%lld)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全アカウントがサインアウト済み（%lld）"
+          }
+        }
+      }
+    },
+    "subrouter.popover.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent Accounts"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エージェントアカウント"
+          }
+        }
+      }
+    },
+    "subrouter.provider.addAccount": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add %@ account"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ アカウントを追加"
+          }
+        }
+      }
+    },
+    "subrouter.provider.claude": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude"
+          }
+        }
+      }
+    },
+    "subrouter.provider.codex": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex"
+          }
+        }
+      }
+    },
+    "subrouter.provider.codex.switchNote": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switching also updates OpenCode and pi credentials."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切り替えると OpenCode と pi の認証情報も更新されます。"
+          }
+        }
+      }
+    },
+    "subrouter.provider.noAccounts": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No accounts configured."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントが設定されていません。"
+          }
+        }
+      }
+    },
+    "subrouter.provider.signedOut": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signed-out accounts (%lld)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サインアウト済みアカウント（%lld）"
+          }
+        }
+      }
+    },
+    "subrouter.quota.consumed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ fully consumed"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@を使い切りました"
+          }
+        }
+      }
+    },
+    "subrouter.quota.consumedWithReset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ fully consumed, %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@を使い切りました。%2$@"
+          }
+        }
+      }
+    },
+    "subrouter.switchError.disabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The subrouter integration is disabled in Settings."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter 連携は設定で無効になっています。"
+          }
+        }
+      }
+    },
+    "subrouter.switchError.failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The account switch failed. Check the subrouter status and try again."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントの切り替えに失敗しました。subrouter の状態を確認して、もう一度お試しください。"
+          }
+        }
+      }
+    },
+    "subrouter.switchError.inFlight": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another account switch is already in progress."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別のアカウント切り替えが進行中です。"
+          }
+        }
+      }
+    },
+    "subrouter.switchError.notInstalled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The sr CLI was not found. Install subrouter, or set its path in Settings."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sr CLI が見つかりません。subrouter をインストールするか、設定でパスを指定してください。"
+          }
+        }
+      }
+    },
+    "subrouter.switchError.remoteServer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server %@ does not support remote switching yet; update subrouter on the server."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバー %@ はまだリモート切り替えに対応していません。サーバー側の subrouter を更新してください。"
+          }
+        }
+      }
+    },
+    "subrouter.switchError.timedOut": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The sr CLI timed out."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sr CLI がタイムアウトしました。"
+          }
+        }
+      }
+    },
+    "subrouter.switchError.unsupported": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switching %@ accounts is not supported yet."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ アカウントの切り替えはまだサポートされていません。"
+          }
+        }
+      }
+    },
+    "subrouter.terminal.connectServerTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect subrouter server"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subrouterサーバーに接続"
+          }
+        }
+      }
+    },
+    "subrouter.terminal.removeTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ を削除"
+          }
+        }
+      }
+    },
+    "subrouter.terminal.setupTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set up subrouter"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "subrouter のセットアップ"
+          }
+        }
+      }
+    },
+    "subrouter.terminal.signInTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ にサインイン"
+          }
+        }
+      }
+    },
+    "subrouter.usage.accessibility": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@: %2$lld percent used"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@: %2$lld パーセント使用済み"
+          }
+        }
+      }
+    },
+    "subrouter.usage.percentUsed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%%"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%%"
+          }
+        }
+      }
+    },
+    "subrouter.window.dayLimit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldd limit"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld日制限"
+          }
+        }
+      }
+    },
+    "subrouter.window.extra": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extra"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "追加枠"
+          }
+        }
+      }
+    },
+    "subrouter.window.featureLongLimit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ (%2$@)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@（%2$@）"
+          }
+        }
+      }
+    },
+    "subrouter.window.featureShortLimit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ (%2$@)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@（%2$@）"
+          }
+        }
+      }
+    },
+    "subrouter.window.hourLimit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldh limit"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld時間制限"
+          }
+        }
+      }
+    },
+    "subrouter.window.opusWeekly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opus weekly"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opus 週間"
+          }
+        }
+      }
+    },
+    "subrouter.window.resetsIn": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "resets in %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@後にリセット"
+          }
+        }
+      }
+    },
+    "subrouter.window.session": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session (5h)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セッション（5時間）"
+          }
+        }
+      }
+    },
+    "subrouter.window.sonnetWeekly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonnet weekly"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonnet 週間"
+          }
+        }
+      }
+    },
+    "subrouter.window.weekly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weekly (7d)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "週間（7日）"
+          }
+        }
+      }
+    },
+    "subrouter.window.weeklyLimit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weekly limit"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "週間制限"
+          }
+        }
+      }
+    },
+    "cli.vm.tui.mode.enrolling": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "enrolling this Mac"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この Mac を登録しています"
+          }
+        }
+      }
+    },
   "browser.chromium.automation.commandTimedOut": {
     "extractionState": "manual",
     "localizations": {
@@ -298834,54 +303960,19 @@
       }
     }
   },
-    "cloudTunnel.error.cloudMachinesOff": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cloud Machines is turned off. Turn it on in Settings › Beta Features, then retry."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "クラウドマシンはオフになっています。設定 › ベータ機能でオンにしてから、もう一度お試しください。"
-          }
+  "socket.subrouter.configuration.invalidEndpoint": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "The configured subrouter endpoint is invalid. Set an http(s) URL or clear it to use the local daemon."
         }
-      }
-    },
-    "cloudTunnel.error.noCloudMachine": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Create a Cloud machine first. The cmux Cloud Tunnel runs only for an account with at least one machine."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "先にクラウドマシンを作成してください。cmux Cloud Tunnelは、マシンを1台以上持つアカウントでのみ動作します。"
-          }
-        }
-      }
-    },
-    "cli.vpn.status.unavailable": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tunnel: unavailable (%@)"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "トンネル: 利用不可（%@）"
-          }
+      },
+      "ja": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "設定された subrouter エンドポイントが無効です。http(s) URL を設定するか、消去してローカルデーモンを使用してください。"
         }
       }
     },
@@ -298896,6 +303987,75 @@
     "agentRestore.admission.unavailable.hookStoreUnreadable": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"cmux could not read its saved session records for this agent, so it cannot tell whether the session is already running. Retry 'cmux restore --surface'."}},"ja":{"stringUnit":{"state":"translated","value":"このエージェントの保存済みセッション記録を読み取れなかったため、セッションがすでに実行中かどうかを cmux で判断できません。「cmux restore --surface」を再試行してください。"}}}},
     "agentRestore.admission.unavailable.timedOut": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"cmux could not finish checking whether this agent session is already running before the time limit. Retry 'cmux restore --surface'."}},"ja":{"stringUnit":{"state":"translated","value":"このエージェントセッションがすでに実行中かどうかの確認が制限時間内に終わりませんでした。「cmux restore --surface」を再試行してください。"}}}},
     "agentRestore.unverifiable.notice": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"cmux could not verify whether this agent session is already running, so it did not resume the session automatically. Run 'cmux restore --surface' to resume it here."}},"ja":{"stringUnit":{"state":"translated","value":"このエージェントセッションがすでに実行中かどうかを cmux で確認できなかったため、セッションを自動的に再開しませんでした。このターミナルで再開するには「cmux restore --surface」を実行してください。"}}}}
+  },
+  "socket.subrouter.configuration.registryUnreadable": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "The subrouter server registry could not be read. Fix or remove ~/.subrouter/codex/servers.json, then retry."
+        }
+      },
+      "ja": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "subrouter サーバーレジストリを読み取れませんでした。~/.subrouter/codex/servers.json を修正または削除してから再試行してください。"
+        }
+      }
+    }
+  },
+  "cloudTunnel.error.cloudMachinesOff": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Cloud Machines is turned off. Turn it on in Settings › Beta Features, then retry."
+        }
+      },
+      "ja": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "クラウドマシンはオフになっています。設定 › ベータ機能でオンにしてから、もう一度お試しください。"
+        }
+      }
+    }
+  },
+  "cloudTunnel.error.noCloudMachine": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Create a Cloud machine first. The cmux Cloud Tunnel runs only for an account with at least one machine."
+        }
+      },
+      "ja": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "先にクラウドマシンを作成してください。cmux Cloud Tunnelは、マシンを1台以上持つアカウントでのみ動作します。"
+        }
+      }
+    }
+  },
+  "cli.vpn.status.unavailable": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Tunnel: unavailable (%@)"
+        }
+      },
+      "ja": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "トンネル: 利用不可（%@）"
+        }
+      }
+    }
+  }
   },
   "version": "1.0"
 }

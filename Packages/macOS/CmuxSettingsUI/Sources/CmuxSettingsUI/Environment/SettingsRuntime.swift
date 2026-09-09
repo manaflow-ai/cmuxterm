@@ -28,6 +28,9 @@ public struct SettingsRuntime: @unchecked Sendable {
     public let accountFlow: AccountFlow?
     /// Host callbacks for actions the package cannot perform itself.
     public let hostActions: SettingsHostActions
+    /// Sections exposed by this runtime's rollout policy. Hidden sections are
+    /// omitted from both the sidebar/detail stack and the search index.
+    public let visibleSections: Set<SettingsSectionID>
     /// Host-scoped factory-default resolver for dynamic shortcut actions.
     public let shortcutDefaultResolver: ShortcutDefaultResolver
 
@@ -45,6 +48,7 @@ public struct SettingsRuntime: @unchecked Sendable {
     ///     defaults to the package table for previews and package-only hosts.
     ///   - searchIndex: Prebuilt search index to share across settings roots. When `nil`,
     ///     the runtime builds one index from `catalog` and keeps it for its own lifetime.
+    ///   - visibleSections: Sections allowed by the host's rollout policy.
     @MainActor
     public init(
         catalog: SettingCatalog,
@@ -54,11 +58,16 @@ public struct SettingsRuntime: @unchecked Sendable {
         errorLog: SettingsErrorLog,
         accountFlow: AccountFlow? = nil,
         hostActions: SettingsHostActions = NoopSettingsHostActions(),
+        searchIndex: SettingsSearchIndex? = nil,
         shortcutDefaultResolver: ShortcutDefaultResolver = .builtIn,
-        searchIndex: SettingsSearchIndex? = nil
+        visibleSections: Set<SettingsSectionID> = Set(SettingsSectionID.allCases)
     ) {
         self.catalog = catalog
-        self.searchIndex = searchIndex ?? SettingsSearchIndex(catalog: catalog)
+        self.visibleSections = visibleSections
+        self.searchIndex = searchIndex ?? SettingsSearchIndex(
+            catalog: catalog,
+            visibleSections: visibleSections
+        )
         self.userDefaultsStore = userDefaultsStore
         self.jsonStore = jsonStore
         self.secretStore = secretStore

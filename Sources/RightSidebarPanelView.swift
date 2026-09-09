@@ -24,6 +24,7 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
     case sessions
     case feed
     case dock
+    case agents
     case machines
     case customSidebar = "custom-sidebar"
 
@@ -34,6 +35,7 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
         case .sessions: return String(localized: "rightSidebar.mode.sessions", defaultValue: "Vault")
         case .feed: return String(localized: "rightSidebar.mode.feed", defaultValue: "Feed")
         case .dock: return String(localized: "rightSidebar.mode.dock", defaultValue: "Dock")
+        case .agents: return String(localized: "rightSidebar.mode.agents", defaultValue: "Subrouter")
         case .machines: return String(localized: "rightSidebar.mode.machines", defaultValue: "Cloud")
         case .customSidebar: return String(localized: "rightSidebar.mode.customSidebar", defaultValue: "Custom")
         }
@@ -47,6 +49,7 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
         case .sessions: return "books.vertical"
         case .feed: return "dot.radiowaves.left.and.right"
         case .dock: return "dock.rectangle"
+        case .agents: return "arrow.triangle.branch"
         case .machines: return "cloud"
         case .customSidebar: return "wand.and.stars"
         }
@@ -59,6 +62,7 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
         case .sessions: return .switchRightSidebarToSessions
         case .feed: return .switchRightSidebarToFeed
         case .dock: return .switchRightSidebarToDock
+        case .agents: return .switchRightSidebarToAgents
         case .machines: return .switchRightSidebarToMachines
         case .customSidebar: return nil
         }
@@ -85,7 +89,7 @@ enum FileExplorerRootSyncPolicy {
         switch mode {
         case .files, .find:
             return true
-        case .sessions, .feed, .dock, .machines, .customSidebar:
+        case .sessions, .feed, .dock, .agents, .machines, .customSidebar:
             return false
         }
     }
@@ -151,6 +155,8 @@ struct RightSidebarPanelView: View {
     private var feedEnabled = RightSidebarBetaFeatureSettings.defaultFeedEnabled
     @AppStorage(RightSidebarBetaFeatureSettings.dockEnabledKey)
     private var dockEnabled = RightSidebarBetaFeatureSettings.defaultDockEnabled
+    @AppStorage(SubrouterIntegrationSettings.enabledKey)
+    private var subrouterEnabled = SubrouterIntegrationSettings.defaultEnabled
     @AppStorage(RightSidebarBetaFeatureSettings.cloudMachinesEnabledKey)
     private var cloudMachinesBetaEnabled = RightSidebarBetaFeatureSettings.defaultCloudMachinesEnabled
     @LiveSetting(\.customSidebars.renderer) private var customSidebarRenderer
@@ -169,10 +175,16 @@ struct RightSidebarPanelView: View {
 
     private var featureAvailableModes: [RightSidebarMode] {
         _ = managedPolicyRevision
+        let runtimeEnabled = SubrouterAppRuntime.shared.store.configuration.isEnabled
         return RightSidebarMode.availableModes(
             feedEnabled: feedEnabled,
             dockEnabled: dockEnabled,
-            machinesEnabled: CloudMachinesFeature.isEnabled
+            // Observable read: the mode bar updates live when the feature
+            // flag flips (Internal Flags window or a PostHog payload).
+            agentsEnabled: CmuxFeatureFlags.shared.isSubrouterUIEnabled
+                && subrouterEnabled
+                && runtimeEnabled,
+            machinesEnabled: CmuxFeatureFlags.shared.isCloudVMUIEnabled || cloudMachinesBetaEnabled
         )
     }
 
@@ -201,6 +213,16 @@ struct RightSidebarPanelView: View {
 
     private var modeBarItems: [RightSidebarModeBarItem] {
         availableModes.map { RightSidebarModeBarItem(kind: .mode($0)) }
+    }
+
+    private func modeBarBadgeCount(for mode: RightSidebarMode?) -> Int {
+        // The Subrouter tab shows no count: attention state already reads
+        // from the footer switcher's status dot, and a persistent number
+        // on the mode bar was noise.
+        switch mode {
+        case .feed: return feedPendingCount
+        default: return 0
+        }
     }
 
     private var focusShortcutHintAnimationValue: Bool {
@@ -267,6 +289,19 @@ struct RightSidebarPanelView: View {
         }
         .onChange(of: feedEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
         .onChange(of: dockEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
+        .onChange(of: subrouterEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
+        // The rollout flag also gates the Agents mode: when PostHog or the
+        // Internal Flags window flips it off while .agents is selected, the
+        // selection must move to an available mode, not sit on a hidden
+        // panel. Observable read: body already tracks it via availableModes.
+        .onChange(of: CmuxFeatureFlags.shared.isSubrouterUIEnabled) { _, _ in
+            refreshModeAvailabilityAndFocusIfNeeded()
+        }
+        .onChange(of: SubrouterAppRuntime.shared.store.configuration) { _, _ in
+            // Registry/endpoint changes can remove Agents without touching
+            // UserDefaults; move the selection immediately when that happens.
+            refreshModeAvailabilityAndFocusIfNeeded()
+        }
         .onChange(of: cloudMachinesBetaEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
         .onReceive(NotificationCenter.default.publisher(for: RightSidebarTabPreferences.didChangeNotification)) { _ in
             refreshModeAvailabilityAndFocusIfNeeded()
@@ -291,7 +326,7 @@ struct RightSidebarPanelView: View {
                         isSelected: item.isSelected(
                             mode: fileExplorerState.mode
                         ),
-                        badgeCount: item.mode == .feed ? feedPendingCount : 0,
+                        badgeCount: modeBarBadgeCount(for: item.mode),
                         shortcutHint: shortcut,
                         showsShortcutHint: ShortcutHintTitlebarPolicy.shouldShow(
                             shortcut: shortcut,
@@ -514,6 +549,11 @@ struct RightSidebarPanelView: View {
                 )
             case .dock:
                 dockPanel(windowAppearance: windowAppearance)
+            case .agents:
+                SubrouterAgentsPanelHostView(
+                    isSidebarVisible: fileExplorerState.isVisible,
+                    tabManager: tabManager
+                )
             case .machines:
                 MachinesPanelView(
                     chromeBackgroundColor: windowAppearance.resolvedChromeBackgroundColor

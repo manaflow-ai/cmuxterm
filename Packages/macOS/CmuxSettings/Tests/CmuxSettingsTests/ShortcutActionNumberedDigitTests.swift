@@ -80,6 +80,13 @@ struct ShortcutActionNumberedDigitTests {
         #expect(!ShortcutAction.fileExplorerOpenSelectionFinderAlias.allowsChordShortcut)
     }
 
+    @Test func agentsSidebarShortcutIsRegisteredInSettings() {
+        let action = ShortcutAction.switchRightSidebarToAgents
+        #expect(action.defaultShortcut == StoredShortcut(first: ShortcutStroke(key: "7", control: true)))
+        #expect(ShortcutAction.settingsVisibleActions.contains(action))
+        #expect(action.defaultFocusWhenClause == .atom(.sidebarFocus))
+    }
+
     @Test func hostDefaultResolversDoNotShareState() {
         let first = ShortcutDefaultResolver { action in
             action == .switchRightSidebarToFiles

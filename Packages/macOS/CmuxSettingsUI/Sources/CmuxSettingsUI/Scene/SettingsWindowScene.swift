@@ -23,6 +23,8 @@ public struct SettingsWindowRoot: View {
     /// the section the window opens on is built in the first layout pass,
     /// the rest one per update pass. Window-scoped like the scroll state.
     @State var mountModel: SettingsSectionMountModel
+    /// Sections exposed by the host's rollout policy.
+    let visibleSections: Set<SettingsSectionID>
 
     static let selectedSectionDefaultsKey = "selectedSettingsSection"
     static let cloudMachinesBetaDefaultsKey = "cloud.beta.machines.enabled"
@@ -37,10 +39,15 @@ public struct SettingsWindowRoot: View {
     public init(
         runtime: SettingsRuntime,
         initialSection: SettingsSectionID? = nil,
-        mountModel: SettingsSectionMountModel? = nil
+        mountModel: SettingsSectionMountModel? = nil,
+        visibleSections: Set<SettingsSectionID>? = nil
     ) {
         self.runtime = runtime
-        self.searchIndex = runtime.searchIndex
+        let resolvedSections = visibleSections ?? runtime.visibleSections
+        self.visibleSections = resolvedSections
+        self.searchIndex = visibleSections == nil
+            ? runtime.searchIndex
+            : SettingsSearchIndex(catalog: runtime.catalog, visibleSections: resolvedSections)
         self.initialSection = initialSection
         // The `@AppStorage` properties below read the same store; the restore
         // target has to be known before the first body evaluation because
@@ -54,7 +61,7 @@ public struct SettingsWindowRoot: View {
             )
         _mountModel = State(initialValue: mountModel ?? SettingsSectionMountModel(
             initial: initialSection ?? restoredSection,
-            order: Self.mountOrder(cloudAvailable: cloudAvailable)
+            order: Self.mountOrder(cloudAvailable: cloudAvailable, visibleSections: resolvedSections)
         ))
     }
 

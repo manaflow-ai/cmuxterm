@@ -8,8 +8,14 @@ extension SettingsWindowRoot {
     /// Sections a window opening now mounts progressively. Cloud stays
     /// eager while unavailable: it renders nothing, so a placeholder would
     /// only advertise a section the sidebar hides.
-    static func mountOrder(cloudAvailable: Bool) -> [SettingsSectionID] {
-        SettingsSectionMountModel.displayOrder.filter { $0 != .cloudMachines || cloudAvailable }
+    static func mountOrder(
+        cloudAvailable: Bool,
+        visibleSections: Set<SettingsSectionID> = Set(SettingsSectionID.allCases)
+    ) -> [SettingsSectionID] {
+        SettingsSectionMountModel.displayOrder.filter { section in
+            visibleSections.contains(section)
+                && (section != .cloudMachines || cloudAvailable)
+        }
     }
 
     func anchorID(for section: SettingsSectionID) -> String {
@@ -99,6 +105,10 @@ extension SettingsWindowRoot {
             )
         }
 
+        slot(.subrouter, proxy: proxy) {
+            SubrouterSection(defaultsStore: defaultsStore, catalog: catalog)
+        }
+
         slot(.computerUse, proxy: proxy) {
             ComputerUseSection(
                 jsonStore: jsonStore,
@@ -160,18 +170,21 @@ extension SettingsWindowRoot {
         }
     }
 
+    @ViewBuilder
     private func slot<Content: View>(
         _ section: SettingsSectionID,
         proxy: ScrollViewProxy,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
-        SettingsSectionSlot(
-            section: section,
-            isMounted: mountModel.isMounted(section),
-            showsPlaceholder: section != .cloudMachines || isCloudSectionAvailable,
-            onMountedAppear: { sectionContentDidAppear(section, proxy: proxy) },
-            content: content
-        )
+        if visibleSections.contains(section) {
+            SettingsSectionSlot(
+                section: section,
+                isMounted: mountModel.isMounted(section),
+                showsPlaceholder: section != .cloudMachines || isCloudSectionAvailable,
+                onMountedAppear: { sectionContentDidAppear(section, proxy: proxy) },
+                content: content
+            )
+        }
     }
 
     /// A mounted section's content is in the hierarchy: `onAppear` runs

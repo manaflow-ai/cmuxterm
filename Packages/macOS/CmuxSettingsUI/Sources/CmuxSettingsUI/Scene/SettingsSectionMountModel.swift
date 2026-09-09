@@ -48,7 +48,7 @@ public final class SettingsSectionMountModel {
     public static let displayOrder: [SettingsSectionID] = [
         .account, .app, .terminal, .textBox, .sleepyMode, .mobile, .cloudMachines,
         .networking, .sidebarAppearance, .customSidebars, .betaFeatures, .automation,
-        .computerUse, .browser, .globalHotkey, .keyboardShortcuts, .workspaceColors,
+        .subrouter, .computerUse, .browser, .globalHotkey, .keyboardShortcuts, .workspaceColors,
         .settingsJSON, .reset,
     ]
 
