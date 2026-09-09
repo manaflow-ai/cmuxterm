@@ -633,7 +633,7 @@
     "metaDescriptionNoVault": "cmux est un terminal macOS gratuit et open source pour les agents de codage IA. Passez à Pro pour les VM Cloud isolées. Enterprise ajoute le SSO et l'auto-hébergement.",
     "metaDescriptionNoVaultShort": "cmux est un terminal macOS gratuit et open source. Pro ajoute des VM Cloud isolées ; Enterprise ajoute le SSO et l'auto-hébergement.",
     "title": "Tarifs",
-    "alreadyPaid": "Déjà payé ? Connecter l'édition du fondateur",
+    "alreadyPaid": "Déjà payé ? Associer Founder's Edition",
     "perMonth": "/mois",
     "perMonthBilledYearly": "/mois, facturé annuellement",
     "perUserMonth": "/utilisateur/mois",
@@ -641,7 +641,7 @@
     "billingPeriod": "Période de facturation",
     "monthly": "Mensuel",
     "annual": "Annuel",
-    "saveAnnual": "Enregistrer {discount}%",
+    "saveAnnual": "Économisez {discount} %",
     "annualComparePrice": "${monthly}/mois",
     "teamMonthlyComparePrice": "${monthly}/utilisateur/mois",
     "teamAnnualComparePrice": "${monthly}/utilisateur/mois",
@@ -663,8 +663,8 @@
     },
     "pro": {
       "name": "Pro",
-      "cta": "Devenez Pro",
-      "featuresLead": "Tout est gratuit, plus :",
+      "cta": "Choisir Pro",
+      "featuresLead": "Toutes les fonctionnalités de l’offre gratuite, plus :",
       "features": [
         "Agents cloud sur des VM cloud dans des sandbox distants isolés",
         "Jusqu'à 50 Cloud VM, chacune avec ses propres ressources ; taille par défaut 8 Go de RAM et 32 Go de disque, avec 4 à 64 Go de RAM disponibles",
@@ -681,8 +681,8 @@
     },
     "team": {
       "name": "Équipe",
-      "cta": "Obtenir des équipes",
-      "featuresLead": "Tout en Pro, plus :",
+      "cta": "Choisir l’offre Équipe",
+      "featuresLead": "Toutes les fonctionnalités de Pro, plus :",
       "features": [
         "Facturation centralisée pour toute votre équipe",
         "Assistance prioritaire"
@@ -690,9 +690,9 @@
     },
     "enterprise": {
       "name": "Entreprise",
-      "price": "Personnalisé",
+      "price": "Sur devis",
       "cta": "Contacter le service commercial",
-      "featuresLead": "Tout dans Team, plus :",
+      "featuresLead": "Toutes les fonctionnalités de l’offre Équipe, plus :",
       "features": [
         "Exécution Cloud et mise en réseau auto-hébergées pour que rien ne quitte votre réseau",
         "Connexion SSO et SAML",
@@ -728,7 +728,7 @@
         },
         {
           "label": "Historique des sessions",
-          "free": "Locale",
+          "free": "En local",
           "pro": "Illimité",
           "team": "Illimité",
           "enterprise": "Illimité",
@@ -786,8 +786,8 @@
           "enterprise": "true"
         },
         {
-          "label": "Mise en réseau pour atteindre votre Mac",
-          "free": "Apportez le vôtre",
+          "label": "Connexion réseau à votre Mac",
+          "free": "Votre propre réseau",
           "pro": "Hébergé",
           "team": "Hébergé",
           "enterprise": "Auto-hébergé",
@@ -801,7 +801,7 @@
           "enterprise": "true"
         },
         {
-          "label": "Exécution auto-hébergée et isolée",
+          "label": "Exécution auto-hébergée et sans connexion aux réseaux externes",
           "free": "false",
           "pro": "false",
           "team": "false",
@@ -830,10 +830,10 @@
         },
         {
           "label": "Assistance",
-          "free": "Communauté",
-          "pro": "Courriel",
-          "team": "Priorité",
-          "enterprise": "Dédié"
+          "free": "Communautaire",
+          "pro": "Par e-mail",
+          "team": "Prioritaire",
+          "enterprise": "Dédiée"
         }
       ]
     },
@@ -847,28 +847,28 @@
         },
         {
           "q": "Que sont les VM Cloud ?",
-          "a": "Machines Linux persistantes dans le cloud : des animaux de compagnie, pas du bétail. Suivant le Zen de cmux, une machine est une solution primitive et non gérée : elle conserve ses fichiers, ses outils installés et son état, et ce que vous construisez dessus vous appartient. Les agents clonent des référentiels, exécutent des commandes et y ouvrent des demandes d'extraction sans toucher à votre Mac. Pro comprend jusqu'à 50 machines. L'équipe comprend jusqu'à 50 VM Cloud par utilisateur. Chaque machine possède son propre processeur, sa mémoire et son disque. La taille par défaut est de 8 Go de RAM et de 32 Go de disque ; des tailles de 4 à 64 Go de RAM sont disponibles. Les disques peuvent atteindre 256 Go. Il n’y a pas de facturation de comptage ni de dépassement."
+          "a": "Des machines Linux persistantes dans le cloud : des animaux de compagnie, pas du bétail interchangeable. Selon la philosophie de cmux, une machine est une brique de base, pas une solution entièrement gérée : elle conserve ses fichiers, ses outils installés et son état, et ce que vous y construisez vous appartient. Les agents y clonent des dépôts, exécutent des commandes et ouvrent des pull requests sans toucher à votre Mac. Pro comprend jusqu’à 50 machines ; l’offre Équipe comprend jusqu’à 50 VM cloud par utilisateur. Chaque machine dispose de son propre processeur, de sa mémoire et de son disque. La configuration par défaut comporte 8 Go de RAM et 32 Go de disque ; des configurations de 4 à 64 Go de RAM sont disponibles. Le disque peut être étendu jusqu’à 256 Go. Il n’y a ni facturation à l’usage ni frais de dépassement."
         },
         {
           "q": "Qu’est-ce que cmux Vault ?",
-          "a": "Vault sauvegarde chaque session de terminal dans le cloud et vous permet d'effectuer des recherches sur chacune d'entre elles, avec un historique illimité sur vos machines. Free conserve l'historique localement sur chaque machine ; Pro ajoute la sauvegarde et la recherche dans le cloud.",
+          "a": "Vault sauvegarde chaque session de terminal dans le cloud et permet de rechercher dans toutes vos sessions, avec un historique illimité sur l’ensemble de vos machines. L’offre gratuite conserve l’historique localement sur chaque machine ; Pro ajoute la sauvegarde et la recherche dans le cloud.",
           "vault": true
         },
         {
           "q": "Ai-je toujours besoin de Tailscale pour l’application iOS ?",
-          "a": "Non. L'application iOS s'associe à votre Mac via le réseau cmux iroh intégré. Vous pouvez également apporter votre propre réseau, comme Tailscale. L'entreprise peut s'auto-héberger."
+          "a": "Non. L’application iOS s’associe à votre Mac via le réseau cmux iroh intégré. Vous pouvez aussi utiliser votre propre solution réseau, comme Tailscale. L’offre Entreprise permet l’auto-hébergement."
         },
         {
           "q": "Comment fonctionne la facturation ?",
-          "a": "Pro coûte 50 $/mois, ou 40 $/mois lorsqu'il est facturé annuellement (une économie de 20 %). L'équipe coûte 60 $/utilisateur/mois, ou 48 $/utilisateur/mois lorsqu'elle est facturée annuellement. Les forfaits payants incluent jusqu'à 50 VM Cloud par utilisateur. Chaque machine possède son propre processeur, sa mémoire et son disque, sans facturation ni facturation excédentaire. Le terminal et les agents locaux restent gratuits."
+          "a": "Pro coûte 50 $ par mois, ou l’équivalent de 40 $ par mois avec une facturation annuelle, soit 20 % d’économie. L’offre Équipe coûte 60 $ par utilisateur et par mois, ou 48 $ par utilisateur et par mois avec une facturation annuelle. Les offres payantes comprennent jusqu’à 50 VM cloud par utilisateur. Chaque machine dispose de son propre processeur, de sa mémoire et de son disque, sans facturation à l’usage ni frais de dépassement. Le terminal et les agents locaux restent gratuits."
         },
         {
           "q": "Puis-je auto-héberger le cloud ?",
-          "a": "Oui, sur Enterprise. Exécutez l’exécution des agents sur votre propre infrastructure ou de manière entièrement isolée, afin que le code source ne quitte jamais votre réseau."
+          "a": "Oui, avec l’offre Entreprise. Exécutez les agents sur votre propre infrastructure, y compris sans aucune connexion aux réseaux externes, pour que votre code source ne quitte jamais votre réseau."
         },
         {
-          "q": "Avez-vous un plan d'équipe?",
-          "a": "Oui. Team coûte 60 $/utilisateur/mois, ou 48 $/utilisateur/mois lorsqu'il est facturé annuellement, avec une facturation centralisée pour toute votre équipe et une assistance prioritaire."
+          "q": "Proposez-vous une offre pour les équipes ?",
+          "a": "Oui. L’offre Équipe coûte 60 $ par utilisateur et par mois, ou 48 $ par utilisateur et par mois avec une facturation annuelle. Elle comprend une facturation centralisée pour toute l’équipe et une assistance prioritaire."
         }
       ]
     },
