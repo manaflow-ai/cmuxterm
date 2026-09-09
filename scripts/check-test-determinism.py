@@ -241,12 +241,13 @@ _DURATION_COMPARE = re.compile(
 _SLEEP_CALL = re.compile(
     r"""(?x)
     \btime\.sleep\s*\(
-  | \bsleep\s*\(                            # sleep(...) call (C/shell function form)
+  | (?<![\w.])sleep\s*\(
+  | \b(?:Darwin|Glibc|Musl)\.sleep\s*\(
   | \busleep\s*\(
   | \bnanosleep\s*\(
-  | Thread\.sleep\s*\(
-  | Task\.sleep\s*\(
-  | try\s+await\s+Task\.sleep
+  | \bThread\.sleep\s*\(
+  | \bTask(?:\s*<[^>\n]+>)?\s*\.sleep\s*\(
+  | \b(?:ContinuousClock|SuspendingClock)\s*\(\s*\)\.sleep\s*\(
   | \basyncio\.sleep\s*\(
   | \bsetTimeout\s*\(                       # JS, when used as a bare delay
     """
