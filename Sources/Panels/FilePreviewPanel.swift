@@ -1738,7 +1738,6 @@ struct FilePreviewPanelView: View {
 
     @State private var focusFlashOpacity = 0.0
     @State private var focusFlashAnimationGeneration = 0
-    @AppStorage(FilePreviewWordWrapSettings.key) private var fileEditorWordWrap = FilePreviewWordWrapSettings.defaultEnabled
 
     private var themeForegroundColor: NSColor {
         appearance.foregroundColor
@@ -1817,7 +1816,6 @@ struct FilePreviewPanelView: View {
                     themeForegroundColor: themeForegroundColor,
                     drawsBackground: appearance.drawsContentBackground,
                     gutterBackgroundColor: appearance.backgroundColor,
-                    wordWrap: fileEditorWordWrap,
                     filePath: panel.filePath
                 )
             case .pdf:

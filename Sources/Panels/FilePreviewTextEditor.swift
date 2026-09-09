@@ -30,9 +30,6 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
     /// Opaque Ghostty panel color. The ruler is not a hole onto that
     /// surface, so it always paints this even when the text view is clear.
     let gutterBackgroundColor: NSColor
-    /// Whether long lines soft-wrap at the editor's right edge. Sourced from
-    /// the persisted `fileEditor.wordWrap` setting; updates apply live.
-    let wordWrap: Bool
     /// Absolute path used only to resolve a highlight.js language.
     var filePath: String = ""
 
@@ -41,6 +38,13 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
     @LiveSetting(\.fileEditor.indentGuides) private var indentGuides
     @LiveSetting(\.fileEditor.currentLineHighlight) private var currentLineHighlight
     @LiveSetting(\.fileEditor.tabWidth) private var tabWidth
+    /// Persisted editor settings are observed only while this text editor is mounted.
+    /// Keeping them here prevents Settings changes from invalidating unrelated preview
+    /// surfaces, especially the Markdown WebView while a font-family field is edited.
+    @AppStorage(FilePreviewWordWrapSettings.key) private var fileEditorWordWrap = FilePreviewWordWrapSettings.defaultEnabled
+    @AppStorage(FilePreviewFontSizeSettings.key) private var fileEditorFontSize = FilePreviewFontSizeSettings.defaultPointSize
+    @AppStorage(FilePreviewFontFamilySettings.key) private var fileEditorFontFamily = FilePreviewFontFamilySettings.defaultFamily
+    @AppStorage(FilePreviewLineHeightSettings.key) private var fileEditorLineHeight = FilePreviewLineHeightSettings.defaultMultiplier
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -59,7 +63,11 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = drawsBackground
 
-        let textView = SavingTextView.makeFilePreviewTextView()
+        let textView = SavingTextView.makeFilePreviewTextView(
+            fontFamily: fileEditorFontFamily,
+            fontSize: CGFloat(fileEditorFontSize),
+            lineHeight: CGFloat(fileEditorLineHeight)
+        )
         textView.panel = panel
         textView.delegate = context.coordinator
         textView.onPreviewFontDidChange = { [weak coordinator = context.coordinator, weak textView] in
@@ -70,10 +78,20 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         textView.string = panel.textContent
         context.coordinator.lastAppliedContentRevision = panel.textContentRevision
         context.coordinator.isHighlightingVisible = isVisibleInUI
+        textView.configurePreviewTypography(
+            fontFamily: fileEditorFontFamily,
+            defaultFontSize: CGFloat(fileEditorFontSize),
+            lineHeight: CGFloat(fileEditorLineHeight)
+        )
         panel.attachTextView(textView)
 
         scrollView.documentView = textView
-        textView.applyFilePreviewWordWrap(wordWrap, scrollView: scrollView)
+        // Replacing `string` can reset TextKit's storage and typing attributes after
+        // the initial configuration snapshot. Reapply once the loaded content is in
+        // place so persisted family, size, and line-height settings reach the document.
+        textView.applyCurrentPreviewFont()
+        textView.applyCurrentPreviewLineHeight()
+        textView.applyFilePreviewWordWrap(fileEditorWordWrap, scrollView: scrollView)
         Self.installChrome(on: scrollView, textView: textView)
         Self.applyTheme(
             to: scrollView,
@@ -120,7 +138,7 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         context.coordinator.panelIdentity = panelIdentity
         textView.panel = panel
         textView.applyFilePreviewTextEditorInsets()
-        textView.applyFilePreviewWordWrap(wordWrap, scrollView: scrollView)
+        textView.applyFilePreviewWordWrap(fileEditorWordWrap, scrollView: scrollView)
         panel.attachTextView(textView)
         Self.applyChromeSettings(
             to: scrollView,
@@ -133,13 +151,29 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         let contentChanged = panelChanged || (panel.textContentRevision == 0
             ? textView.string != panel.textContent
             : context.coordinator.lastAppliedContentRevision != panel.textContentRevision)
+        let selectedRanges = contentChanged ? textView.selectedRanges : []
+        let visibleOrigin = scrollView.contentView.bounds.origin
+        context.coordinator.withPanelUpdate {
+            // Reconcile external content before formatting the text storage. Both
+            // operations can emit NSText.didChangeNotification, so they must share
+            // the same delegate guard or a reload can publish stale editor text.
+            if contentChanged {
+                textView.string = panel.textContent
+                context.coordinator.lastAppliedContentRevision = panel.textContentRevision
+            }
+            textView.configurePreviewTypography(
+                fontFamily: fileEditorFontFamily,
+                defaultFontSize: CGFloat(fileEditorFontSize),
+                lineHeight: CGFloat(fileEditorLineHeight)
+            )
+            if contentChanged {
+                // Reapply attributes after replacing the string; NSTextView can
+                // reset typing/storage attributes when its content is replaced.
+                textView.applyCurrentPreviewFont()
+                textView.applyCurrentPreviewLineHeight()
+            }
+        }
         if contentChanged {
-            let selectedRanges = textView.selectedRanges
-            let visibleOrigin = scrollView.contentView.bounds.origin
-            context.coordinator.isApplyingPanelUpdate = true
-            textView.string = panel.textContent
-            context.coordinator.isApplyingPanelUpdate = false
-            context.coordinator.lastAppliedContentRevision = panel.textContentRevision
             let contentLength = (textView.string as NSString).length
             let clampedRanges = selectedRanges.map { value -> NSValue in
                 let range = value.rangeValue
@@ -285,6 +319,17 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
             self.editorSettings = editorSettings
         }
 
+        /// Runs a representable-driven text update while suppressing delegate
+        /// callbacks caused by content or attribute synchronization.
+        @discardableResult
+        func withPanelUpdate<Result>(_ body: () -> Result) -> Result {
+            let previousValue = isApplyingPanelUpdate
+            isApplyingPanelUpdate = true
+            defer { isApplyingPanelUpdate = previousValue }
+            return body()
+        }
+
+        deinit {}
         func textDidChange(_ notification: Notification) {
             guard !isApplyingPanelUpdate,
                   let textView = notification.object as? NSTextView else { return }
@@ -361,18 +406,17 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
     }
 }
 
-enum FilePreviewTextEditorLayout {
-    static let textContainerInset = NSSize(width: 12, height: 10)
-    static let lineFragmentPadding: CGFloat = 0
-}
-
 extension SavingTextView {
     /// Builds the File Preview text view configured for large plain-text files.
     ///
     /// File Preview opens files up to `FilePreviewPanel.maximumLoadedTextBytes` (16 MB), which can
     /// be hundreds of thousands of lines. Selection responsiveness on that content is the reason
     /// this configuration is centralized; see `manaflow-ai/cmux#4576`.
-    static func makeFilePreviewTextView() -> SavingTextView {
+    static func makeFilePreviewTextView(
+        fontFamily: String = FilePreviewFontFamilySettings.defaultFamily,
+        fontSize: CGFloat = CGFloat(FilePreviewFontSizeSettings.defaultPointSize),
+        lineHeight: CGFloat = CGFloat(FilePreviewLineHeightSettings.defaultMultiplier)
+    ) -> SavingTextView {
         // Build an EXPLICIT TextKit 1 stack so this view is never TextKit 2.
         //
         // A default `NSTextView()` is TextKit 2: selection/hit-testing then runs through
@@ -407,7 +451,11 @@ extension SavingTextView {
         textView.importsGraphics = false
         textView.usesFindPanel = true
         textView.usesFontPanel = false
-        textView.applyCurrentPreviewFont()
+        textView.configurePreviewTypography(
+            fontFamily: fontFamily,
+            defaultFontSize: fontSize,
+            lineHeight: lineHeight
+        )
         textView.minSize = NSSize(width: 0, height: 0)
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.isVerticallyResizable = true
@@ -461,9 +509,6 @@ extension NSTextView {
 }
 
 final class SavingTextView: NSTextView {
-    private static let defaultPreviewFontSize: CGFloat = 13
-    private static let minimumPreviewFontSize: CGFloat = 8
-    private static let maximumPreviewFontSize: CGFloat = 36
     private static let previewFontZoomShortcutActions: [KeyboardShortcutSettings.Action] = [
         .browserZoomIn,
         .browserZoomOut,
@@ -478,7 +523,20 @@ final class SavingTextView: NSTextView {
     var onPreviewFontDidChange: (() -> Void)?
     var appliedFilePreviewTabWidth: Int?
     var appliedFilePreviewTabStopInterval: CGFloat?
-    private var previewFontSize: CGFloat = 13
+    /// Configured baseline size used by the live zoom and reset actions.
+    var configuredPreviewFontSize = CGFloat(FilePreviewFontSizeSettings.defaultPointSize)
+    /// Current per-editor size after live zoom adjustments.
+    var previewFontSize = CGFloat(FilePreviewFontSizeSettings.defaultPointSize)
+    /// Whether the user has zoomed this editor away from its configured baseline.
+    var hasPreviewFontSizeOverride = false
+    /// Normalized configured family used for the current font.
+    var previewFontFamily = FilePreviewFontFamilySettings.defaultFamily
+    /// Current paragraph line-height multiplier.
+    var previewLineHeight = CGFloat(FilePreviewLineHeightSettings.defaultMultiplier)
+    /// Whether the representable has supplied its first typography snapshot.
+    var hasConfiguredPreviewTypography = false
+    /// Raw settings input last normalized by configurePreviewTypography.
+    var lastPreviewTypographyInput: PreviewTypographyInput?
     private var pendingEditorShortcutChordPrefix: ShortcutStroke?
     private var fontMagnificationObserver: GlobalFontMagnificationChangeObserver?
 
@@ -544,8 +602,8 @@ final class SavingTextView: NSTextView {
     }
 
     override func smartMagnify(with event: NSEvent) {
-        if previewFontSize == Self.defaultPreviewFontSize {
-            _ = setPreviewFontSize(18)
+        if abs(previewFontSize - configuredPreviewFontSize) < 0.0001 {
+            _ = setPreviewFontSize(previewFontSize + 5)
         } else {
             _ = resetPreviewFontSize()
         }
@@ -563,7 +621,10 @@ final class SavingTextView: NSTextView {
 
     @discardableResult
     func resetPreviewFontSize() -> Bool {
-        setPreviewFontSize(Self.defaultPreviewFontSize)
+        let wasOverridden = hasPreviewFontSizeOverride
+        let didChange = setPreviewFontSize(configuredPreviewFontSize, markAsCustomized: false)
+        hasPreviewFontSizeOverride = false
+        return didChange || wasOverridden
     }
 
     @discardableResult
@@ -572,24 +633,16 @@ final class SavingTextView: NSTextView {
     }
 
     @discardableResult
-    private func setPreviewFontSize(_ nextFontSize: CGFloat) -> Bool {
-        let clamped = min(max(nextFontSize, Self.minimumPreviewFontSize), Self.maximumPreviewFontSize)
+    private func setPreviewFontSize(_ nextFontSize: CGFloat, markAsCustomized: Bool = true) -> Bool {
+        let clamped = CGFloat(FilePreviewFontSizeSettings.clamp(Double(nextFontSize)))
         guard clamped.isFinite else { return false }
         guard abs(clamped - previewFontSize) > 0.0001 else { return false }
         previewFontSize = clamped
+        if markAsCustomized {
+            hasPreviewFontSizeOverride = true
+        }
         applyCurrentPreviewFont()
         return true
-    }
-
-    func applyCurrentPreviewFont() {
-        let nextFont = GlobalFontMagnification.monospacedSystemFont(ofSize: previewFontSize, weight: .regular)
-        font = nextFont
-        typingAttributes[.font] = nextFont
-        if let storage = textStorage, storage.length > 0 {
-            storage.addAttribute(.font, value: nextFont, range: NSRange(location: 0, length: storage.length))
-        }
-        FilePreviewEditorChromeOverlay.installed(in: self)?.needsDisplay = true
-        onPreviewFontDidChange?()
     }
 
     private func clearPendingShortcutChordPrefixes() {

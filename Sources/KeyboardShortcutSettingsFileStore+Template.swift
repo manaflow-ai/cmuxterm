@@ -234,6 +234,9 @@ extension CmuxSettingsFileStore {
             ],
             [
                 "fileEditor": [
+                    "fontSize": Int(FilePreviewFontSizeSettings.defaultPointSize),
+                    "fontFamily": FilePreviewFontFamilySettings.defaultFamily,
+                    "lineHeight": FilePreviewLineHeightSettings.defaultMultiplier,
                     "wordWrap": FilePreviewWordWrapSettings.defaultEnabled,
                     "syntaxHighlighting": fileEditorSettings.catalog.syntaxHighlighting.defaultValue,
                     "lineNumbers": fileEditorSettings.catalog.lineNumbers.defaultValue,
