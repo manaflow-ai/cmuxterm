@@ -147,7 +147,7 @@ struct AgentHookAbnormalStopClassifierTests {
         ) == nil)
         #expect(classifier.abnormalStopClass(
             signal: "Stop",
-            message: "The API request failed: timeout"
+            message: "The API response failed: invalid payload"
         ) == .generic)
     }
 
