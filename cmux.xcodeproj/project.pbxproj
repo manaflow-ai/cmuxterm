@@ -666,6 +666,8 @@
 		B900001AA1B2C3D4E5F60719 /* CloseWorkspaceConfirmDialogUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9000019A1B2C3D4E5F60719 /* CloseWorkspaceConfirmDialogUITests.swift */; };
 		B900001BA1B2C3D4E5F60719 /* CloseWorkspacesConfirmDialogUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B900001CA1B2C3D4E5F60719 /* CloseWorkspacesConfirmDialogUITests.swift */; };
 		EF840DF6D022042F7E57B482 /* cloud-agent-skill.md in Resources */ = {isa = PBXBuildFile; fileRef = 9313CB72497F3EA572B409A8 /* cloud-agent-skill.md */; };
+		7A1D4C000000000000000004 /* CloudActivationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D4C000000000000000003 /* CloudActivationPolicy.swift */; };
+		7A1D4C000000000000000102 /* CloudActivationPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D4C000000000000000101 /* CloudActivationPolicyTests.swift */; };
 		C62A16251EC09E72A897A2A3 /* CloudAgentSkillLauncher+CodingAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D50DCB9771484FE2B966B07 /* CloudAgentSkillLauncher+CodingAgent.swift */; };
 		EAEF1B227CA5A458005D2EAD /* CloudAgentSkillLauncher+LauncherError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0110525EA7A8A51561759317 /* CloudAgentSkillLauncher+LauncherError.swift */; };
 		68B60071A7049D7CD9C2CFD7 /* CloudAgentSkillLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7BA0E69E17F61ECF69C9025 /* CloudAgentSkillLauncher.swift */; };
@@ -676,6 +678,7 @@
 		7A0CE100000000000000070C /* CloudHubSocketClaim.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE100000000000000070B /* CloudHubSocketClaim.swift */; };
 		7A0CE1000000000000000718 /* CloudLoopbackPortForward.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000717 /* CloudLoopbackPortForward.swift */; };
 		7A0CE1000000000000000732 /* CloudLoopbackPortForwardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000731 /* CloudLoopbackPortForwardTests.swift */; };
+		7A1D4C000000000000000002 /* CloudMachineCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D4C000000000000000001 /* CloudMachineCache.swift */; };
 		E0C1BF3A1CF2C22FF100B77B /* CloudMachineLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49DC04B459E0132708ACD366 /* CloudMachineLink.swift */; };
 		5C6CEB17F0A6776F357BAF09 /* CloudMachineLinkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874061DC8AD0C4E7297BF267 /* CloudMachineLinkManager.swift */; };
 		0F5C2DDC1A39436E867D28BB /* CloudMachinesFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9143D900F124494A55F859F /* CloudMachinesFeature.swift */; };
@@ -731,6 +734,8 @@
 		C11324710000000000000001 /* CloudTuiResolvedSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11324720000000000000001 /* CloudTuiResolvedSurface.swift */; };
 		C11324910000000000000001 /* CloudTuiSurfaceIDResolution.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11324920000000000000001 /* CloudTuiSurfaceIDResolution.swift */; };
 		C11325A10000000000000001 /* CloudTuiTerminalProjectionTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11325A20000000000000001 /* CloudTuiTerminalProjectionTarget.swift */; };
+		7A1D4C000000000000000010 /* CloudTunnelActivationObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D4C000000000000000009 /* CloudTunnelActivationObserver.swift */; };
+		7A1D4C000000000000000012 /* CloudTunnelAdmission.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D4C000000000000000011 /* CloudTunnelAdmission.swift */; };
 		7A0CE1000000000000000308 /* CloudTunnelAppConsumers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000307 /* CloudTunnelAppConsumers.swift */; };
 		7A0CE1000000000000000028 /* CloudTunnelBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000002 /* CloudTunnelBackend.swift */; };
 		7A0CE1000000000000000029 /* CloudTunnelBackendSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000003 /* CloudTunnelBackendSelector.swift */; };
@@ -745,11 +750,13 @@
 		7A0CE1000000000000000034 /* CloudTunnelCoordinator+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000008 /* CloudTunnelCoordinator+Live.swift */; };
 		7A0CE1000000000000000033 /* CloudTunnelCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000007 /* CloudTunnelCoordinator.swift */; };
 		7A0CE1000000000000000104 /* CloudTunnelCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000103 /* CloudTunnelCoordinatorTests.swift */; };
+		7A1D4C000000000000000008 /* CloudTunnelDeferredController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D4C000000000000000007 /* CloudTunnelDeferredController.swift */; };
 		7A0CE1000000000000000035 /* CloudTunnelEnrolling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000009 /* CloudTunnelEnrolling.swift */; };
 		7A0CE1000000000000000312 /* CloudTunnelEnrollment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000311 /* CloudTunnelEnrollment.swift */; };
 		7A0CE1000000000000000036 /* CloudTunnelError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000010 /* CloudTunnelError.swift */; };
 		7A0CE1000000000000000306 /* CloudTunnelFallbackReason.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000305 /* CloudTunnelFallbackReason.swift */; };
 		7A0CE1000000000000000037 /* CloudTunnelInertController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000011 /* CloudTunnelInertController.swift */; };
+		7A1D4C000000000000000104 /* CloudTunnelLaunchGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D4C000000000000000103 /* CloudTunnelLaunchGateTests.swift */; };
 		7A0CE1000000000000000038 /* CloudTunnelLinkStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000012 /* CloudTunnelLinkStatus.swift */; };
 		7A0CE1000000000000000310 /* CloudTunnelProviderConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000309 /* CloudTunnelProviderConfiguration.swift */; };
 		7A0CE1000000000000000039 /* CloudTunnelProviderConfigurationKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000013 /* CloudTunnelProviderConfigurationKeys.swift */; };
@@ -759,6 +766,7 @@
 		7A0CE1000000000000000704 /* CloudTunnelRuntimeConfigurationRedactor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000703 /* CloudTunnelRuntimeConfigurationRedactor.swift */; };
 		7A0CE1000000000000000705 /* CloudTunnelRuntimeConfigurationRedactor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000703 /* CloudTunnelRuntimeConfigurationRedactor.swift */; };
 		7A0CE1000000000000000707 /* CloudTunnelRuntimeConfigurationRedactorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000706 /* CloudTunnelRuntimeConfigurationRedactorTests.swift */; };
+		7A1D4C000000000000000006 /* CloudTunnelStartRefusal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D4C000000000000000005 /* CloudTunnelStartRefusal.swift */; };
 		7A0CE1000000000000000040 /* CloudTunnelState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000014 /* CloudTunnelState.swift */; };
 		7A0CE1000000000000000317 /* CloudTunnelStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000316 /* CloudTunnelStatus.swift */; };
 		7A0CE100000000000000072E /* CloudTunnelStatusBlockerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE100000000000000072D /* CloudTunnelStatusBlockerTests.swift */; };
@@ -1097,6 +1105,7 @@
 		C11323210000000000000001 /* CmuxTuiSurfaceProvider+ManualMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11323220000000000000001 /* CmuxTuiSurfaceProvider+ManualMirror.swift */; };
 		7A0CE1000000000000000728 /* CmuxTuiSurfaceProvider+PortForward.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000727 /* CmuxTuiSurfaceProvider+PortForward.swift */; };
 		A1B2C3D4E5F6071827364961 /* CmuxTuiSurfaceProviderRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071827364960 /* CmuxTuiSurfaceProviderRegistry.swift */; };
+		7A1D4C000000000000000106 /* CmuxTuiSurfaceProviderRegistryPollingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D4C000000000000000105 /* CmuxTuiSurfaceProviderRegistryPollingTests.swift */; };
 		036359ABDB1F58B489D378A4 /* CmuxTuiSurfaceProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63F5BDFB110A8A96C9CA0A75 /* CmuxTuiSurfaceProviders.swift */; };
 		2C636EB7DCD3184EE9E94E31 /* CmuxTuiSurfaceProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC427A4C642EBC36E600FA7F /* CmuxTuiSurfaceProviderTests.swift */; };
 		7A0CE1000000000000000049 /* cmuxTunnel.systemextension in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000026 /* cmuxTunnel.systemextension */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -1944,6 +1953,7 @@
 		D77690000000000000000007 /* NotificationsPopoverResizeHandle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D77690000000000000000008 /* NotificationsPopoverResizeHandle.swift */; };
 		D77690000000000000000009 /* NotificationsPopoverResizeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7769000000000000000000A /* NotificationsPopoverResizeView.swift */; };
 		C01E00080000000000000001 /* NSTextView+FilePreviewTabWidth.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01E00080000000000000002 /* NSTextView+FilePreviewTabWidth.swift */; };
+		25C58D231850D0F414A62F19 /* NSView+WindowPointHitTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EFC842F5002FB86145AEF1E /* NSView+WindowPointHitTest.swift */; };
 		D36090020000000000000001 /* NSWindow+CmuxPeerWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D36090020000000000000002 /* NSWindow+CmuxPeerWindow.swift */; };
 		645645000000000000000002 /* NumberedShortcutSwapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 645645000000000000000001 /* NumberedShortcutSwapTests.swift */; };
 		7A0CE1000000000000000714 /* NWConnection+Async.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000713 /* NWConnection+Async.swift */; };
@@ -3168,6 +3178,7 @@
 		D0B10024A1B2C3D4E5F60001 /* WindowInputRoutingContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B10025A1B2C3D4E5F60001 /* WindowInputRoutingContext.swift */; };
 		313585583035A1E685010A97 /* WindowKeyDownReplayGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B8CFAF8FCA4231C702D16A /* WindowKeyDownReplayGuard.swift */; };
 		8770D0F2D2BB45359D6BE5E3 /* WindowKeyDownReplayGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B79482F1ECA54E98BE5C8953 /* WindowKeyDownReplayGuardTests.swift */; };
+		7329AC8BD30AD03864D1E4EC /* WindowPointHitTestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F1015067C3423D09C2453BB /* WindowPointHitTestTests.swift */; };
 		6042C0056042C0056042C005 /* WindowScopedShortcutHintModifierMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6042D0056042D0056042D005 /* WindowScopedShortcutHintModifierMonitor.swift */; };
 		9065A0090000000000000001 /* WindowScreenshotBackendAttempt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9065A0090000000000000002 /* WindowScreenshotBackendAttempt.swift */; };
 		9065A0050000000000000001 /* WindowScreenshotCaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9065A0050000000000000002 /* WindowScreenshotCaptureCoordinator.swift */; };
@@ -4138,6 +4149,8 @@
 		B9000019A1B2C3D4E5F60719 /* CloseWorkspaceConfirmDialogUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloseWorkspaceConfirmDialogUITests.swift; sourceTree = "<group>"; };
 		B900001CA1B2C3D4E5F60719 /* CloseWorkspacesConfirmDialogUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloseWorkspacesConfirmDialogUITests.swift; sourceTree = "<group>"; };
 		9313CB72497F3EA572B409A8 /* cloud-agent-skill.md */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = net.daringfireball.markdown; path = "cloud-agent-skill.md"; sourceTree = "<group>"; };
+		7A1D4C000000000000000003 /* CloudActivationPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudActivationPolicy.swift; sourceTree = "<group>"; };
+		7A1D4C000000000000000101 /* CloudActivationPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudActivationPolicyTests.swift; sourceTree = "<group>"; };
 		4D50DCB9771484FE2B966B07 /* CloudAgentSkillLauncher+CodingAgent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "CloudAgentSkillLauncher+CodingAgent.swift"; sourceTree = "<group>"; };
 		0110525EA7A8A51561759317 /* CloudAgentSkillLauncher+LauncherError.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "CloudAgentSkillLauncher+LauncherError.swift"; sourceTree = "<group>"; };
 		A7BA0E69E17F61ECF69C9025 /* CloudAgentSkillLauncher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudAgentSkillLauncher.swift; sourceTree = "<group>"; };
@@ -4148,6 +4161,7 @@
 		7A0CE100000000000000070B /* CloudHubSocketClaim.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudHubSocketClaim.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000717 /* CloudLoopbackPortForward.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudLoopbackPortForward.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000731 /* CloudLoopbackPortForwardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudLoopbackPortForwardTests.swift; sourceTree = "<group>"; };
+		7A1D4C000000000000000001 /* CloudMachineCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudMachineCache.swift; sourceTree = "<group>"; };
 		49DC04B459E0132708ACD366 /* CloudMachineLink.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudMachineLink.swift; sourceTree = "<group>"; };
 		874061DC8AD0C4E7297BF267 /* CloudMachineLinkManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudMachineLinkManager.swift; sourceTree = "<group>"; };
 		D9143D900F124494A55F859F /* CloudMachinesFeature.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudMachinesFeature.swift; sourceTree = "<group>"; };
@@ -4203,6 +4217,8 @@
 		C11324720000000000000001 /* CloudTuiResolvedSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudTuiResolvedSurface.swift; sourceTree = "<group>"; };
 		C11324920000000000000001 /* CloudTuiSurfaceIDResolution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudTuiSurfaceIDResolution.swift; sourceTree = "<group>"; };
 		C11325A20000000000000001 /* CloudTuiTerminalProjectionTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudTuiTerminalProjectionTarget.swift; sourceTree = "<group>"; };
+		7A1D4C000000000000000009 /* CloudTunnelActivationObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudTunnelActivationObserver.swift; sourceTree = "<group>"; };
+		7A1D4C000000000000000011 /* CloudTunnelAdmission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudTunnelAdmission.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000307 /* CloudTunnelAppConsumers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelAppConsumers.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000002 /* CloudTunnelBackend.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelBackend.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000003 /* CloudTunnelBackendSelector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelBackendSelector.swift; sourceTree = "<group>"; };
@@ -4217,17 +4233,20 @@
 		7A0CE1000000000000000008 /* CloudTunnelCoordinator+Live.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "CloudTunnelCoordinator+Live.swift"; sourceTree = "<group>"; };
 		7A0CE1000000000000000007 /* CloudTunnelCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelCoordinator.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000103 /* CloudTunnelCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudTunnelCoordinatorTests.swift; sourceTree = "<group>"; };
+		7A1D4C000000000000000007 /* CloudTunnelDeferredController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudTunnelDeferredController.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000009 /* CloudTunnelEnrolling.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelEnrolling.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000311 /* CloudTunnelEnrollment.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelEnrollment.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000010 /* CloudTunnelError.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelError.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000305 /* CloudTunnelFallbackReason.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelFallbackReason.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000011 /* CloudTunnelInertController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelInertController.swift; sourceTree = "<group>"; };
+		7A1D4C000000000000000103 /* CloudTunnelLaunchGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudTunnelLaunchGateTests.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000012 /* CloudTunnelLinkStatus.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelLinkStatus.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000309 /* CloudTunnelProviderConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelProviderConfiguration.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000013 /* CloudTunnelProviderConfigurationKeys.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelProviderConfigurationKeys.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000313 /* CloudTunnelProviderMessage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelProviderMessage.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000703 /* CloudTunnelRuntimeConfigurationRedactor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelRuntimeConfigurationRedactor.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000706 /* CloudTunnelRuntimeConfigurationRedactorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelRuntimeConfigurationRedactorTests.swift; sourceTree = "<group>"; };
+		7A1D4C000000000000000005 /* CloudTunnelStartRefusal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudTunnelStartRefusal.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000014 /* CloudTunnelState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelState.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000316 /* CloudTunnelStatus.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudTunnelStatus.swift; sourceTree = "<group>"; };
 		7A0CE100000000000000072D /* CloudTunnelStatusBlockerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudTunnelStatusBlockerTests.swift; sourceTree = "<group>"; };
@@ -4486,6 +4505,7 @@
 		C11323220000000000000001 /* CmuxTuiSurfaceProvider+ManualMirror.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CmuxTuiSurfaceProvider+ManualMirror.swift"; sourceTree = "<group>"; };
 		7A0CE1000000000000000727 /* CmuxTuiSurfaceProvider+PortForward.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "CmuxTuiSurfaceProvider+PortForward.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6071827364960 /* CmuxTuiSurfaceProviderRegistry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CmuxTuiSurfaceProviderRegistry.swift; sourceTree = "<group>"; };
+		7A1D4C000000000000000105 /* CmuxTuiSurfaceProviderRegistryPollingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CmuxTuiSurfaceProviderRegistryPollingTests.swift; sourceTree = "<group>"; };
 		63F5BDFB110A8A96C9CA0A75 /* CmuxTuiSurfaceProviders.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CmuxTuiSurfaceProviders.swift; sourceTree = "<group>"; };
 		BC427A4C642EBC36E600FA7F /* CmuxTuiSurfaceProviderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CmuxTuiSurfaceProviderTests.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000026 /* cmuxTunnel.systemextension */ = {isa = PBXFileReference; explicitFileType = "wrapper.system-extension"; includeInIndex = 0; path = cmuxTunnel.systemextension; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -5319,6 +5339,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		D77690000000000000000008 /* NotificationsPopoverResizeHandle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Update/NotificationsPopoverResizeHandle.swift; sourceTree = "<group>"; };
 		D7769000000000000000000A /* NotificationsPopoverResizeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Update/NotificationsPopoverResizeView.swift; sourceTree = "<group>"; };
 		C01E00080000000000000002 /* NSTextView+FilePreviewTabWidth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Panels/NSTextView+FilePreviewTabWidth.swift"; sourceTree = "<group>"; };
+		2EFC842F5002FB86145AEF1E /* NSView+WindowPointHitTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSView+WindowPointHitTest.swift"; sourceTree = "<group>"; };
 		D36090020000000000000002 /* NSWindow+CmuxPeerWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/NSWindow+CmuxPeerWindow.swift"; sourceTree = "<group>"; };
 		645645000000000000000001 /* NumberedShortcutSwapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumberedShortcutSwapTests.swift; sourceTree = "<group>"; };
 		7A0CE1000000000000000713 /* NWConnection+Async.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "NWConnection+Async.swift"; sourceTree = "<group>"; };
@@ -6528,6 +6549,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		D0B10025A1B2C3D4E5F60001 /* WindowInputRoutingContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowInputRoutingContext.swift; sourceTree = "<group>"; };
 		81B8CFAF8FCA4231C702D16A /* WindowKeyDownReplayGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/WindowKeyDownReplayGuard.swift; sourceTree = "<group>"; };
 		B79482F1ECA54E98BE5C8953 /* WindowKeyDownReplayGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowKeyDownReplayGuardTests.swift; sourceTree = "<group>"; };
+		8F1015067C3423D09C2453BB /* WindowPointHitTestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowPointHitTestTests.swift; sourceTree = "<group>"; };
 		6042D0056042D0056042D005 /* WindowScopedShortcutHintModifierMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowScopedShortcutHintModifierMonitor.swift; sourceTree = "<group>"; };
 		9065A0090000000000000002 /* WindowScreenshotBackendAttempt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowScreenshotBackendAttempt.swift; sourceTree = "<group>"; };
 		9065A0050000000000000002 /* WindowScreenshotCaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowScreenshotCaptureCoordinator.swift; sourceTree = "<group>"; };
@@ -7240,6 +7262,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				7A0CE1000000000000000052 /* Tunnel */,
 				7A0CE1000000000000000708 /* PortForward */,
 				D9143D900F124494A55F859F /* CloudMachinesFeature.swift */,
+				7A1D4C000000000000000003 /* CloudActivationPolicy.swift */,
+				7A1D4C000000000000000001 /* CloudMachineCache.swift */,
 				08610D114C8CF23877176D7E /* MachinesPanelView.swift */,
 				68672B3C63D4E348AFA4DEF7 /* MachinesPanelViewModel.swift */,
 				874061DC8AD0C4E7297BF267 /* CloudMachineLinkManager.swift */,
@@ -7427,6 +7451,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C0DE35010000000000000002 /* SidebarScrim.swift */,
 				D0B10015A1B2C3D4E5F60001 /* DragOverlayRoutingPolicy.swift */,
 				D0B10025A1B2C3D4E5F60001 /* WindowInputRoutingContext.swift */,
+				2EFC842F5002FB86145AEF1E /* NSView+WindowPointHitTest.swift */,
 				C0DE43000000000000000006 /* ContentView+AgentChatCommandPalette.swift */,
 				C0DEA7710000000000000002 /* ContentView+AuthCommandPalette.swift */,
 				C0DEA7710000000000000004 /* ContentView+ProCommandPalette.swift */,
@@ -9530,6 +9555,9 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				74A47FAD328D6669A5B40CE3 /* VMTunnelManagerTests.swift */,
 				7A0CE1000000000000000105 /* CloudTunnelBackendSelectorTests.swift */,
 				7A0CE1000000000000000103 /* CloudTunnelCoordinatorTests.swift */,
+				7A1D4C000000000000000105 /* CmuxTuiSurfaceProviderRegistryPollingTests.swift */,
+				7A1D4C000000000000000103 /* CloudTunnelLaunchGateTests.swift */,
+				7A1D4C000000000000000101 /* CloudActivationPolicyTests.swift */,
 				7A0CE1000000000000000706 /* CloudTunnelRuntimeConfigurationRedactorTests.swift */,
 				7A0CE1000000000000000601 /* CloudTunnelBroadcastTests.swift */,
 				7A0CE1000000000000000401 /* CloudTunnelTestFakes.swift */,
@@ -9665,6 +9693,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 					469200014692000146920002 /* VaultPaneDropRoutingTests.swift */,
 					469200064692000146920002 /* VaultPaneDropTestSupport.swift */,
 					469200044692000146920002 /* VaultPaneTransferLifecycleTests.swift */,
+					8F1015067C3423D09C2453BB /* WindowPointHitTestTests.swift */,
 					06880917B87678F2857EC8FB /* FileExplorerOpenedTabDragSourceTests.swift */,
 					469200054692000146920002 /* VaultNativeDragSourceTests.swift */,
 					D3052001000000000000002 /* TerminalSurfaceResizePolicyTests.swift */,
@@ -10268,6 +10297,10 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				7A0CE1000000000000000006 /* CloudTunnelControlling.swift */,
 				7A0CE1000000000000000007 /* CloudTunnelCoordinator.swift */,
 				7A0CE1000000000000000008 /* CloudTunnelCoordinator+Live.swift */,
+				7A1D4C000000000000000011 /* CloudTunnelAdmission.swift */,
+				7A1D4C000000000000000009 /* CloudTunnelActivationObserver.swift */,
+				7A1D4C000000000000000007 /* CloudTunnelDeferredController.swift */,
+				7A1D4C000000000000000005 /* CloudTunnelStartRefusal.swift */,
 				7A0CE1000000000000000009 /* CloudTunnelEnrolling.swift */,
 				7A0CE1000000000000000010 /* CloudTunnelError.swift */,
 				7A0CE1000000000000000011 /* CloudTunnelInertController.swift */,
@@ -11280,6 +11313,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C10D51700000000000000002 /* ClosedItemHistory.swift in Sources */,
 				8772A0010000000000000001 /* ClosedItemHistoryCapacityPolicy.swift in Sources */,
 				89E62B0A0EB932019C29A32D /* ClosedWorkspaceHistory.swift in Sources */,
+				7A1D4C000000000000000004 /* CloudActivationPolicy.swift in Sources */,
 				C62A16251EC09E72A897A2A3 /* CloudAgentSkillLauncher+CodingAgent.swift in Sources */,
 				EAEF1B227CA5A458005D2EAD /* CloudAgentSkillLauncher+LauncherError.swift in Sources */,
 				68B60071A7049D7CD9C2CFD7 /* CloudAgentSkillLauncher.swift in Sources */,
@@ -11287,6 +11321,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				7A0CE100000000000000071A /* CloudHubPortForwarder.swift in Sources */,
 				7A0CE100000000000000070C /* CloudHubSocketClaim.swift in Sources */,
 				7A0CE1000000000000000718 /* CloudLoopbackPortForward.swift in Sources */,
+				7A1D4C000000000000000002 /* CloudMachineCache.swift in Sources */,
 				E0C1BF3A1CF2C22FF100B77B /* CloudMachineLink.swift in Sources */,
 				5C6CEB17F0A6776F357BAF09 /* CloudMachineLinkManager.swift in Sources */,
 				0F5C2DDC1A39436E867D28BB /* CloudMachinesFeature.swift in Sources */,
@@ -11332,6 +11367,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C11324710000000000000001 /* CloudTuiResolvedSurface.swift in Sources */,
 				C11324910000000000000001 /* CloudTuiSurfaceIDResolution.swift in Sources */,
 				C11325A10000000000000001 /* CloudTuiTerminalProjectionTarget.swift in Sources */,
+				7A1D4C000000000000000010 /* CloudTunnelActivationObserver.swift in Sources */,
+				7A1D4C000000000000000012 /* CloudTunnelAdmission.swift in Sources */,
 				7A0CE1000000000000000308 /* CloudTunnelAppConsumers.swift in Sources */,
 				7A0CE1000000000000000028 /* CloudTunnelBackend.swift in Sources */,
 				7A0CE1000000000000000029 /* CloudTunnelBackendSelector.swift in Sources */,
@@ -11342,6 +11379,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				7A0CE1000000000000000702 /* CloudTunnelCoordinator+Deadline.swift in Sources */,
 				7A0CE1000000000000000034 /* CloudTunnelCoordinator+Live.swift in Sources */,
 				7A0CE1000000000000000033 /* CloudTunnelCoordinator.swift in Sources */,
+				7A1D4C000000000000000008 /* CloudTunnelDeferredController.swift in Sources */,
 				7A0CE1000000000000000035 /* CloudTunnelEnrolling.swift in Sources */,
 				7A0CE1000000000000000312 /* CloudTunnelEnrollment.swift in Sources */,
 				7A0CE1000000000000000036 /* CloudTunnelError.swift in Sources */,
@@ -11352,6 +11390,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				7A0CE1000000000000000039 /* CloudTunnelProviderConfigurationKeys.swift in Sources */,
 				7A0CE1000000000000000314 /* CloudTunnelProviderMessage.swift in Sources */,
 				7A0CE1000000000000000704 /* CloudTunnelRuntimeConfigurationRedactor.swift in Sources */,
+				7A1D4C000000000000000006 /* CloudTunnelStartRefusal.swift in Sources */,
 				7A0CE1000000000000000040 /* CloudTunnelState.swift in Sources */,
 				7A0CE1000000000000000317 /* CloudTunnelStatus.swift in Sources */,
 				7A0CE1000000000000000722 /* CloudTunnelStatusModel.swift in Sources */,
@@ -12006,6 +12045,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				D77690000000000000000007 /* NotificationsPopoverResizeHandle.swift in Sources */,
 				D77690000000000000000009 /* NotificationsPopoverResizeView.swift in Sources */,
 				C01E00080000000000000001 /* NSTextView+FilePreviewTabWidth.swift in Sources */,
+				25C58D231850D0F414A62F19 /* NSView+WindowPointHitTest.swift in Sources */,
 				D36090020000000000000001 /* NSWindow+CmuxPeerWindow.swift in Sources */,
 				7A0CE1000000000000000714 /* NWConnection+Async.swift in Sources */,
 				C67540090000000000000001 /* OmnibarAddressButtonStyle.swift in Sources */,
@@ -13498,6 +13538,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 					799100000000000000000001 /* CLIWorkspaceStableIDMockServer.swift in Sources */,
 					799100000000000000000003 /* CLIWorkspaceStableIDTests.swift in Sources */,
 				7375A0037375A0037375A003 /* ClosedMainWindowRoutingTests.swift in Sources */,
+				7A1D4C000000000000000102 /* CloudActivationPolicyTests.swift in Sources */,
 				C6D4C5A38097BB05AB98E460 /* CloudAgentSkillLauncherTests.swift in Sources */,
 				C10D0A200000000000000001 /* CloudDomainsCLIIntegrationTests.swift in Sources */,
 				7A0CE1000000000000000732 /* CloudLoopbackPortForwardTests.swift in Sources */,
@@ -13515,6 +13556,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				7A0CE1000000000000000730 /* CloudTunnelBannerTests.swift in Sources */,
 				7A0CE1000000000000000602 /* CloudTunnelBroadcastTests.swift in Sources */,
 				7A0CE1000000000000000104 /* CloudTunnelCoordinatorTests.swift in Sources */,
+				7A1D4C000000000000000104 /* CloudTunnelLaunchGateTests.swift in Sources */,
 				7A0CE1000000000000000707 /* CloudTunnelRuntimeConfigurationRedactorTests.swift in Sources */,
 				7A0CE100000000000000072E /* CloudTunnelStatusBlockerTests.swift in Sources */,
 				7A0CE1000000000000000402 /* CloudTunnelTestFakes.swift in Sources */,
@@ -13559,6 +13601,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 					C7A50C000000000000000002 /* CmuxTopProcessCPUTests.swift in Sources */,
 					C7A5090000000000000005A2 /* CmuxTopSnapshotScopeCacheTests.swift in Sources */,
 					C7A509000000000000000002 /* CmuxTopSnapshotScopeTests.swift in Sources */,
+				7A1D4C000000000000000106 /* CmuxTuiSurfaceProviderRegistryPollingTests.swift in Sources */,
 				2C636EB7DCD3184EE9E94E31 /* CmuxTuiSurfaceProviderTests.swift in Sources */,
 				D7C0DE00000000000000A103 /* CmuxWebViewContextMenuLinkCaptureTests.swift in Sources */,
 				D0B1000CA1B2C3D4E5F60001 /* CmuxWebViewDragRoutingTests.swift in Sources */,
@@ -14096,6 +14139,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				D6212D0C00000000000000D1 /* WindowDockLifecycleTests.swift in Sources */,
 				D6212D0C00000000000000D7 /* WindowDockRoutingSocketTests.swift in Sources */,
 				8770D0F2D2BB45359D6BE5E3 /* WindowKeyDownReplayGuardTests.swift in Sources */,
+				7329AC8BD30AD03864D1E4EC /* WindowPointHitTestTests.swift in Sources */,
 				606600010000000000000001 /* WindowTerminalHostViewTitlebarHitTests.swift in Sources */,
 				604500100000000000000003 /* WindowTitleTemplateTests.swift in Sources */,
 				7F0A0E04A8CADC84BB4F1DF7 /* WorkspaceActionDispatcherTests.swift in Sources */,
