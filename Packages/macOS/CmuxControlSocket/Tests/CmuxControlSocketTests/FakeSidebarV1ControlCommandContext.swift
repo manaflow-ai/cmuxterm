@@ -161,7 +161,18 @@ final class FakeSidebarV1ControlCommandContext: ControlCommandContext {
     }
 
     nonisolated func controlSidebarParseAgentLifecycle(_ raw: String) -> String? {
-        raw == "running" ? raw : nil
+        let normalized = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "-")
+        switch normalized {
+        case "unknown", "running", "idle":
+            return normalized
+        case "needsinput", "needs-input":
+            return "needsInput"
+        default:
+            return nil
+        }
     }
 
     nonisolated func controlSidebarIsAllowedAgentLifecycleKey(
