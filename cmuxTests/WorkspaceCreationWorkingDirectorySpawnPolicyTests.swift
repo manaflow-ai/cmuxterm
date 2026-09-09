@@ -51,6 +51,39 @@ struct WorkspaceCreationWorkingDirectorySpawnPolicyTests {
         #expect(manager.tabs.count == 1)
     }
 
+    @Test(
+        "activation requests cannot reveal a window before its first workspace is ready",
+        arguments: [
+            MainWindowVisibilityController.Reason.applicationReopen,
+            .menuBar,
+            .socketActivate,
+            .ensureInitialWindow
+        ]
+    )
+    func activationDoesNotPresentAnEmptyWindow(reason: MainWindowVisibilityController.Reason) async throws {
+        let appDelegate = try #require(AppDelegate.shared)
+        let originalRuntime = try #require(appDelegate.settingsRuntime)
+        let loadingRuntime = SettingsRuntime(
+            catalog: originalRuntime.catalog,
+            userDefaultsStore: originalRuntime.userDefaultsStore,
+            jsonStore: originalRuntime.jsonStore,
+            secretStore: originalRuntime.secretStore,
+            errorLog: SettingsErrorLog()
+        )
+        appDelegate.settingsRuntime = loadingRuntime
+        let windowID = appDelegate.createMainWindow(shouldActivate: false)
+        appDelegate.settingsRuntime = originalRuntime
+        defer { appDelegate.mainWindow(for: windowID)?.close() }
+
+        let window = try #require(appDelegate.mainWindow(for: windowID))
+        let manager = try #require(appDelegate.tabManagerFor(windowId: windowID))
+        #expect(manager.tabs.isEmpty)
+        #expect(appDelegate.focusWindowForAppActivation(window, reason: reason))
+        #expect(!window.isVisible)
+        await manager.waitForInitialWorkspace()
+        #expect(manager.tabs.count == 1)
+    }
+
     @Test("declarative shell startup stays with the surface creation snapshot")
     func declarativeShellStartupDefaultsArePinnedAtSurfaceCreation() {
         @MainActor
