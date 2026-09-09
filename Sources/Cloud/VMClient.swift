@@ -743,15 +743,20 @@ actor VMClient {
     private let session: URLSession
     private let auth: AuthCoordinator
     private let telemetry: VMClientTelemetry
+    /// "Does this account have a machine?", remembered for the next launch
+    /// (``CloudActivationPolicy``). Every list and every create updates it.
+    private let machineCache: CloudMachineCache
 
     init(
         session: URLSession = .shared,
         auth: AuthCoordinator,
-        telemetry: VMClientTelemetry = .shared
+        telemetry: VMClientTelemetry = .shared,
+        machineCache: CloudMachineCache = CloudMachineCache()
     ) {
         self.session = session
         self.auth = auth
         self.telemetry = telemetry
+        self.machineCache = machineCache
     }
 
     func list() async throws -> [VMSummary] {
@@ -810,6 +815,7 @@ actor VMClient {
             }
             return summary
         }
+        machineCache.record(hasAnyMachine: !vms.isEmpty)
         return VMListPage(vms: vms, limits: limits)
     }
 
@@ -1184,6 +1190,7 @@ actor VMClient {
         summary.capabilities = VMCapabilities(json: obj["capabilities"])
         summary.displayName = (obj["displayName"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         summary.slug = (obj["slug"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        machineCache.record(hasAnyMachine: true)
         return summary
     }
 
@@ -1228,6 +1235,7 @@ actor VMClient {
         var summary = VMSummary(id: id, provider: providerValue, status: displayStatus, image: imageValue, createdAt: createdAt, base: decodeBaseSummary(obj["base"]))
         summary.kind = Self.decodeKind(obj["kind"])
         summary.capabilities = VMCapabilities(json: obj["capabilities"])
+        machineCache.record(hasAnyMachine: true)
         return summary
     }
 
@@ -1276,6 +1284,10 @@ actor VMClient {
         let encodedID = try pathSegment(id, fieldName: "vm id")
         let (data, http) = try await request("DELETE", path: "/api/vm/\(encodedID)")
         try ensureOK(http, data: data)
+        // Whether any machine remains is only known after the next list; a
+        // tunnel start meanwhile asks the control plane instead of trusting
+        // a marker that may have just described the deleted machine.
+        machineCache.clear()
     }
 
     func snapshot(id: String, name: String? = nil) async throws -> VMSnapshotResult {
@@ -1337,6 +1349,7 @@ actor VMClient {
             base: nil
         )
         forked.capabilities = VMCapabilities(json: obj["capabilities"])
+        machineCache.record(hasAnyMachine: true)
         return (
             snapshot: snapshotID.map { VMSnapshotResult(id: $0, name: nil, createdAt: Int64(Date().timeIntervalSince1970 * 1000)) },
             vm: forked
@@ -1366,6 +1379,7 @@ actor VMClient {
         let status = (obj["status"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         var restored = VMSummary(id: id, provider: providerValue, status: status?.isEmpty == false ? status! : "running", image: image, createdAt: createdAt, base: nil)
         restored.capabilities = VMCapabilities(json: obj["capabilities"])
+        machineCache.record(hasAnyMachine: true)
         return restored
     }
 
