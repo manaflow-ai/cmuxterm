@@ -7,10 +7,14 @@ extension ChromiumBrowserSession {
     /// - Throws: A CDP transport error or Chromium navigation rejection.
     public func navigate(to url: URL) async throws {
         if let owlRuntime {
-            beginNavigation()
-            try owlRuntime.navigate(url)
-            currentURL = url
-            publish()
+            beginOwlNavigation(.destination(url))
+            do {
+                try owlRuntime.navigate(url)
+            } catch {
+                failOwlNavigation()
+                throw error
+            }
+            startOwlNavigationReadinessMonitor()
             return
         }
         beginNavigation()
@@ -39,13 +43,18 @@ extension ChromiumBrowserSession {
     /// - Throws: A CDP transport error or malformed navigation history.
     public func goBack() async throws {
         if owlRuntime != nil {
-            beginNavigation()
+            guard let target = owlHistory?.targetURL(offset: -1) else {
+                completeOwlNoOpNavigation()
+                return
+            }
+            beginOwlNavigation(.back(target))
             do {
                 _ = try await evaluateJavaScript("history.back()", awaitPromise: false)
             } catch {
-                failNavigation()
+                failOwlNavigation()
                 throw error
             }
+            startOwlNavigationReadinessMonitor()
             return
         }
         beginNavigation()
@@ -70,13 +79,18 @@ extension ChromiumBrowserSession {
     /// - Throws: A CDP transport error or malformed navigation history.
     public func goForward() async throws {
         if owlRuntime != nil {
-            beginNavigation()
+            guard let target = owlHistory?.targetURL(offset: 1) else {
+                completeOwlNoOpNavigation()
+                return
+            }
+            beginOwlNavigation(.forward(target))
             do {
                 _ = try await evaluateJavaScript("history.forward()", awaitPromise: false)
             } catch {
-                failNavigation()
+                failOwlNavigation()
                 throw error
             }
+            startOwlNavigationReadinessMonitor()
             return
         }
         beginNavigation()
@@ -112,7 +126,7 @@ extension ChromiumBrowserSession {
 
     private func reload(ignoreCache: Bool) async throws {
         if owlRuntime != nil {
-            beginNavigation()
+            beginOwlNavigation(.reload(currentURL))
             do {
                 // OWL has no cache-control Mojo command. A location reload
                 // still exercises the native renderer and preserves the same
@@ -120,9 +134,10 @@ extension ChromiumBrowserSession {
                 // the renderer's ordinary reload semantics on this engine.
                 _ = try await evaluateJavaScript("location.reload()", awaitPromise: false)
             } catch {
-                failNavigation()
+                failOwlNavigation()
                 throw error
             }
+            startOwlNavigationReadinessMonitor()
             return
         }
         beginNavigation()
@@ -137,8 +152,9 @@ extension ChromiumBrowserSession {
         }
     }
 
-    /// Waits for a CDP-reported main-frame navigation after a known revision.
-    /// The stream is event-driven; no polling or timing sleeps are used here.
+    /// Waits for a main-frame navigation after a known revision. CDP uses its
+    /// event stream; OWL uses its ABI readiness monitor when the fork does not
+    /// provide a load-complete callback.
     ///
     /// - Parameters:
     ///   - targetURL: Optional destination that must match the completed page.
@@ -184,8 +200,8 @@ extension ChromiumBrowserSession {
     }
 
     /// Waits until the active page reports that its main frame is ready.
-    /// Cancellation is the caller's deadline mechanism; the session itself
-    /// uses only Chromium lifecycle signals and never polls or sleeps.
+    /// Cancellation is the caller's deadline mechanism. CDP uses Chromium
+    /// lifecycle signals; OWL uses its bounded readiness monitor.
     ///
     /// - Throws: Cancellation, renderer failure, or a navigation stream error.
     public func waitForDocumentReady() async throws {
@@ -204,6 +220,116 @@ extension ChromiumBrowserSession {
             }
         }
         throw CDPError.disconnected(ChromiumBrowserDiagnostic.navigationStreamEnded.message)
+    }
+
+    func beginOwlNavigation(_ intent: OwlNavigationIntent) {
+        owlNavigationIntent = intent
+        owlNavigationSawLoadingEvent = false
+        isLoading = true
+        publish()
+    }
+
+    func failOwlNavigation() {
+        owlNavigationReadinessTask?.cancel()
+        owlNavigationReadinessTask = nil
+        owlNavigationIntent = nil
+        owlNavigationSawLoadingEvent = false
+        failNavigation()
+    }
+
+    func completeOwlNoOpNavigation() {
+        owlNavigationIntent = nil
+        owlNavigationSawLoadingEvent = false
+        isLoading = false
+        navigationRevision &+= 1
+        publish()
+    }
+
+    func owlNavigationTargetMatches(
+        _ intent: OwlNavigationIntent,
+        eventURL: URL?
+    ) -> Bool {
+        guard let expectedURL = intent.expectedURL else { return true }
+        return Self.matches(url: eventURL, target: expectedURL)
+    }
+
+    func commitOwlNavigation(_ intent: OwlNavigationIntent, eventURL: URL?) {
+        let committedURL = eventURL ?? intent.expectedURL
+        if let committedURL {
+            switch intent {
+            case .destination:
+                owlHistory?.commitDestination(committedURL)
+            case .back, .forward:
+                owlHistory?.commitTraversal(to: committedURL)
+            case .reload:
+                owlHistory?.commitReload()
+            }
+            currentURL = committedURL
+            syncOwlHistorySnapshot()
+        }
+        owlNavigationIntent = nil
+        owlNavigationSawLoadingEvent = false
+        isLoading = false
+        navigationRevision &+= 1
+        owlNavigationReadinessTask?.cancel()
+        owlNavigationReadinessTask = nil
+    }
+
+    func syncOwlHistorySnapshot() {
+        guard let owlHistory else { return }
+        canGoBack = owlHistory.canGoBack
+        canGoForward = owlHistory.canGoForward
+        backHistoryURLs = owlHistory.backURLs
+        forwardHistoryURLs = owlHistory.forwardURLs
+    }
+
+    /// Starts the readiness fallback for the OWL ABI, whose current release
+    /// reports the start edge but has no load-complete callback. The monitor
+    /// requires the operation's expected URL and a complete document before it
+    /// commits, so stale title updates cannot satisfy automation waits.
+    func startOwlNavigationReadinessMonitor() {
+        owlNavigationReadinessTask?.cancel()
+        guard owlRuntime != nil else { return }
+        let generation = lifecycleGeneration
+        owlNavigationReadinessTask = Task.detached(priority: .userInitiated) { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(50))
+                guard !Task.isCancelled, let self else { return }
+                let result = await self.readOwlReadiness(generation: generation)
+                guard !Task.isCancelled, result else { continue }
+                return
+            }
+        }
+    }
+
+    private func owlNavigationReadinessMatches(
+        _ intent: OwlNavigationIntent,
+        object: [String: Any]
+    ) -> Bool {
+        guard case .reload = intent else { return true }
+        return object["navigationType"] as? String == "reload"
+    }
+
+    private func readOwlReadiness(generation: UInt64) -> Bool {
+        guard lifecycleGeneration == generation,
+              let runtime = owlRuntime,
+              let intent = owlNavigationIntent else { return true }
+        let script = "({href: String(location.href || ''), readyState: String(document.readyState || ''), title: String(document.title || ''), navigationType: String((performance.getEntriesByType('navigation')[0] || {}).type || '')})"
+        guard let raw = try? runtime.evaluate(script),
+              let data = raw.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let href = object["href"] as? String,
+              let readyState = object["readyState"] as? String,
+              readyState == "complete",
+              let eventURL = URL(string: href),
+              owlNavigationTargetMatches(intent, eventURL: eventURL),
+              owlNavigationReadinessMatches(intent, object: object) else {
+            return false
+        }
+        if let title = object["title"] as? String, !title.isEmpty { self.title = title }
+        commitOwlNavigation(intent, eventURL: eventURL)
+        publish()
+        return true
     }
 
     /// Clears the optimistic loading marker when a navigation command fails

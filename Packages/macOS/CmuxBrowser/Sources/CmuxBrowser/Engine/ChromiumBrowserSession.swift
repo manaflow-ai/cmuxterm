@@ -32,6 +32,10 @@ public actor ChromiumBrowserSession {
     /// Native OWL Mojo transport used by the Content Shell runtime.
     var owlRuntime: OwlFreshRuntime?
     var owlPollTask: Task<Void, Never>?
+    var owlNavigationReadinessTask: Task<Void, Never>?
+    var owlHistory: OwlNavigationHistoryState?
+    var owlNavigationIntent: OwlNavigationIntent?
+    var owlNavigationSawLoadingEvent = false
     var nativeSurfaceContextID: UInt32?
     var connection: ChromiumCDPConnection?
     var state: ChromiumSessionState = .stopped
@@ -128,7 +132,12 @@ public actor ChromiumBrowserSession {
         startupTask?.cancel()
         screencastUpdateTask?.cancel()
         owlPollTask?.cancel()
+        owlNavigationReadinessTask?.cancel()
+        owlNavigationReadinessTask = nil
         owlRuntime = nil
+        owlHistory = nil
+        owlNavigationIntent = nil
+        owlNavigationSawLoadingEvent = false
         for child in pendingProcesses.values {
             child.terminate()
         }
@@ -363,7 +372,14 @@ public actor ChromiumBrowserSession {
         owlRuntime = runtime
         nativeSurfaceContextID = nil
         state = .running(nil)
-        isLoading = true
+        // The Content Shell is created with this initial document. A later
+        // adapter-provided initial URL goes through the normal OWL navigation
+        // operation and readiness monitor.
+        isLoading = false
+        owlHistory = OwlNavigationHistoryState(initialURL: initialURL)
+        owlNavigationIntent = nil
+        owlNavigationSawLoadingEvent = false
+        syncOwlHistorySnapshot()
         publish()
         owlPollTask = Task.detached(priority: .userInitiated) { [runtime] in
             while !Task.isCancelled {
@@ -378,13 +394,43 @@ public actor ChromiumBrowserSession {
         case 3, 6:
             if event.contextID != 0 { nativeSurfaceContextID = event.contextID }
         case 4:
-            if let rawURL = event.url, let url = URL(string: rawURL) { currentURL = url }
-            title = event.title
-            isLoading = event.loading
-            navigationRevision &+= 1
+            let eventURL = event.url.flatMap(URL.init(string:))
+            if let eventTitle = event.title, !eventTitle.isEmpty {
+                title = eventTitle
+            }
+            if event.loading {
+                // OWL emits this edge synchronously from Navigate. It is also
+                // the guard that prevents a stale title-only event from
+                // completing a newer operation.
+                owlNavigationSawLoadingEvent = true
+                isLoading = true
+                if owlNavigationIntent == nil, let eventURL, !Self.matches(url: currentURL, target: eventURL) {
+                    owlNavigationIntent = .destination(eventURL)
+                }
+            } else if let intent = owlNavigationIntent,
+                      OwlNavigationCompletionPredicate.accepts(
+                          loading: false,
+                          sawLoadingEvent: owlNavigationSawLoadingEvent,
+                          targetMatches: owlNavigationTargetMatches(intent, eventURL: eventURL)
+                      ) {
+                commitOwlNavigation(intent, eventURL: eventURL)
+            } else if owlNavigationIntent == nil, let eventURL,
+                      !Self.matches(url: currentURL, target: eventURL) {
+                // Accommodate a renderer-side same-document or restored
+                // navigation that was not initiated by cmux.
+                currentURL = eventURL
+                owlHistory?.commitDestination(eventURL)
+                syncOwlHistorySnapshot()
+                isLoading = false
+                navigationRevision &+= 1
+            }
         case 5:
+            owlNavigationReadinessTask?.cancel()
+            owlNavigationReadinessTask = nil
             state = .crashed(-1)
             isLoading = false
+            owlNavigationIntent = nil
+            owlNavigationSawLoadingEvent = false
         default:
             break
         }
@@ -400,7 +446,12 @@ public actor ChromiumBrowserSession {
         startupTask = nil
         owlPollTask?.cancel()
         owlPollTask = nil
+        owlNavigationReadinessTask?.cancel()
+        owlNavigationReadinessTask = nil
         owlRuntime = nil
+        owlHistory = nil
+        owlNavigationIntent = nil
+        owlNavigationSawLoadingEvent = false
         nativeSurfaceContextID = nil
         let connectionToClose = connection
         connectionToClose?.close()

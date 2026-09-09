@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 /// JSON values used by the Chrome DevTools Protocol wire format.
 public enum CDPValue: Codable, Equatable, Sendable {
@@ -69,10 +70,17 @@ public enum CDPValue: Codable, Equatable, Sendable {
         switch value {
         case is NSNull:
             self = .null
+        case let value as NSNumber:
+            // Swift bridges JSON numbers and JSON booleans through NSNumber.
+            // Inspect the CoreFoundation type before reading boolValue so a
+            // numeric 0/1 remains a CDP number instead of becoming false/true.
+            if CFGetTypeID(value) == CFBooleanGetTypeID() {
+                self = .bool(value.boolValue)
+            } else {
+                self = .number(value.doubleValue)
+            }
         case let value as Bool:
             self = .bool(value)
-        case let value as NSNumber:
-            self = .number(value.doubleValue)
         case let value as String:
             self = .string(value)
         case let value as [Any]:

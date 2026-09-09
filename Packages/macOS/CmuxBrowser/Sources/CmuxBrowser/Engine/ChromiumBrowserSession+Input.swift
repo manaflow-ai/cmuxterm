@@ -111,7 +111,7 @@ extension ChromiumBrowserSession {
         deltaY: Double = 0
     ) async throws {
         if let owlRuntime {
-            let kind: UInt32 = type == "mouseWheel" ? 2 : (type == "mouseMoved" ? 0 : (type == "mousePressed" ? 1 : 2))
+            let kind = OwlFreshMouseKind(cdpType: type).rawValue
             let buttonValue: UInt32 = button == "right" ? 2 : (button == "middle" ? 1 : 0)
             try owlRuntime.mouse(kind: kind, x: x, y: y, button: buttonValue, clickCount: UInt32(max(1, clickCount)), deltaX: deltaX, deltaY: deltaY, modifiers: 0)
             return
