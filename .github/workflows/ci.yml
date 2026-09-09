@@ -1761,6 +1761,7 @@ jobs:
             CmuxMobileTerminalKit
             CmuxMobileWorkspace
             CmuxNotifications
+            CmuxReadAloud
             CmuxSettings
             CmuxSettingsUI
             CmuxTerminal

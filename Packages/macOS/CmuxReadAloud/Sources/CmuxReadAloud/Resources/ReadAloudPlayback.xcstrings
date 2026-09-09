@@ -1,0 +1,381 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "readAloud.playback.configurationRequired": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Read Aloud settings to add your MiniMax API key and allow selected text to be sent to MiniMax."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読み上げ設定を開き、MiniMax API キーを追加して、選択したテキストの MiniMax への送信を許可してください。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "افتح إعدادات القراءة بصوت عالٍ لإضافة مفتاح API الخاص بك لخدمة MiniMax والسماح بإرسال النص المحدد إلى MiniMax."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvorite postavke čitanja naglas da dodate svoj MiniMax API ključ i dozvolite slanje odabranog teksta usluzi MiniMax."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Åbn indstillingerne for Læs op for at tilføje din MiniMax-API-nøgle og tillade, at markeret tekst sendes til MiniMax."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffnen Sie die Einstellungen für „Vorlesen“, um Ihren MiniMax-API-Schlüssel hinzuzufügen und das Senden von ausgewähltem Text an MiniMax zu erlauben."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre los ajustes de Leer en voz alta para añadir tu clave de API de MiniMax y permitir que se envíe el texto seleccionado a MiniMax."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrez les réglages de lecture à voix haute pour ajouter votre clé API MiniMax et autoriser l’envoi du texte sélectionné à MiniMax."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri le impostazioni di Leggi ad alta voce per aggiungere la tua chiave API MiniMax e consentire l'invio del testo selezionato a MiniMax."
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "បើកការកំណត់អានឮៗ ដើម្បីបន្ថែមសោ API របស់ MiniMax របស់អ្នក និងអនុញ្ញាតឱ្យផ្ញើអត្ថបទដែលបានជ្រើសរើសទៅ MiniMax។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "소리 내어 읽기 설정을 열어 MiniMax API 키를 추가하고 선택한 텍스트를 MiniMax로 전송하도록 허용하세요."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Åpne innstillingene for Les høyt for å legge til MiniMax API-nøkkelen din og tillate at markert tekst sendes til MiniMax."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otwórz ustawienia funkcji Czytaj na głos, aby dodać klucz API MiniMax i zezwolić na wysyłanie zaznaczonego tekstu do MiniMax."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abra os ajustes de Ler em voz alta para adicionar sua chave de API da MiniMax e permitir o envio do texto selecionado à MiniMax."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Откройте настройки чтения вслух, чтобы добавить API-ключ MiniMax и разрешить отправку выделенного текста в MiniMax."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เปิดการตั้งค่าการอ่านออกเสียงเพื่อเพิ่มคีย์ API ของ MiniMax และอนุญาตให้ส่งข้อความที่เลือกไปยัง MiniMax"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax API anahtarınızı eklemek ve seçili metnin MiniMax’e gönderilmesine izin vermek için Sesli Oku ayarlarını açın."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкрийте налаштування «Читати вголос», щоб додати свій API-ключ MiniMax і дозволити надсилання вибраного тексту до MiniMax."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请打开朗读设置，添加你的 MiniMax API 密钥，并允许将所选文本发送至 MiniMax。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請開啟「朗讀」設定，加入您的 MiniMax API 金鑰，並允許將所選文字傳送至 MiniMax。"
+          }
+        }
+      }
+    },
+    "readAloud.playback.incompleteSample": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The speech service returned incomplete audio. Please try again."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音声サービスから不完全な音声が返されました。もう一度お試しください。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أعادت خدمة تحويل النص إلى كلام صوتًا غير مكتمل. يُرجى المحاولة مجددًا."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usluga za govor vratila je nepotpun audio. Pokušajte ponovo."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taletjenesten returnerede ufuldstændig lyd. Prøv igen."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Sprachausgabedienst hat unvollständige Audiodaten zurückgegeben. Bitte versuchen Sie es erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servicio de síntesis de voz ha devuelto un audio incompleto. Inténtalo de nuevo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le service de synthèse vocale a renvoyé un contenu audio incomplet. Veuillez réessayer."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il servizio di sintesi vocale ha restituito un audio incompleto. Riprova."
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "សេវាសំឡេងអានបានត្រឡប់សំឡេងមិនពេញលេញ។ សូមព្យាយាមម្ដងទៀត។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "음성 서비스에서 불완전한 오디오를 반환했습니다. 다시 시도하세요."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taletjenesten returnerte ufullstendig lyd. Prøv igjen."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usługa generowania mowy zwróciła niekompletne dane audio. Spróbuj ponownie."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O serviço de fala retornou um áudio incompleto. Tente novamente."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Служба синтеза речи вернула неполные аудиоданные. Повторите попытку."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "บริการเสียงพูดส่งข้อมูลเสียงกลับมาไม่ครบถ้วน โปรดลองอีกครั้ง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konuşma hizmeti eksik ses döndürdü. Lütfen tekrar deneyin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Служба синтезу мовлення повернула неповне аудіо. Спробуйте ще раз."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语音服务返回了不完整的音频。请重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語音服務傳回的音訊不完整。請再試一次。"
+          }
+        }
+      }
+    },
+    "readAloud.playback.outputUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio output is unavailable. Check your sound output device and try again."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音声を出力できません。サウンドの出力装置を確認して、もう一度お試しください。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إخراج الصوت غير متاح. تحقّق من جهاز إخراج الصوت وحاول مجددًا."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio izlaz nije dostupan. Provjerite uređaj za izlaz zvuka i pokušajte ponovo."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lydoutput er ikke tilgængeligt. Kontrollér din lydoutputenhed, og prøv igen."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Audioausgabe ist nicht verfügbar. Überprüfen Sie Ihr Audioausgabegerät und versuchen Sie es erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La salida de audio no está disponible. Comprueba el dispositivo de salida de sonido e inténtalo de nuevo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La sortie audio est indisponible. Vérifiez votre périphérique de sortie audio et réessayez."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L'uscita audio non è disponibile. Controlla il dispositivo di uscita audio e riprova."
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "មិនអាចបញ្ចេញសំឡេងបានទេ។ សូមពិនិត្យឧបករណ៍បញ្ចេញសំឡេងរបស់អ្នក ហើយព្យាយាមម្ដងទៀត។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오디오 출력을 사용할 수 없습니다. 사운드 출력 장치를 확인하고 다시 시도하세요."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lydutgang er utilgjengelig. Kontroller lydutgangsenheten og prøv igjen."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wyjście audio jest niedostępne. Sprawdź urządzenie wyjściowe dźwięku i spróbuj ponownie."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A saída de áudio está indisponível. Verifique seu dispositivo de saída de som e tente novamente."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аудиовыход недоступен. Проверьте устройство вывода звука и повторите попытку."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่สามารถส่งเสียงออกได้ ตรวจสอบอุปกรณ์ส่งเสียงออกของคุณแล้วลองอีกครั้ง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses çıkışı kullanılamıyor. Ses çıkış aygıtınızı kontrol edip tekrar deneyin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Виведення аудіо недоступне. Перевірте пристрій виведення звуку та спробуйте ще раз."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音频输出不可用。请检查声音输出设备后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音訊輸出無法使用。請檢查您的聲音輸出裝置，然後再試一次。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

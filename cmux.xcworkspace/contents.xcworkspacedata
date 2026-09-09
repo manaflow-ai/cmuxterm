@@ -184,6 +184,9 @@
          location = "group:CMUXProjectModel">
       </FileRef>
       <FileRef
+         location = "group:CmuxReadAloud">
+      </FileRef>
+      <FileRef
          location = "group:CmuxRemoteDaemon">
       </FileRef>
       <FileRef
