@@ -869,7 +869,8 @@ extension Workspace {
     func cancelDeferredAgentResumeRestore(
         panelId: UUID,
         restore: DeferredAgentResumeRestore,
-        startRuntime: Bool = true
+        startRuntime: Bool = true,
+        retireBinding: Bool = true
     ) {
         if startRuntime {
             (panels[panelId] as? TerminalPanel)?.surface.cancelStartupRestoreAdmission()
@@ -878,7 +879,7 @@ extension Workspace {
             restoredAgentLifecycle.clearSessionRestore(panelId: panelId)
         }
         removeDeferredAgentResumeRestore(panelId: panelId)
-        if startRuntime, restore.restorableAgent == nil {
+        if startRuntime, retireBinding, restore.restorableAgent == nil {
             if let binding = restore.resumeBinding {
                 retireAgentHookResumeBinding(panelId: panelId, matching: binding)
             }
@@ -1022,7 +1023,10 @@ extension Workspace {
         deferredAgentResumeRestoresByPanelId.removeAll()
     }
 
-    func clearDeferredAgentResumeRestores(startRuntime: Bool = true) {
+    func clearDeferredAgentResumeRestores(
+        startRuntime: Bool = true,
+        retireBindings: Bool = true
+    ) {
         deferredAgentResumeIndexTask?.cancel()
         deferredAgentResumeIndexTask = nil
         let panelIds = Set(
@@ -1034,7 +1038,8 @@ extension Workspace {
                 cancelDeferredAgentResumeRestore(
                     panelId: panelId,
                     restore: restore,
-                    startRuntime: startRuntime
+                    startRuntime: startRuntime,
+                    retireBinding: retireBindings
                 )
             } else {
                 if startRuntime {
@@ -1047,6 +1052,16 @@ extension Workspace {
             }
         }
         deferredAgentResumeRestoresByPanelId.removeAll()
+    }
+
+    /// Uses the most recent completed index when a refresh could not settle.
+    /// A missing refreshed index means the scan was inconclusive, not that the
+    /// previously loaded session index is stale.
+    nonisolated static func deferredResumeIndex(
+        refreshed: RestorableAgentSessionIndex?,
+        lastKnown: RestorableAgentSessionIndex?
+    ) -> RestorableAgentSessionIndex? {
+        refreshed ?? lastKnown
     }
 
     func agentHibernationLifecycleState(
