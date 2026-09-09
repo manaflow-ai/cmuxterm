@@ -139,7 +139,8 @@ extension DockSplitStore {
             snapshot: detached.restorableAgent,
             resumeState: detached.restorableAgentResumeState,
             completedGeneration: detached.restoredAgentCompletedGeneration,
-            resumeWorkingDirectory: detached.restoredResumeSessionWorkingDirectory
+            resumeWorkingDirectory: detached.restoredResumeSessionWorkingDirectory,
+            startupInput: detached.restoredStartupInput
         )
         if detached.shellActivityState == .promptIdle {
             scheduleRestoredStartupInputResend(panelId: detached.panelId)

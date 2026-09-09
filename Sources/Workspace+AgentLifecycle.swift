@@ -552,8 +552,12 @@ extension Workspace {
             snapshot: detached.restorableAgent,
             resumeState: detached.restorableAgentResumeState,
             completedGeneration: detached.restoredAgentCompletedGeneration,
-            resumeWorkingDirectory: detached.restoredResumeSessionWorkingDirectory
+            resumeWorkingDirectory: detached.restoredResumeSessionWorkingDirectory,
+            startupInput: detached.restoredStartupInput
         )
+        if detached.shellActivityState == .promptIdle {
+            scheduleRestoredStartupInputResend(panelId: detached.panelId)
+        }
         if let deferredRestore = detached.deferredAgentResumeRestore {
             let adoptedRemoteContext = surfaceResumeBindingsByPanelId[detached.panelId]?
                 .launchFlavor.remoteContext
@@ -741,7 +745,7 @@ extension Workspace {
                     terminal: terminal,
                     noticeInput: AgentRestoreLiveOwnerNotice(
                         processID: liveSessionOwner.processID
-                    ).startupInput(dialect: restore.noticeDialect)
+            ).startupInput(dialect: restore.noticeDialect)
                 )
                 AgentRestoreSuppressionJournal().record(
                     kind: liveSessionOwner.kind,

@@ -214,7 +214,7 @@ struct AgentRestoreLiveOwnerAdmissionTests {
                 fixture.index.snapshot(
                     workspaceId: fixture.ownerWorkspaceID,
                     panelId: fixture.ownerSurfaceID
-                )?.launchCommand.arguments
+                )?.launchCommand?.arguments
             )
             let argv = try #require(AgentResumeArgv().builtInKind(
                 kind: "amp",
