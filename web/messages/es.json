@@ -1095,6 +1095,7 @@
           "soundOverride": "Una anulación del sonido de notificación. default usa notifications.sound, none desactiva la reproducción y los demás valores seleccionan un sonido integrado o personalizado."
         },
         "browser": {
+          "engine": "Motor/entorno de ejecución del navegador para comandos del navegador e interceptación de enlaces. webkit se ejecuta dentro de cmux; systemDefault abre en el navegador predeterminado de macOS.",
           "defaultSearchEngine": "Motor de búsqueda predeterminado para consultas de la barra de direcciones del navegador que no son URL. Usa custom con customSearchEngineURLTemplate para otros proveedores.",
           "customSearchEngineName": "Nombre visible usado cuando defaultSearchEngine es custom.",
           "customSearchEngineURLTemplate": "URL de búsqueda usada cuando defaultSearchEngine es custom. Incluye el marcador de consulta o %s para la consulta codificada. Si no hay marcador, cmux añade q= a la URL.",

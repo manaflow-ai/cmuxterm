@@ -14,6 +14,7 @@ struct SettingsSearchIndexTests {
         assertSearch("vscode", contains: SettingsSearchIndex.settingID(for: .app, idSuffix: "preferred-editor"))
         assertSearch("cmd q", contains: SettingsSearchIndex.settingID(for: .app, idSuffix: "warn-before-quit"))
         assertSearch("sound file", contains: SettingsSearchIndex.settingID(for: .app, idSuffix: "notification-sound"))
+        assertSearch("chromium browser engine", contains: SettingsSearchIndex.settingID(for: .browser, idSuffix: "engine"))
         assertSearch("disable browser", contains: SettingsSearchIndex.settingID(for: .browser, idSuffix: "enable-browser"))
         assertSearch("default browser zoom", contains: SettingsSearchIndex.settingID(for: .browser, idSuffix: "default-zoom-level"))
         assertSearch("http allowlist", contains: SettingsSearchIndex.settingID(for: .browser, idSuffix: "http-allowlist"))

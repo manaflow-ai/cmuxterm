@@ -1095,6 +1095,7 @@
           "soundOverride": "Bir bildirim sesi geçersiz kılması. default, notifications.sound kullanır; none oynatmayı devre dışı bırakır; diğer değerler yerleşik veya özel bir ses seçer."
         },
         "browser": {
+          "engine": "Tarayıcı komutları ve bağlantı yakalama için tarayıcı motoru/çalışma zamanı. webkit cmux içinde çalışır; systemDefault macOS varsayılan tarayıcısında açar.",
           "defaultSearchEngine": "Tarayıcı adres çubuğundaki URL olmayan sorgular için varsayılan arama motoru. Diğer sağlayıcılar için custom ile customSearchEngineURLTemplate kullanın.",
           "customSearchEngineName": "defaultSearchEngine custom olduğunda kullanılan görünen ad.",
           "customSearchEngineURLTemplate": "defaultSearchEngine custom olduğunda kullanılan arama URL’si. Kodlanmış sorgu için sorgu yer tutucusunu veya %s ekleyin. Yer tutucu yoksa cmux URL’ye q= ekler.",

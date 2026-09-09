@@ -573,8 +573,79 @@ enum BrowserLinkOpenSettings {
 
 }
 
+enum BrowserEngineSettings {
+    static let engineKey = "browserEngine"
+    static let legacyDisabledKey = "browserDisabledOverride"
+    static let didInitializeKey = "browserEngineDidInitialize"
+    static let didChangeNotification = Notification.Name("cmux.browserEngineDidChange")
+    static let defaultEngine: BrowserEngine = .webKit
+
+    static func engine(for rawValue: String?) -> BrowserEngine? {
+        guard let rawValue else { return nil }
+        return BrowserEngine(rawValue: rawValue)
+    }
+
+    static func resolvedEngine(defaults: UserDefaults = .standard) -> BrowserEngine {
+        if let rawEngine = defaults.string(forKey: engineKey),
+           let engine = engine(for: rawEngine) {
+            return engine
+        }
+        if shouldMigrateLegacyEngine(defaults: defaults),
+           let migratedEngine = legacyEngine(defaults: defaults) {
+            return migratedEngine
+        }
+        return defaultEngine
+    }
+
+    static func currentEngine(defaults: UserDefaults = .standard) -> BrowserEngine {
+        if let rawEngine = defaults.string(forKey: engineKey) {
+            if let engine = engine(for: rawEngine) {
+                defaults.set(true, forKey: didInitializeKey)
+                mirrorLegacyDisabledIfNeeded(engine, defaults: defaults)
+                return engine
+            }
+            let repairedEngine = shouldMigrateLegacyEngine(defaults: defaults)
+                ? legacyEngine(defaults: defaults) ?? defaultEngine
+                : defaultEngine
+            setCurrentEngine(repairedEngine, defaults: defaults)
+            return repairedEngine
+        }
+        if shouldMigrateLegacyEngine(defaults: defaults),
+           let migratedEngine = legacyEngine(defaults: defaults) {
+            setCurrentEngine(migratedEngine, defaults: defaults)
+            return migratedEngine
+        }
+        setCurrentEngine(defaultEngine, defaults: defaults)
+        return defaultEngine
+    }
+
+    static func setCurrentEngine(_ engine: BrowserEngine, defaults: UserDefaults = .standard) {
+        defaults.set(engine.rawValue, forKey: engineKey)
+        defaults.set(true, forKey: didInitializeKey)
+        mirrorLegacyDisabledIfNeeded(engine, defaults: defaults)
+        NotificationCenter.default.post(name: didChangeNotification, object: nil)
+        NotificationCenter.default.post(name: BrowserAvailabilitySettings.didChangeNotification, object: nil)
+    }
+
+    private static func mirrorLegacyDisabledIfNeeded(_ engine: BrowserEngine, defaults: UserDefaults) {
+        let disabled = !engine.usesEmbeddedBrowser
+        if defaults.object(forKey: legacyDisabledKey) == nil || defaults.bool(forKey: legacyDisabledKey) != disabled {
+            defaults.set(disabled, forKey: legacyDisabledKey)
+        }
+    }
+
+    private static func legacyEngine(defaults: UserDefaults) -> BrowserEngine? {
+        guard defaults.object(forKey: legacyDisabledKey) != nil else { return nil }
+        return defaults.bool(forKey: legacyDisabledKey) ? .systemDefault : .webKit
+    }
+
+    private static func shouldMigrateLegacyEngine(defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: didInitializeKey) == nil
+    }
+}
+
 enum BrowserAvailabilitySettings {
-    static let disabledKey = "browserDisabledOverride"
+    static let disabledKey = BrowserEngineSettings.legacyDisabledKey
     static let didChangeNotification = Notification.Name("cmux.browserAvailabilityDidChange")
     static let defaultDisabled = false
 
@@ -584,11 +655,7 @@ enum BrowserAvailabilitySettings {
         if isManagedByPolicy {
             return true
         }
-        // No synchronize() on read: it forces a blocking prefs-plist reload on a path hit from link-open/pane-create; UserDefaults stays coherent in-process and via cfprefsd.
-        if defaults.object(forKey: disabledKey) == nil {
-            return defaultDisabled
-        }
-        return defaults.bool(forKey: disabledKey)
+        return !BrowserEngineSettings.resolvedEngine(defaults: defaults).usesEmbeddedBrowser
     }
 
     static func isEnabled(defaults: UserDefaults = .standard) -> Bool {
@@ -596,9 +663,7 @@ enum BrowserAvailabilitySettings {
     }
 
     static func setDisabled(_ disabled: Bool, defaults: UserDefaults = .standard) {
-        // `set` already persists; `synchronize()` is a deprecated no-op-style fsync.
-        defaults.set(disabled, forKey: disabledKey)
-        NotificationCenter.default.post(name: didChangeNotification, object: nil)
+        BrowserEngineSettings.setCurrentEngine(disabled ? .systemDefault : .webKit, defaults: defaults)
     }
 }
 

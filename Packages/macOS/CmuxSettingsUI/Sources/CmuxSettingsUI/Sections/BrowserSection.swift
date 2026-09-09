@@ -17,7 +17,7 @@ public struct BrowserSection: View {
     private let hostActions: SettingsHostActions
     private let importAnchorID: String?
 
-    @State private var disabled: DefaultsValueModel<Bool>
+    @State private var browserEngine: DefaultsValueModel<BrowserEngine>
     @State private var engine: DefaultsValueModel<BrowserSearchEngine>
     @State private var customName: DefaultsValueModel<String>
     @State private var customURL: DefaultsValueModel<String>
@@ -64,7 +64,7 @@ public struct BrowserSection: View {
         self.catalog = catalog
         self.hostActions = hostActions
         self.importAnchorID = importAnchorID
-        _disabled = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.browser.disabled))
+        _browserEngine = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.browser.engine))
         _engine = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.browser.defaultSearchEngine))
         _customName = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.browser.customSearchEngineName))
         _customURL = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.browser.customSearchEngineURLTemplate))
@@ -103,7 +103,7 @@ public struct BrowserSection: View {
             Button(String(localized: "settings.browser.history.clearDialog.cancel", defaultValue: "Cancel"), role: .cancel) {}
         } message: {
             Text(String(localized: "settings.browser.history.clearDialog.message", defaultValue: "This removes visited-page suggestions from the browser omnibar."))
-        }.task { startSettingsObservation([disabled, engine, customName, customURL, suggestions, theme, defaultZoom, discardEnabled, discardDelay, askWhereToSaveDownloads, openTermLinks, interceptOpen, hosts, external, httpAllowlist, urlAllowlist, importHint, reactGrab]) }
+        }.task { startSettingsObservation([browserEngine, engine, customName, customURL, suggestions, theme, defaultZoom, discardEnabled, discardDelay, askWhereToSaveDownloads, openTermLinks, interceptOpen, hosts, external, httpAllowlist, urlAllowlist, importHint, reactGrab]) }
         .task {
             for await _ in ManagedDevicePolicy.changeSignals() {
                 browserManagedByPolicy = ManagedDevicePolicy().isBrowserDisableLocked(
@@ -134,7 +134,7 @@ public struct BrowserSection: View {
                 String(localized: "settings.browser.enabled", defaultValue: "Enable cmux Browser"),
                 subtitle: browserManagedByPolicy
                     ? String(localized: "settings.managedByOrganization", defaultValue: "Managed by your organization")
-                    : !disabled.current
+                    : browserEngine.current.usesEmbeddedBrowser
                     ? String(localized: "settings.browser.enabled.subtitleOn", defaultValue: "Browser tabs, terminal link clicks, and intercepted open commands can use the embedded browser.")
                     : String(localized: "settings.browser.enabled.subtitleOff", defaultValue: "Browser tabs and link interception are disabled. Links open in your default browser.")
             ) {
@@ -142,12 +142,34 @@ public struct BrowserSection: View {
                     "",
                     isOn: browserManagedByPolicy
                         ? .constant(false)
-                        : Binding(get: { !disabled.current }, set: { disabled.set(!$0) })
+                        : Binding(
+                            get: { browserEngine.current.usesEmbeddedBrowser },
+                            set: { setBrowserEngine($0 ? .webKit : .systemDefault) }
+                        )
                 )
                     .labelsHidden()
                     .controlSize(.small)
                     .disabled(browserManagedByPolicy)
                     .accessibilityIdentifier("BrowserEnabledToggle")
+            }
+            SettingsCardDivider()
+
+            SettingsCardRow(
+                configurationReview: .json("browser.engine"),
+                searchAnchorID: "setting:browser:engine",
+                String(localized: "settings.browser.runtimeEngine", defaultValue: "Browser Engine"),
+                subtitle: browserEngineSubtitle(displayedBrowserEngine),
+                controlWidth: Self.columnWidth
+            ) {
+                Picker("", selection: Binding(get: { displayedBrowserEngine }, set: { setBrowserEngine($0) })) {
+                    ForEach(BrowserEngine.allCases, id: \.self) { value in
+                        Text(browserEngineLabel(value)).tag(value)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .disabled(browserManagedByPolicy)
+                .accessibilityIdentifier("SettingsBrowserEnginePicker")
             }
             SettingsCardDivider()
 
@@ -719,6 +741,40 @@ public struct BrowserSection: View {
         }
         let name = themeDisplayName(mode)
         return String(localized: "settings.browser.theme.subtitleForced", defaultValue: "\(name) forces that color scheme for compatible pages.")
+    }
+
+    private func setBrowserEngine(_ value: BrowserEngine) {
+        browserEngine.set(value) { @MainActor [hostActions] in
+            _ = hostActions.setBrowserEngine(value.rawValue)
+        }
+    }
+
+    private var displayedBrowserEngine: BrowserEngine {
+        browserManagedByPolicy ? .systemDefault : browserEngine.current
+    }
+
+    private func browserEngineLabel(_ engine: BrowserEngine) -> String {
+        switch engine {
+        case .webKit:
+            return String(localized: "browser.runtimeEngine.webkit", defaultValue: "WebKit (Embedded)")
+        case .systemDefault:
+            return String(localized: "browser.runtimeEngine.systemDefault", defaultValue: "Default Browser")
+        }
+    }
+
+    private func browserEngineSubtitle(_ engine: BrowserEngine) -> String {
+        switch engine {
+        case .webKit:
+            return String(
+                localized: "settings.browser.runtimeEngine.subtitle.webkit",
+                defaultValue: "WebKit runs inside cmux with automation, profiles, and imported browser data."
+            )
+        case .systemDefault:
+            return String(
+                localized: "settings.browser.runtimeEngine.subtitle.systemDefault",
+                defaultValue: "Tabs and intercepted links open in your macOS default browser, preserving its signed-in state."
+            )
+        }
     }
 
     private func themeDisplayName(_ mode: BrowserThemeMode) -> String {

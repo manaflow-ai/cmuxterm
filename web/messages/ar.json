@@ -1095,6 +1095,7 @@
           "soundOverride": "تجاوز لصوت الإشعار. يستخدم default قيمة notifications.sound، ويعطّل none التشغيل، وتختار القيم الأخرى صوتًا مدمجًا أو مخصصًا."
         },
         "browser": {
+          "engine": "محرك/بيئة تشغيل المتصفح لأوامر المتصفح واعتراض الروابط. يعمل webkit داخل cmux؛ ويفتح systemDefault في متصفح macOS الافتراضي.",
           "defaultSearchEngine": "محرك البحث الافتراضي لاستعلامات شريط عنوان المتصفح التي ليست عناوين URL. استخدم custom مع customSearchEngineURLTemplate لموفري بحث آخرين.",
           "customSearchEngineName": "اسم العرض المستخدم عندما تكون defaultSearchEngine هي custom.",
           "customSearchEngineURLTemplate": "عنوان URL للبحث عند استخدام custom. أدرج موضع الاستعلام أو %s لعبارة البحث المرمزة. عند عدم وجود موضع، يضيف cmux q= إلى العنوان.",

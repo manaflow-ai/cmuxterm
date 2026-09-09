@@ -109,6 +109,7 @@ struct SettingsSearchIndexTests {
         ("option as alt", "setting:app:terminal-config"),
         ("option", "setting:app:terminal-config"),
         ("environment variables", "setting:app:notification-command"),
+        ("chromium browser engine", "setting:browser:engine"),
     ])
     func searchesFindRealSettingsRows(query: String, expectedID: String) {
         let index = SettingsSearchIndex(catalog: SettingCatalog())
@@ -121,6 +122,7 @@ struct SettingsSearchIndexTests {
 
     @Test(arguments: [
         ("browser settings", [
+            "setting:browser:engine",
             "setting:browser:search-engine",
             "setting:browser:terminal-links",
             "setting:browser:http-allowlist",

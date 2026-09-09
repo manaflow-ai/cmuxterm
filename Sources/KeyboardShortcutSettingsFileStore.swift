@@ -931,6 +931,16 @@ final class CmuxSettingsFileStore {
     ) {
         let browserSearchSettings = BrowserSearchSettingsStore()
 
+        if section.keys.contains("engine") {
+            if let raw = jsonString(section["engine"]),
+               let engine = BrowserEngineSettings.engine(for: raw) {
+                snapshot.managedUserDefaults[BrowserEngineSettings.engineKey] = .string(engine.rawValue)
+                snapshot.managedUserDefaults[BrowserAvailabilitySettings.disabledKey] = .bool(!engine.usesEmbeddedBrowser)
+            } else {
+                logInvalid("browser.engine", sourcePath: sourcePath)
+            }
+        }
+
         if section.keys.contains("defaultZoomLevel") {
             if let rawZoom = jsonDouble(section["defaultZoomLevel"]), rawZoom.isFinite {
                 snapshot.managedUserDefaults[BrowserZoomSettings.userDefaultsKey] = .double(

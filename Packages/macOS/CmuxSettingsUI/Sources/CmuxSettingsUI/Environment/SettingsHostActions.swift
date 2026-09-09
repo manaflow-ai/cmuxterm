@@ -72,6 +72,10 @@ public protocol SettingsHostActions: AnyObject {
     /// Firefox source picker + profile selection + cookie prompt).
     func openBrowserImportFlow()
 
+    /// Applies the selected browser engine and its runtime compatibility mirror.
+    @discardableResult
+    func setBrowserEngine(_ engineRawValue: String) -> Bool
+
     /// Asks the OS for notification authorization. No-op if the user
     /// has already responded (granted or denied).
     func requestNotificationAuthorization()
@@ -493,6 +497,7 @@ public final class NoopSettingsHostActions: SettingsHostActions {
     public func openSystemNotificationSettings() {}
     public func restartApp() {}
     public func openBrowserImportFlow() {}
+    public func setBrowserEngine(_ engineRawValue: String) -> Bool { false }
     public func requestNotificationAuthorization() {}
     public func openTerminalConfigWindow() {}
     public func openMobilePairingWindow() {}

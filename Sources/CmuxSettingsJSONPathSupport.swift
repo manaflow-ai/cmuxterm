@@ -512,6 +512,7 @@ extension CmuxSettingsFileStore {
         "automation.kiroNotificationLevel",
         "automation.portBase",
         "automation.portRange",
+        "browser.engine",
         "browser.defaultSearchEngine",
         "browser.defaultZoomLevel",
         "browser.customSearchEngineName",

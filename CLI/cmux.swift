@@ -4757,6 +4757,10 @@ struct CMUXCLI {
     }
 
     private static let browserDisabledDefaultsKey = "browserDisabledOverride"
+    private static let browserEngineDefaultsKey = "browserEngine"
+    private static let browserEngineDidInitializeDefaultsKey = "browserEngineDidInitialize"
+    private static let browserEngineWebKitValue = "webkit"
+    private static let browserEngineSystemDefaultValue = "systemDefault"
     private static let defaultBrowserSettingsDomain = "com.cmuxterm.app"
     /// The shared MDM resolver, bound to the target `domain`'s suite with the
     /// channel → release-domain fallback keyed off that domain.
@@ -4866,12 +4870,16 @@ struct CMUXCLI {
             guard !managedByProfile else {
                 throw CLIError(message: "Browser availability is managed by your organization (MDM policy for domain \(domain)); it cannot be changed from the CLI.")
             }
+            defaults.set(Self.browserEngineSystemDefaultValue, forKey: Self.browserEngineDefaultsKey)
+            defaults.set(true, forKey: Self.browserEngineDidInitializeDefaultsKey)
             defaults.set(true, forKey: Self.browserDisabledDefaultsKey)
             defaults.synchronize()
         case "enable", "enable-browser":
             guard !managedByProfile else {
                 throw CLIError(message: "Browser availability is managed by your organization (MDM policy for domain \(domain)); it cannot be changed from the CLI.")
             }
+            defaults.set(Self.browserEngineWebKitValue, forKey: Self.browserEngineDefaultsKey)
+            defaults.set(true, forKey: Self.browserEngineDidInitializeDefaultsKey)
             defaults.set(false, forKey: Self.browserDisabledDefaultsKey)
             defaults.synchronize()
         case "status", "browser-status":
@@ -4880,18 +4888,29 @@ struct CMUXCLI {
             throw CLIError(message: "Unknown browser availability command: \(action)")
         }
 
-        let storedDisabled = defaults.object(forKey: Self.browserDisabledDefaultsKey) == nil
-            ? false
-            : defaults.bool(forKey: Self.browserDisabledDefaultsKey)
-        let disabled = storedDisabled || Self.browserDisabledByManagedPolicy(
+        let engine: String
+        if let rawEngine = defaults.string(forKey: Self.browserEngineDefaultsKey),
+           rawEngine == Self.browserEngineWebKitValue || rawEngine == Self.browserEngineSystemDefaultValue {
+            engine = rawEngine
+        } else if defaults.object(forKey: Self.browserEngineDidInitializeDefaultsKey) == nil,
+                  defaults.object(forKey: Self.browserDisabledDefaultsKey) != nil {
+            engine = defaults.bool(forKey: Self.browserDisabledDefaultsKey)
+                ? Self.browserEngineSystemDefaultValue
+                : Self.browserEngineWebKitValue
+        } else {
+            engine = Self.browserEngineWebKitValue
+        }
+        let disabled = engine == Self.browserEngineSystemDefaultValue || Self.browserDisabledByManagedPolicy(
             defaults: defaults,
             domain: domain
         )
         let payload: [String: Any] = [
             "enabled": !disabled,
             "disabled": disabled,
+            "engine": engine,
             "managed": managedByProfile,
             "domain": domain,
+            "engine_key": Self.browserEngineDefaultsKey,
             "key": Self.browserDisabledDefaultsKey,
             "url_allowlist": urlAllowlist.patterns.map(\.rawValue),
             "url_allowlist_active": urlAllowlist.isActive,

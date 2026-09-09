@@ -71,6 +71,7 @@ struct SettingsRowAnchorResolutionTests {
         "computerUse.showInMenuBar",
         "browser.defaultSearchEngine",
         "browser.discardHiddenWebViews",
+        "browser.engine",
         "browser.hiddenWebViewDiscardDelaySeconds",
         "browser.askWhereToSaveDownloads",
         "browser.hostsToOpenInEmbeddedBrowser",

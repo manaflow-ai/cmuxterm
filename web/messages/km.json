@@ -1095,6 +1095,7 @@
           "soundOverride": "ការបដិសេធសំឡេងជូនដំណឹង។ default ប្រើ notifications.sound, none បិទការចាក់សំឡេង ហើយតម្លៃផ្សេងទៀតជ្រើសសំឡេងដែលភ្ជាប់មកជាមួយ ឬសំឡេងផ្ទាល់ខ្លួន។"
         },
         "browser": {
+          "engine": "ម៉ាស៊ីន/Runtime របស់កម្មវិធីរុករក សម្រាប់ពាក្យបញ្ជាកម្មវិធីរុករក និងការចាប់យកតំណ។ webkit ដំណើរការនៅក្នុង cmux; systemDefault បើកក្នុងកម្មវិធីរុករកលំនាំដើមរបស់ macOS។",
           "defaultSearchEngine": "ម៉ាស៊ីនស្វែងរកលំនាំដើមសម្រាប់សំណួរនៅក្នុងរបារអាសយដ្ឋានដែលមិនមែនជា URL។ ប្រើ custom ជាមួយ customSearchEngineURLTemplate សម្រាប់អ្នកផ្តល់ផ្សេងៗ។",
           "customSearchEngineName": "ឈ្មោះបង្ហាញដែលប្រើនៅពេល defaultSearchEngine ជា custom។",
           "customSearchEngineURLTemplate": "URL ស្វែងរកដែលប្រើនៅពេល defaultSearchEngine ជា custom។ ដាក់ទីតាំងជំនួសសំណួរ ឬ %s សម្រាប់ពាក្យស្វែងរកដែលបានអ៊ិនកូដ។ ប្រសិនបើគ្មានទីតាំងជំនួស cmux បន្ថែម q= ទៅ URL។",

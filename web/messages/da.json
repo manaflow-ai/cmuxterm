@@ -1095,6 +1095,7 @@
           "soundOverride": "En tilsidesættelse af notifikationslyden. default bruger notifications.sound, none deaktiverer afspilning, og de øvrige værdier vælger en indbygget eller brugerdefineret lyd."
         },
         "browser": {
+          "engine": "Browsermotor/kørselstid til browserkommandoer og linkinterception. webkit kører inde i cmux; systemDefault åbner i macOS-standardbrowseren.",
           "defaultSearchEngine": "Standardsøgemaskine for forespørgsler i browserens adresselinje, der ikke er URLer. Brug custom med customSearchEngineURLTemplate til andre udbydere.",
           "customSearchEngineName": "Visningsnavn brugt når defaultSearchEngine er custom.",
           "customSearchEngineURLTemplate": "Søge-URL brugt når defaultSearchEngine er custom. Medtag forespørgselspladsholderen eller %s for den kodede søgning. Uden en pladsholder tilføjer cmux q= til URLen.",

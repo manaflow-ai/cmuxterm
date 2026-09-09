@@ -201,6 +201,7 @@ extension CmuxSettingsFileStore {
             ],
             [
                 "browser": [
+                    "engine": BrowserEngine.webKit.rawValue,
                     "defaultSearchEngine": BrowserSearchSettingsStore.defaultSearchEngine.rawValue,
                     "defaultZoomLevel": BrowserZoomSettings.defaultLevel,
                     "customSearchEngineName": BrowserSearchSettingsStore.defaultCustomSearchEngineName,

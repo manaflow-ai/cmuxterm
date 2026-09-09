@@ -1095,6 +1095,7 @@
           "soundOverride": "Переопределение звука уведомления. default использует notifications.sound, none отключает воспроизведение, а остальные значения выбирают встроенный или пользовательский звук."
         },
         "browser": {
+          "engine": "Движок/среда выполнения браузера для браузерных команд и перехвата ссылок. webkit работает внутри cmux; systemDefault открывает в браузере macOS по умолчанию.",
           "defaultSearchEngine": "Поисковая система по умолчанию для запросов в адресной строке браузера, которые не являются URL. Используйте custom с customSearchEngineURLTemplate для других провайдеров.",
           "customSearchEngineName": "Отображаемое имя, когда defaultSearchEngine имеет значение custom.",
           "customSearchEngineURLTemplate": "URL поиска, используемый когда defaultSearchEngine имеет значение custom. Укажите заполнитель запроса или %s для закодированного запроса. Без заполнителя cmux добавит q= к URL.",

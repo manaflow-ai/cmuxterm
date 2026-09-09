@@ -29,6 +29,7 @@ final class CountingMobilePairingHostActions: SettingsHostActions {
     func openSystemNotificationSettings() {}
     func restartApp() {}
     func openBrowserImportFlow() {}
+    func setBrowserEngine(_ engineRawValue: String) -> Bool { false }
     func requestNotificationAuthorization() {}
     func openTerminalConfigWindow() {}
     func previewNotificationSound(value: String, customFilePath: String) {}
