@@ -14,6 +14,7 @@ struct InstalledHookEntry {
 
 struct CodexHookProcessRunResult {
     let status: Int32
+    let terminationReason: Process.TerminationReason?
     let stdout: String
     let stderr: String
     let timedOut: Bool
@@ -202,7 +203,13 @@ func runCodexHookProcess(
     do {
         try process.run()
     } catch {
-        return CodexHookProcessRunResult(status: -1, stdout: "", stderr: String(describing: error), timedOut: false)
+        return CodexHookProcessRunResult(
+            status: -1,
+            terminationReason: nil,
+            stdout: "",
+            stderr: String(describing: error),
+            timedOut: false
+        )
     }
     if let standardInput, let stdinPipe {
         stdinPipe.fileHandleForWriting.write(Data(standardInput.utf8))
@@ -222,6 +229,7 @@ func runCodexHookProcess(
     let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
     return CodexHookProcessRunResult(
         status: process.terminationStatus,
+        terminationReason: process.terminationReason,
         stdout: String(data: stdoutData, encoding: .utf8) ?? "",
         stderr: String(data: stderrData, encoding: .utf8) ?? "",
         timedOut: timedOut

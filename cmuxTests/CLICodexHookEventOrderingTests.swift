@@ -43,6 +43,9 @@ extension CLICodexHookTimeoutRegressionTests {
         let stopCommand = try #require(
             codexHookEntries(in: codexHome).first { $0.eventName == "Stop" }?.command
         )
+        let sessionStartCommand = try #require(
+            codexHookEntries(in: codexHome).first { $0.eventName == "SessionStart" }?.command
+        )
         let environment = [
             "HOME": root.path,
             "CODEX_HOME": codexHome.path,
@@ -57,6 +60,24 @@ extension CLICodexHookTimeoutRegressionTests {
             "CMUX_BUNDLED_CLI_PATH": cliPath,
             "CMUX_CODEX_PID": "4242",
         ]
+
+        let sessionStart = runCodexHookProcess(
+            executablePath: "/bin/sh",
+            arguments: ["-c", sessionStartCommand],
+            environment: environment,
+            standardInput: #"{"session_id":"\#(sessionId)","cwd":"\#(root.path)","hook_event_name":"SessionStart"}"#,
+            timeout: 3
+        )
+        #expect(sessionStart.status == 0, Comment(rawValue: sessionStart.stderr))
+        #expect(sessionStart.stdout == "{}\n")
+        #expect(
+            waitForFile(
+                root.appendingPathComponent("codex-turn-ledger.json"),
+                containing: sessionId,
+                timeout: 2
+            ),
+            "The installed SessionStart hook must establish Codex ownership before prompt hooks run"
+        )
 
         let oldPrompt = runCodexHookProcess(
             executablePath: "/bin/sh",
@@ -211,6 +232,7 @@ extension CLICodexHookTimeoutRegressionTests {
 
         let idleStopEventTime: TimeInterval = 1_700_000_200
         let staleRunningEventTime: TimeInterval = 1_700_000_100
+        let now = Date.now.timeIntervalSince1970
         let store: [String: Any] = [
             "version": 1,
             "sessions": [
@@ -224,7 +246,9 @@ extension CLICodexHookTimeoutRegressionTests {
                     "runtimeStatusEventTime": idleStopEventTime,
                     "lastPromptTurnId": "turn-done",
                     "startedAt": idleStopEventTime,
-                    "updatedAt": idleStopEventTime,
+                    // Keep the record live so the store does not prune it
+                    // before the stale-event watermark is evaluated.
+                    "updatedAt": now,
                 ],
             ],
         ]

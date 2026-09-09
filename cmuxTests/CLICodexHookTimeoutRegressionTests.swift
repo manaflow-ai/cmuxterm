@@ -455,7 +455,7 @@ struct CLICodexHookTimeoutRegressionTests {
     @Test func codexTranscriptMonitorReplayUsesItsFreshEventTime() throws {
         let cliPath = try bundledCLIPath()
         let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-codex-monitor-replay-time-(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("cmux-codex-monitor-replay-time-\(UUID().uuidString)", isDirectory: true)
         let socketPath = makeCodexHookSocketPath("codex-mon")
         let listenerFD = try bindCodexHookUnixSocket(at: socketPath)
         let commands = CodexHookCapturedSocketCommands()
@@ -468,6 +468,7 @@ struct CLICodexHookTimeoutRegressionTests {
         // Keep the persisted fixture deterministic while remaining inside the
         // production parser's supported epoch range.
         let inheritedEventTime: TimeInterval = 1_700_000_000
+        let now = Date.now.timeIntervalSince1970
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer {
             Darwin.close(listenerFD)
@@ -496,8 +497,10 @@ struct CLICodexHookTimeoutRegressionTests {
                     "activePromptTurnId": turnId,
                     "activePromptTurnIds": [turnId],
                     "lastPromptTurnId": turnId,
-                    "startedAt": inheritedEventTime - 1,
-                    "updatedAt": inheritedEventTime - 1,
+                    "startedAt": now,
+                    // Keep the record live so transcript replay reaches the
+                    // event-time ordering check instead of age-pruning it.
+                    "updatedAt": now,
                 ],
             ],
         ], options: [.prettyPrinted, .sortedKeys]).write(to: stateURL, options: .atomic)
@@ -535,7 +538,10 @@ struct CLICodexHookTimeoutRegressionTests {
         )
 
         #expect(!result.timedOut, Comment(rawValue: result.stderr))
-        #expect(result.status == 0, Comment(rawValue: result.stderr))
+        #expect(
+            result.status == 0,
+            Comment(rawValue: "status=\(result.status) terminationReason=\(String(describing: result.terminationReason)) stderr=\(result.stderr)")
+        )
         #expect(result.stdout == "{}\n")
         let saved = try #require(
             JSONSerialization.jsonObject(with: Data(contentsOf: stateURL)) as? [String: Any]
@@ -848,12 +854,28 @@ struct CLICodexHookTimeoutRegressionTests {
         let surfaceId = "22222222-2222-2222-2222-222222222222"
         let sessionId = "codex-fresh-session"
         let stateURL = root.appendingPathComponent("codex-hook-sessions.json")
+        let codexHome = root.appendingPathComponent(".codex", isDirectory: true)
+        let transcriptURL = codexHome.appendingPathComponent("rollout-\(sessionId).jsonl", isDirectory: false)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
         defer {
             Darwin.close(listenerFD)
             unlink(socketPath)
             try? FileManager.default.removeItem(at: root)
         }
+
+        let rolloutMetadata: [String: Any] = [
+            "type": "session_meta",
+            "payload": [
+                "id": sessionId,
+                "cwd": root.path,
+                "source": "cli",
+                "originator": "codex-tui",
+            ],
+        ]
+        var rolloutData = try JSONSerialization.data(withJSONObject: rolloutMetadata, options: [.sortedKeys])
+        rolloutData.append(0x0A)
+        try rolloutData.write(to: transcriptURL, options: .atomic)
 
         let now = Date().timeIntervalSince1970
         let store: [String: Any] = [
@@ -895,8 +917,10 @@ struct CLICodexHookTimeoutRegressionTests {
                 "CMUX_SURFACE_ID": surfaceId,
                 "CMUX_AGENT_HOOK_STATE_DIR": root.path,
                 "CMUX_CLI_SENTRY_DISABLED": "1",
+                "CODEX_HOME": codexHome.path,
+                "CMUX_CODEX_PID": "\(ProcessInfo.processInfo.processIdentifier)",
             ],
-            standardInput: #"{"session_id":"\#(sessionId)","cwd":"\#(root.path)","hook_event_name":"SessionStart"}"#,
+            standardInput: #"{"session_id":"\#(sessionId)","cwd":"\#(root.path)","transcript_path":"\#(transcriptURL.path)","hook_event_name":"SessionStart"}"#,
             timeout: 5
         )
 

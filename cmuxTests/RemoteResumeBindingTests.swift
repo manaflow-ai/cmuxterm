@@ -734,9 +734,11 @@ struct RemoteResumeBindingTests {
         )
         workspace.trackRemoteTerminalSurface(surfaceID)
 
+        let eventTime = Date.now.timeIntervalSince1970
         let hook = try runBundledKiroSessionStart(
             workspaceID: relayedWorkspaceID,
-            surfaceID: relayedSurfaceID
+            surfaceID: relayedSurfaceID,
+            eventTime: eventTime
         )
         #expect(!hook.timedOut, Comment(rawValue: hook.stderr))
         #expect(hook.status == 0, Comment(rawValue: hook.stderr))
@@ -757,6 +759,7 @@ struct RemoteResumeBindingTests {
         #expect(hookParams["kind"] as? String == "kiro")
         #expect(hookParams["checkpoint_id"] as? String == "kiro-remote-session")
         #expect(hookParams["auto_resume"] as? Bool == true)
+        #expect(hookParams["agent_event_time"] as? Double == eventTime)
 
         let relayedData = workspace.rewriteRemoteRelayCommandLine(try requestData(resumeRequest))
         let remoteResult = try v2Result(requestData: relayedData)
@@ -994,6 +997,8 @@ struct RemoteResumeBindingTests {
         #expect(startupCommand.contains("ssh-pty-attach"), "\(startupCommand)")
         #expect(startupCommand.contains("--require-existing"), "\(startupCommand)")
         #expect(restoredPanel.surface.debugInitialInputForTesting() == nil)
+        let decodedRemoteCommand = try decodedRemoteCommandIfPresent(from: startupCommand)
+        #expect(decodedRemoteCommand == nil, "Mismatched remote ownership must not stage an agent command")
         #expect(!startupCommand.contains("--command-b64"), "\(startupCommand)")
         #expect(!startupCommand.contains("session-remote-7989"), "\(startupCommand)")
         #expect(!startupCommand.contains("REMOTE_FLAG"), "\(startupCommand)")
@@ -1305,14 +1310,13 @@ struct RemoteResumeBindingTests {
     }
 
     private func decodedRemoteCommand(from startupCommand: String) throws -> String {
+        try #require(decodedRemoteCommandIfPresent(from: startupCommand))
+    }
+
+    private func decodedRemoteCommandIfPresent(from startupCommand: String) throws -> String? {
         let words = TerminalStartupWorkingDirectoryPrefix.shellWordRanges(startupCommand).map(\.value)
         let script = try #require(words.dropFirst(2).first)
-        let range = try #require(
-            script.range(of: #"--command-b64 [A-Za-z0-9+/=]+"#, options: .regularExpression)
-        )
-        let encoded = String(script[range]).split(separator: " ", maxSplits: 1).last.map(String.init)
-        let data = try #require(encoded.flatMap { Data(base64Encoded: $0) })
-        return try #require(String(data: data, encoding: .utf8))
+        return try decodedInitialCommandIfPresent(from: script)
     }
 
     private func snapshotWithoutLaunchFlavorOrWorkspaceID(
@@ -1390,9 +1394,15 @@ struct RemoteResumeBindingTests {
     }
 
     private func decodedInitialCommand(from bootstrap: String) throws -> String {
-        let payloadLine = try #require(bootstrap.split(separator: "\n").first { line in
+        try #require(decodedInitialCommandIfPresent(from: bootstrap))
+    }
+
+    private func decodedInitialCommandIfPresent(from bootstrap: String) throws -> String? {
+        guard let payloadLine = bootstrap.split(separator: "\n").first(where: { line in
             line.contains("printf %s '") && line.contains("> \"$cmux_initial_command_tmp\"")
-        })
+        }) else {
+            return nil
+        }
         let prefixRange = try #require(payloadLine.range(of: "printf %s '"))
         let encodedSuffix = payloadLine[prefixRange.upperBound...]
         let closingQuote = try #require(encodedSuffix.firstIndex(of: "'"))
@@ -1403,7 +1413,8 @@ struct RemoteResumeBindingTests {
 
     private func runBundledKiroSessionStart(
         workspaceID: UUID,
-        surfaceID: UUID
+        surfaceID: UUID,
+        eventTime: TimeInterval
     ) throws -> HookRunResult {
         let cliPath = try BundledCLITestSupport.bundledCLIPath(for: BundledCLILinkageTests.self)
         let fileManager = FileManager.default
@@ -1452,6 +1463,7 @@ struct RemoteResumeBindingTests {
             "session_id": "kiro-remote-session",
             "cwd": workingDirectory.path,
             "hook_event_name": "SessionStart",
+            "event_time": eventTime,
         ]
         let input = String(
             decoding: try JSONSerialization.data(withJSONObject: inputObject),
