@@ -107861,6 +107861,48 @@
             "state": "translated",
             "value": "%@: --command には <text> が必要です"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: --command erfordert <text>"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: --command nécessite <text>"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: يتطلب --command <text>"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: --command requiere <text>"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: --command 需要 <text>"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: --command 需要 <text>"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: --command에는 <text>가 필요합니다"
+          }
         }
       }
     },
@@ -107878,6 +107920,48 @@
             "state": "translated",
             "value": "%@: --command は --type terminal でのみ使用できます"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: --command kann nur mit --type terminal verwendet werden"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: --command ne peut être utilisé qu’avec --type terminal"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: لا يمكن استخدام --command إلا مع --type terminal"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: --command solo se puede usar con --type terminal"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: --command 只能與 --type terminal 搭配使用"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: --command 只能与 --type terminal 搭配使用"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: --command는 --type terminal과 함께만 사용할 수 있습니다"
+          }
         }
       }
     },
@@ -107894,6 +107978,48 @@
           "stringUnit": {
             "state": "translated",
             "value": "新しいターミナルの初期コマンドとして実行"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als Anfangsbefehl des neuen Terminals ausführen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exécuter comme commande initiale du nouveau terminal"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تشغيله كأمر أولي للطرفية الجديدة"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ejecutar como comando inicial del nuevo terminal"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "作為新終端機的初始指令執行"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "作为新终端的初始命令运行"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새 터미널의 초기 명령으로 실행"
           }
         }
       }
@@ -277572,6 +277698,48 @@
           "stringUnit": {
             "state": "translated",
             "value": "初期コマンド入力はターミナルサーフェスでのみ使用できます"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eingaben für den Anfangsbefehl können nur mit Terminalflächen verwendet werden"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’entrée de commande initiale ne peut être utilisée qu’avec des surfaces de terminal"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لا يمكن استخدام إدخال الأمر الأولي إلا مع أسطح الطرفية"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La entrada del comando inicial solo se puede usar con superficies de terminal"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "初始指令輸入只能與終端機表面搭配使用"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "初始命令输入只能与终端表面搭配使用"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초기 명령 입력은 터미널 표면에서만 사용할 수 있습니다"
           }
         }
       }
