@@ -116,6 +116,13 @@ struct IrxRelayCredentialPolicyTests {
         let past = IrxRelayCredentialPolicy.retryDelay(
             expiresAt: now.addingTimeInterval(-5), now: now)
         #expect(past == .seconds(1))
+
+        let rateLimited = IrxRelayCredentialPolicy.retryDelay(
+            expiresAt: now.addingTimeInterval(1),
+            now: now,
+            retryAfterSeconds: 45
+        )
+        #expect(rateLimited == .seconds(45))
     }
 
     @Test("usability requires margin over expiry")
