@@ -32,6 +32,7 @@
 // images/devbox/cmux must stay byte-identical (vm-devbox-image.test.ts).
 
 import { GUEST_CMUX_MESSAGE_SHELL } from "./guestCliMessages";
+import { GUEST_CMUX_TOPOLOGY_SHELL } from "./guestTopologyCli";
 
 export const GUEST_CMUX_SHIM_PATH = "/usr/local/bin/cmux";
 
@@ -85,7 +86,14 @@ warn() {
 # Identity, discovery, and help come from the control plane or this file, so
 # they answer while cmux-tui is still installing (the bootstrap shim's
 # contract); every other verb needs the daemon.
+case "\${1:-}:\${2:-}:\${3:-}" in
+  vm:workspace:help|vm:workspace:--help|vm:workspace:-h|vm:pane:help|vm:pane:--help|vm:pane:-h|vm:tab:help|vm:tab:--help|vm:tab:-h)
+    cmux_message topologyHelp; exit 0 ;;
+  vm:terminal:help|vm:terminal:--help|vm:terminal:-h)
+    cmux_message terminalHelp; exit 0 ;;
+esac
 case "\${1:-}:\${2:-}" in
+  workspace:help|workspace:--help|workspace:-h|workspace:|pane:help|pane:--help|pane:-h|pane:|tab:help|tab:--help|tab:-h|tab:|terminal:help|terminal:--help|terminal:-h) ;;
   self:*|whoami:*|reflect:*|reflection:*|vm:ls|vm:list|vm:peers|vm:links|vm:help|vm:--help|vm:-h|vm:|:*|help:*|--help:*|-h:*|--version:*|-V:*) ;;
   *) [ -x "\$CMUX_TUI_BIN" ] || die_message 1 missingDaemon "\$CMUX_TUI_BIN" ;;
 esac
@@ -1159,6 +1167,9 @@ terminal_verb() {
   shift 2
   [ -n "\$cmux_tv_term" ] || die "terminal \$cmux_tv_verb: a terminal id is required (see cmux terminal list)" 2
   case "\$cmux_tv_verb" in
+    rename|move)
+      guest_topology_command terminal "\$cmux_tv_verb" "\$cmux_tv_term" "\$@"
+      ;;
     send|write)
       cmux_tv_text=""
       cmux_tv_keys=""
@@ -1353,6 +1364,7 @@ default_pane() {
   printf '%s' "\$cmux_dp"
 }
 
+${GUEST_CMUX_TOPOLOGY_SHELL}
 # ---------------------------------------------------------------------------
 # Layouts as data. \`layout export\` turns a daemon workspace into the same
 # declarative document the Mac accepts (\`cmux new-workspace --layout\`, cmux.json
@@ -2175,33 +2187,24 @@ peer_push() {
 }
 
 # \`cmux vm workspace new|rename|close|rm <peer> …\` in the Mac's spelling.
-peer_workspace_verb() {
+workspace_verb() {
   cmux_pw_verb="\$1"
-  cmux_pw_peer="\${2:-}"
-  [ -n "\$cmux_pw_peer" ] || die "usage: cmux vm workspace \$cmux_pw_verb <machine> …" 2
-  shift 2
-  use_peer "\$cmux_pw_peer"
+  cmux_pw_peer="\$TARGET_LABEL"
+  shift
   case "\$cmux_pw_verb" in
     new)
+      cmux_pw_json=""
       cmux_pw_name=""
       while [ "\$#" -gt 0 ]; do
         case "\$1" in
           --name) [ "\$#" -ge 2 ] || die "vm workspace new: --name needs a value" 2; cmux_pw_name="\$2"; shift 2 ;;
           --name=*) cmux_pw_name="\${1#--name=}"; shift ;;
-          --json) shift ;;
+          --json) cmux_pw_json=--json; shift ;;
           *) die "vm workspace new: unknown option \$1" 2 ;;
         esac
       done
-      if [ -n "\$cmux_pw_name" ]; then exec "\$CMUX_TUI_BIN" "\$TARGET_FLAG" "\$TARGET_VALUE" workspace create --name "\$cmux_pw_name"; fi
-      exec "\$CMUX_TUI_BIN" "\$TARGET_FLAG" "\$TARGET_VALUE" workspace create
-      ;;
-    rename)
-      [ "\$#" -ge 2 ] || die "usage: cmux vm workspace rename <machine> <ws> <name>" 2
-      exec "\$CMUX_TUI_BIN" "\$TARGET_FLAG" "\$TARGET_VALUE" workspace "\$1" rename --name "\$2"
-      ;;
-    close)
-      [ "\$#" -ge 1 ] || die "usage: cmux vm workspace close <machine> <ws>" 2
-      exec "\$CMUX_TUI_BIN" "\$TARGET_FLAG" "\$TARGET_VALUE" workspace "\$1" close
+      if [ -n "\$cmux_pw_name" ]; then exec "\$CMUX_TUI_BIN" "\$TARGET_FLAG" "\$TARGET_VALUE" \$cmux_pw_json workspace create --name "\$cmux_pw_name"; fi
+      exec "\$CMUX_TUI_BIN" "\$TARGET_FLAG" "\$TARGET_VALUE" \$cmux_pw_json workspace create
       ;;
     rm|delete)
       [ "\$#" -ge 1 ] || die "usage: cmux vm workspace rm <machine> <ws>" 2
@@ -2283,17 +2286,7 @@ case "\${1:-}" in
     ;;
   new-workspace)
     shift
-    cmux_nw_name=""
-    while [ "\$#" -gt 0 ]; do
-      case "\$1" in
-        --name) [ "\$#" -ge 2 ] || die "new-workspace: --name needs a value" 2; cmux_nw_name="\$2"; shift 2 ;;
-        --name=*) cmux_nw_name="\${1#--name=}"; shift ;;
-        --json) shift ;;
-        *) die "usage: cmux new-workspace [--name <name>]" 2 ;;
-      esac
-    done
-    if [ -n "\$cmux_nw_name" ]; then exec "\$CMUX_TUI_BIN" --session "\$LOCAL_SESSION" workspace create --name "\$cmux_nw_name"; fi
-    exec "\$CMUX_TUI_BIN" --session "\$LOCAL_SESSION" workspace create
+    workspace_verb new "\$@"
     ;;
   new-split)
     shift
@@ -2318,6 +2311,10 @@ case "\${1:-}" in
   send|send-key|read-screen)
     local_terminal_alias "\$@"
     ;;
+  workspace|pane|tab)
+    cmux_noun="\$1"; shift
+    guest_topology_command "\$cmux_noun" "\$@"
+    ;;
   terminal)
     # The Mac's verb-first spelling (\`terminal send <id> …\`); cmux-tui's own
     # id-first grammar (\`terminal <id> write …\`, \`terminal list\`) passes through.
@@ -2325,7 +2322,7 @@ case "\${1:-}" in
       help|--help|-h)
         terminal_usage
         ;;
-      send|write|read|screen|wait|wait-exit|output|close)
+      send|write|read|screen|wait|wait-exit|output|close|rename|move)
         cmux_verb="\$2"
         cmux_term="\${3:-}"
         shift 2
@@ -2369,7 +2366,8 @@ case "\${1:-}" in
         ;;
       terminal)
         case "\${1:-}" in
-          send|write|read|screen|wait|wait-exit|output|close)
+          help|--help|-h) terminal_usage ;;
+          send|write|read|screen|wait|wait-exit|output|close|rename|move)
             cmux_verb="\$1"
             peer="\${2:-}"
             cmux_term="\${3:-}"
@@ -2406,7 +2404,14 @@ case "\${1:-}" in
         ;;
       workspace)
         case "\${1:-}" in
-          new|rename|close|rm|delete) peer_workspace_verb "\$@" ;;
+          help|--help|-h|"") cmux_message topologyHelp ;;
+          new|rename|close|rm|delete|move|focus|list|ls|show)
+            cmux_verb="\$1"; peer="\${2:-}"
+            [ -n "\$peer" ] || die_message 2 topologyUsage
+            shift 2
+            use_peer "\$peer"
+            guest_topology_command workspace "\$cmux_verb" "\$@"
+            ;;
           *)
             peer="\${1:-}"; [ -n "\$peer" ] || die "usage: cmux vm workspace <machine> [args…]" 2
             shift
@@ -2456,7 +2461,24 @@ case "\${1:-}" in
           exec "\$CMUX_TUI_BIN" "\$TARGET_FLAG" "\$TARGET_VALUE" workspace "\$target" run --on-exit close -- cmux env "\$cmux_env_sub" "\$@"
         fi
         ;;
-      tui|tree|session|pane|tab|screen|browser)
+      pane|tab)
+        case "\${1:-}" in
+          help|--help|-h|"") cmux_message topologyHelp ;;
+          list|ls|show|rename|focus|close|move|split|swap|zoom|resize)
+            cmux_verb="\$1"; peer="\${2:-}"
+            [ -n "\$peer" ] || die_message 2 topologyUsage
+            shift 2
+            use_peer "\$peer"
+            guest_topology_command "\$sub" "\$cmux_verb" "\$@"
+            ;;
+          *)
+            peer="\$1"; shift
+            use_peer "\$peer"
+            guest_topology_command "\$sub" "\$@"
+            ;;
+        esac
+        ;;
+      tui|tree|session|screen|browser)
         # cmux vm <verb> <machine> [args…] → the same cmux-tui verb on the peer.
         peer="\${1:-}"; [ -n "\$peer" ] || die_message 2 peerUsage "\$sub"
         shift

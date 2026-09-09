@@ -159,3 +159,34 @@ for (const peer of [false, true]) describe(`guest topology (${peer ? "peer" : "l
     } finally { await f.cleanup(); }
   });
 });
+
+for (const peer of [false, true]) test(`topology rejects invalid moves and preserves daemon syntax (${peer})`, async () => {
+  const f = await fixture(peer);
+  try {
+    const before = f.read();
+    const invalid = f.run(["tab", "move", "tab_a", "--workspace", "ws_task", "--screen", "screen_a", "--pane", "missing", "--index", "0"]);
+    expect(invalid.status).toBe(2);
+    expect(f.read()).toEqual(before);
+    if (!peer) {
+      expect(f.run(["tab", "tab_a", "rename", "--name", "Raw syntax"]).status).toBe(0);
+      expect(f.read().tabs[0].name).toBe("Raw syntax");
+    }
+    const missing = f.run(["workspace", "rename", "ws_task"]);
+    expect(missing.status).toBe(2);
+    expect(missing.stderr).toContain("cmux workspace help");
+  } finally { await f.cleanup(); }
+});
+
+test("topology help is localized and works before daemon installation", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cmux-topology-help-"));
+  try {
+    const shim = join(dir, "cmux"); writeFileSync(shim, GUEST_CMUX_SHIM);
+    for (const noun of ["workspace", "pane", "tab", "terminal"]) {
+      for (const args of [[noun, "--help"], ["vm", noun, "--help"]]) {
+        const run = spawnSync("sh", [shim, ...args], {encoding: "utf8", timeout: 5_000,
+          env: {NODE_ENV: "test", HOME: dir, PATH: process.env.PATH, CMUX_TUI_BIN: join(dir, "absent"), LC_ALL: "ja_JP.UTF-8"}});
+        expect(run.status).toBe(0); expect(run.stdout).toContain("配置");
+      }
+    }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

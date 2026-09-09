@@ -166,3 +166,34 @@ cmux vm agent <machine> --agent codex --wait --output -- "…"        # 他の�
 - `--json` はヘルプに記載されたコマンドだけで使い、人間向けの表を解析しません。
 - シェル構文を使う場合は `-- sh -c '<script>'` と明示します。
 - 料金プランの制限や利用できるサイズは、記憶ではなく現在の CLI 応答から読み取ります。
+
+### マシン内のエージェントが表示を整える
+
+`cmux tree --json` でワークスペース、画面、ペイン、分割、タブの ID を確認します。
+
+```bash
+cmux workspace rename <ws> "レビュー準備完了"
+cmux terminal rename current "ビルド" --json
+cmux tab rename <tab> "テスト結果" --json
+cmux pane split <pane> right --ratio 0.6 --json
+cmux tab move <tab> --workspace <ws> --screen <screen> --pane <destination-pane> --index 0 --json
+cmux pane swap <pane> --other-workspace <ws> --other-screen <screen> --other-pane <other-pane> --json
+cmux pane resize <pane> --split <split> --ratio 0.65 --json
+cmux workspace move <ws> --index 0
+cmux tab focus <tab>
+cmux notify --title "レビュー準備完了" --body "アプリ、ログ、テスト結果を配置しました。"
+```
+
+`tab rename` は配置ごと、`terminal rename` はそのターミナルの現在の全配置の名前を変更します。
+複数表示があるターミナルはタブ ID で移動してください。名前変更、移動、入れ替え、分割比率の
+変更は、実行中のターミナルを再起動しません。`pane resize` は画面の分割比率の操作です。
+マシンのディスクサイズ変更は利用できません。
+
+ローカル操作は `cmux <resource> <verb> …`、ピア操作は
+`cmux vm <resource> <verb> <machine> …` です。ID を先に指定するデーモン構文も使えます。
+詳細は `cmux workspace help` を参照してください。
+
+ユーザーに見せる前にデーモンのワークスペースを整えます。Mac の
+`cmux vm workspace open <machine> <ws>` はローカル表示の作成時にその配置を読み取ります。
+ゲストの操作は、すでに開いている Mac の表示の配置やフォーカスを強制変更しません。
+`layout apply` は新規または空のワークスペース用です。使用中の配置は上記のコマンドで変更します。

@@ -283,3 +283,38 @@ cmux vm ssh-info <id>                  # raw SSH endpoint details when available
 ```
 
 The default cmux Cloud provider attaches through the cmux-tui remote daemon, not SSH — when `ssh` errors, use `exec`, `agent`, or `open` instead.
+
+### Arrange the view from inside the machine
+
+Use these commands in a daemon terminal (`cmux tree --json` supplies workspace,
+screen, pane, split and tab IDs):
+
+```bash
+cmux workspace rename <ws> "Review ready"
+cmux terminal rename current "Builder" --json
+cmux tab rename <tab> "Test results" --json
+cmux pane split <pane> right --ratio 0.6 --json
+cmux tab move <tab> --workspace <ws> --screen <screen> --pane <destination-pane> --index 0 --json
+cmux pane swap <pane> --other-workspace <ws> --other-screen <screen> --other-pane <other-pane> --json
+cmux pane resize <pane> --split <split> --ratio 0.65 --json
+cmux workspace move <ws> --index 0
+cmux tab focus <tab>
+cmux notify --title "Review ready" --body "The workspace has the app, logs, and test results."
+```
+
+`tab rename` labels one placement; `terminal rename` labels every current placement
+of that terminal. Names, including spaces and an empty string, are passed as exact
+arguments. A terminal with several views should be moved by its tab ID. Moving,
+renaming, swapping, and changing split ratios preserve running terminal processes.
+`pane resize` changes layout geometry; machine disk resizing remains unavailable.
+
+Local commands use `cmux <resource> <verb> …`; a peer uses
+`cmux vm <resource> <verb> <machine> …` (for example,
+`cmux vm tab rename <machine> <tab> "Logs"`). Existing ID-first daemon syntax is
+also supported. `cmux workspace help` lists the full topology grammar.
+
+Arrange the daemon workspace before presenting it. The Mac's
+`cmux vm workspace open <machine> <ws>` reads that layout when creating its local
+view. These guest commands do not force focus or rearrange an already-open Mac
+projection. `layout apply` is for new/empty workspaces; use the commands above to
+change an occupied workspace without restarting its agents.

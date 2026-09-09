@@ -114,7 +114,7 @@ The user cannot see inside the machine: print URLs, pull artifacts, or open a pa
 
 `cmux notify` run inside a machine reaches the user's Mac as data: the machine's daemon records it and the Mac shows it on the pane displaying the terminal it ran in (or at workspace level wherever the machine is open; nowhere if nothing of the machine is on screen). Keep `--title`/`--body` short (128 B / 1 KiB caps, 5 per burst then 1 per second); `--subtitle` folds into the body; Mac selectors (`--workspace`, `--surface`, `--window`, `--tab`, `--panel`) and `--reply` are ignored there, and nothing can be typed back into the machine from the notification.
 
-A pane showing a machine surface is an ordinary local pane: move, split, reorder, or close it with the local topology verbs (`../cmux/SKILL.md`) and the surface catalog follows the pane; closing a pane never kills the machine's terminal. Rearranging the machine's own cmux-tui topology from inside is what `cmux vm tui <id>` is for.
+A pane showing a machine surface is an ordinary local pane: move, split, reorder, or close it with the local topology verbs (`../cmux/SKILL.md`) and the surface catalog follows the pane; closing a pane never kills the machine's terminal. Inside the machine, use `cmux workspace rename`, `cmux terminal rename`, `cmux tab move`, and `cmux pane split|swap|resize` to arrange its own layout (`cmux workspace help`).
 
 ## Layouts as data (the shape of a workspace)
 
