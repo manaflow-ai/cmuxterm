@@ -63,6 +63,7 @@ extension TerminalController {
         guard remote.sendInput(text) else {
             return .surfaceUnavailable(surfaceID)
         }
+        remote.pane.panel.surface.recordAcceptedUnownedPromptInput(text)
         return .sent(
             windowID: v2ResolveWindowId(tabManager: tabManager),
             workspaceID: workspace.id,
@@ -80,6 +81,7 @@ extension TerminalController {
         guard let remote = workspace.remoteTmuxControlPane(surfaceID: surfaceID) else { return nil }
         switch remote.sendKey(key) {
         case .sent:
+            remote.pane.panel.surface.recordAcceptedUnownedPromptKey(key)
             return .sent(
                 windowID: v2ResolveWindowId(tabManager: tabManager),
                 workspaceID: workspace.id,

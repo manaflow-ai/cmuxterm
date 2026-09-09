@@ -1464,6 +1464,16 @@ final class MobileHostService {
                 MobileHostConnectionRegistry.shared.remove(id: id)
                 await MobileHostService.shared.removeConnection(id: id)
             },
+            resolveOrderedInputSurfaceKey: { request in
+                guard request.method == "mobile.chat.send"
+                        || request.method == "mobile.chat.interrupt"
+                        || request.method == "mobile.chat.answer",
+                      let sessionID = request.params["session_id"] as? String else {
+                    return request.orderedInputSurfaceKey
+                }
+                return await TerminalController.shared
+                    .mobileChatOrderedSurfaceID(sessionID: sessionID)
+            },
             requestSimulatorFrameReplay: { connectionID, panelIDs in
                 await MobileHostService.shared.mobileSimulatorStreamCoordinator.requestFrameReplay(
                     connectionID: connectionID,
@@ -2101,6 +2111,8 @@ actor MobileHostConnection {
     private let onAuthorizedRequest: @Sendable (MobileHostRPCRequest) async -> Void
     private let onUsableSession: @Sendable () async -> Bool
     private let handleRequest: @Sendable (MobileHostRPCRequest) async -> MobileHostRPCResult
+    private let resolveOrderedInputSurfaceKey:
+        @Sendable (MobileHostRPCRequest) async -> String?
     private let onClose: @Sendable (UUID) async -> Void
     private let requestSimulatorFrameReplay: @Sendable (UUID, Set<String>) async -> Void
     private let responseWorkQuota = MobileHostRPCWorkQuota()
@@ -2123,6 +2135,10 @@ actor MobileHostConnection {
     private var orderedRequestQueuesBySurfaceKey: [String: MobileHostOrderedRequestQueue] = [:]
     private var orderedRequestWorkerTasksBySurfaceKey: [String: Task<Void, Never>] = [:]
     private var orderedRequestRunningFrameByteCountsBySurfaceKey: [String: Int] = [:]
+    /// Set at frame admission when a chat binding cannot yet resolve. Existing
+    /// surface workers drain before the global bucket runs; later terminal
+    /// frames join that bucket instead of overtaking the unresolved chat.
+    private var globalTerminalInputOrderingPending = false
     private var receiveTask: Task<Void, Never>?
     private var independentEventRevision: UInt64 = 0
     private var independentEventNegotiationInProgress = false
@@ -2152,6 +2168,9 @@ actor MobileHostConnection {
         onUsableSession: @escaping @Sendable () async -> Bool = { true },
         handleRequest: @escaping @Sendable (MobileHostRPCRequest) async -> MobileHostRPCResult,
         onClose: @escaping @Sendable (UUID) async -> Void,
+        resolveOrderedInputSurfaceKey: @escaping @Sendable (MobileHostRPCRequest) async -> String? = { request in
+            request.orderedInputSurfaceKey
+        },
         requestSimulatorFrameReplay: @escaping @Sendable (UUID, Set<String>) async -> Void = { _, _ in }
     ) {
         let transport = CmxNetworkByteTransport(acceptedConnection: connection)
@@ -2166,6 +2185,7 @@ actor MobileHostConnection {
         self.onAuthorizedRequest = onAuthorizedRequest
         self.onUsableSession = onUsableSession
         self.handleRequest = handleRequest
+        self.resolveOrderedInputSurfaceKey = resolveOrderedInputSurfaceKey
         self.onClose = onClose
         self.requestSimulatorFrameReplay = requestSimulatorFrameReplay
         self.eventQueue = eventQueue
@@ -2184,6 +2204,9 @@ actor MobileHostConnection {
         onUsableSession: @escaping @Sendable () async -> Bool = { true },
         handleRequest: @escaping @Sendable (MobileHostRPCRequest) async -> MobileHostRPCResult,
         onClose: @escaping @Sendable (UUID) async -> Void,
+        resolveOrderedInputSurfaceKey: @escaping @Sendable (MobileHostRPCRequest) async -> String? = { request in
+            request.orderedInputSurfaceKey
+        },
         requestSimulatorFrameReplay: @escaping @Sendable (UUID, Set<String>) async -> Void = { _, _ in }
     ) {
         self.id = id
@@ -2197,6 +2220,7 @@ actor MobileHostConnection {
         self.onAuthorizedRequest = onAuthorizedRequest
         self.onUsableSession = onUsableSession
         self.handleRequest = handleRequest
+        self.resolveOrderedInputSurfaceKey = resolveOrderedInputSurfaceKey
         self.onClose = onClose
         self.requestSimulatorFrameReplay = requestSimulatorFrameReplay
         self.eventQueue = eventQueue
@@ -2287,6 +2311,7 @@ actor MobileHostConnection {
         orderedRequestWorkerTasksBySurfaceKey.removeAll()
         orderedRequestQueuesBySurfaceKey.removeAll()
         orderedRequestRunningFrameByteCountsBySurfaceKey.removeAll()
+        globalTerminalInputOrderingPending = false
         let previousSubscriptions = Array(subscriptions.values)
         subscriptions.removeAll()
         for subscription in previousSubscriptions where !subscription.topics.isEmpty {
@@ -2339,7 +2364,7 @@ actor MobileHostConnection {
                     guard !isClosed else {
                         return
                     }
-                    guard startResponseTask(for: frame) else {
+                    guard await startResponseTask(for: frame) else {
                         await close(
                             reason: "rpc work capacity exceeded",
                             exit: CmxIrohAdmittedConnectionExit(
@@ -2374,7 +2399,7 @@ actor MobileHostConnection {
         }
     }
 
-    private func startResponseTask(for frame: Data) -> Bool {
+    private func startResponseTask(for frame: Data) async -> Bool {
         guard !isClosed else {
             return false
         }
@@ -2392,7 +2417,19 @@ actor MobileHostConnection {
         ) else { return false }
         if case let .success(request) = decodedRequest,
            request.isOrderedTerminalInput {
-            let surfaceKey = request.orderedInputSurfaceKey
+            let resolvedSurfaceKey = await resolveOrderedInputSurfaceKey(request)
+            let isChatRequest = request.method == "mobile.chat.send"
+                || request.method == "mobile.chat.interrupt"
+                || request.method == "mobile.chat.answer"
+            let surfaceKey: String
+            if isChatRequest, resolvedSurfaceKey == nil {
+                globalTerminalInputOrderingPending = true
+                surfaceKey = MobileHostRPCRequest
+                    .globalTerminalInputOrderingKey
+            } else {
+                surfaceKey = resolvedSurfaceKey
+                    ?? request.orderedInputSurfaceKey
+            }
             orderedRequestQueuesBySurfaceKey[surfaceKey, default: MobileHostOrderedRequestQueue()]
                 .enqueue(MobileHostOrderedRequest(
                     frameByteCount: frame.count,
@@ -2414,6 +2451,10 @@ actor MobileHostConnection {
     }
 
     private func startOrderedRequestWorkerIfNeeded(surfaceKey: String) {
+        if surfaceKey != MobileHostRPCRequest.globalTerminalInputOrderingKey,
+           globalTerminalInputOrderingPending {
+            return
+        }
         guard orderedRequestWorkerTasksBySurfaceKey[surfaceKey] == nil else { return }
         orderedRequestWorkerTasksBySurfaceKey[surfaceKey] = Task { [weak self] in
             await self?.drainOrderedRequests(surfaceKey: surfaceKey)
@@ -2421,8 +2462,24 @@ actor MobileHostConnection {
     }
 
     private func drainOrderedRequests(surfaceKey: String) async {
-        while !Task.isCancelled, !isClosed,
-              let request = orderedRequestQueuesBySurfaceKey[surfaceKey]?.dequeue() {
+        let isGlobalOrderingWorker = surfaceKey
+            == MobileHostRPCRequest.globalTerminalInputOrderingKey
+        if isGlobalOrderingWorker {
+            let priorWorkers = orderedRequestWorkerTasksBySurfaceKey
+                .filter { $0.key != surfaceKey }
+                .map(\.value)
+            for worker in priorWorkers {
+                await worker.value
+            }
+        }
+        while !Task.isCancelled, !isClosed {
+            if !isGlobalOrderingWorker, globalTerminalInputOrderingPending {
+                break
+            }
+            guard let request = orderedRequestQueuesBySurfaceKey[surfaceKey]?
+                .dequeue() else {
+                break
+            }
             orderedRequestRunningFrameByteCountsBySurfaceKey[surfaceKey] = request.frameByteCount
             // Serialize authorization + application only. The response write
             // goes to a tracked concurrent task: a peer that stops reading
@@ -2445,10 +2502,19 @@ actor MobileHostConnection {
         }
         orderedRequestRunningFrameByteCountsBySurfaceKey[surfaceKey] = nil
         orderedRequestWorkerTasksBySurfaceKey[surfaceKey] = nil
+        if isGlobalOrderingWorker {
+            globalTerminalInputOrderingPending = false
+        }
         if orderedRequestQueuesBySurfaceKey[surfaceKey]?.isEmpty == false, !isClosed {
             startOrderedRequestWorkerIfNeeded(surfaceKey: surfaceKey)
         } else {
             orderedRequestQueuesBySurfaceKey[surfaceKey] = nil
+            if isGlobalOrderingWorker, !isClosed {
+                for key in orderedRequestQueuesBySurfaceKey.keys
+                where key != MobileHostRPCRequest.globalTerminalInputOrderingKey {
+                    startOrderedRequestWorkerIfNeeded(surfaceKey: key)
+                }
+            }
             if !hasActiveResponseWork {
                 startIdleTimeout()
             }

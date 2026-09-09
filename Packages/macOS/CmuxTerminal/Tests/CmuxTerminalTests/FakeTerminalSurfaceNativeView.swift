@@ -16,6 +16,8 @@ final class FakeTerminalSurfaceNativeView: NSView {
     var runtimeInputDeferralCallCount = 0
     var deferredRuntimeInputs: [() -> Void] = []
     var deferredRuntimeInputBytes: [Int] = []
+    private var deferredRuntimeInputHumanFlags: [Bool] = []
+    private var deferredRuntimeInputDiscards: [(() -> Void)?] = []
     var mobileMouseButtonEvents: [String] = []
 
     func toggleKeyboardCopyMode() -> Bool { false }
@@ -31,14 +33,83 @@ final class FakeTerminalSurfaceNativeView: NSView {
         estimatedBytes: Int,
         replay: @escaping () -> Void
     ) -> Bool {
+        enqueueDeferredRuntimeInput(
+            estimatedBytes: estimatedBytes,
+            isHumanInput: true,
+            replay: replay,
+            onDiscard: nil
+        )
+    }
+
+    func deferRuntimeInputDuringClipboardRead(
+        estimatedBytes: Int,
+        isHumanInput: Bool,
+        replay: @escaping () -> Void
+    ) -> Bool {
+        enqueueDeferredRuntimeInput(
+            estimatedBytes: estimatedBytes,
+            isHumanInput: isHumanInput,
+            replay: replay,
+            onDiscard: nil
+        )
+    }
+
+    private func enqueueDeferredRuntimeInput(
+        estimatedBytes: Int,
+        isHumanInput: Bool,
+        replay: @escaping () -> Void,
+        onDiscard: (() -> Void)?
+    ) -> Bool {
         runtimeInputDeferralCallCount += 1
         let shouldDefer = runtimeInputDeferralResponses.isEmpty
             ? shouldDeferRuntimeInput
             : runtimeInputDeferralResponses.removeFirst()
         guard shouldDefer else { return false }
         deferredRuntimeInputBytes.append(estimatedBytes)
-        deferredRuntimeInputs.append(replay)
+        deferredRuntimeInputHumanFlags.append(isHumanInput)
+        deferredRuntimeInputDiscards.append(onDiscard)
+        deferredRuntimeInputs.append { [weak self] in
+            self?.consumeDeferredRuntimeInput()
+            replay()
+        }
         return true
+    }
+
+    func deferRuntimeInputDuringClipboardRead(
+        estimatedBytes: Int,
+        isHumanInput: Bool,
+        replay: @escaping () -> Void,
+        onDiscard: @escaping () -> Void
+    ) -> Bool {
+        enqueueDeferredRuntimeInput(
+            estimatedBytes: estimatedBytes,
+            isHumanInput: isHumanInput,
+            replay: replay,
+            onDiscard: onDiscard
+        )
+    }
+
+    @discardableResult
+    func discardNextDeferredRuntimeInput() -> Bool {
+        guard !deferredRuntimeInputs.isEmpty else { return false }
+        _ = deferredRuntimeInputs.removeFirst()
+        if let onDiscard = consumeDeferredRuntimeInput() {
+            onDiscard()
+        }
+        return true
+    }
+
+    @discardableResult
+    private func consumeDeferredRuntimeInput() -> (() -> Void)? {
+        if !deferredRuntimeInputHumanFlags.isEmpty {
+            deferredRuntimeInputHumanFlags.removeFirst()
+        }
+        guard !deferredRuntimeInputDiscards.isEmpty else { return nil }
+        return deferredRuntimeInputDiscards.removeFirst()
+    }
+
+    func hasDeferredHumanInputDuringClipboardRead() -> Bool {
+        deferredRuntimeInputHumanFlags.contains(true)
     }
 
     func positionMobilePointer(
