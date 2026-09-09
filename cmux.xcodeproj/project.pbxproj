@@ -4821,6 +4821,7 @@
 		FEED0000000000000000F00C /* FeedButtonStyleDebugWindowController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FeedButtonStyleDebugWindowController.swift; sourceTree = "<group>"; };
 		8672D0028672D0028672D002 /* FeedCoordinator+DeliveryTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FeedCoordinator+DeliveryTarget.swift"; sourceTree = "<group>"; };
 		B7F100090000000000000002 /* FeedCoordinator+NotificationDelivery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FeedCoordinator+NotificationDelivery.swift"; sourceTree = "<group>"; };
+		C1A2B3C4D5E6F70123456792 /* FeedCoordinator+ObservedAgentAttention.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FeedCoordinator+ObservedAgentAttention.swift"; sourceTree = "<group>"; };
 		3C54381EB5D369AD95F4A8E6 /* FeedCoordinator+SemanticNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FeedCoordinator+SemanticNotifications.swift"; sourceTree = "<group>"; };
 		FEED0000000000000000F001 /* FeedCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FeedCoordinator.swift; sourceTree = "<group>"; };
 		8672E0038672E0038672E003 /* FeedCoordinatorIngressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCoordinatorIngressTests.swift; sourceTree = "<group>"; };
