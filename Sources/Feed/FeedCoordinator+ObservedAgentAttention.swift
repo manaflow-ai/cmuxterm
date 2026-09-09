@@ -413,6 +413,7 @@ extension FeedCoordinator {
         ].joined(separator: ":")
     }
 
+    @MainActor
     private static func resolveAgentPanelId(surfaceId: UUID, tab: Workspace) -> UUID? {
         if tab.panels[surfaceId] != nil { return surfaceId }
         return tab.panelIdFromSurfaceId(TabID(uuid: surfaceId))
