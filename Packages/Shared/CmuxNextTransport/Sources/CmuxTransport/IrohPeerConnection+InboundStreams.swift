@@ -40,8 +40,7 @@ extension IrohPeerConnection {
                         remote=\(TransportDebugLog.hex8(self.remoteKey), privacy: .public)
                         """)
                 }
-                closedFlag = true
-                resumeAllWaitersClosed()
+                await finishClosure(reason: nil, locallyInitiated: false)
                 return
             }
         }

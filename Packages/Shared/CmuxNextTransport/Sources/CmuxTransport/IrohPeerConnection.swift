@@ -46,6 +46,7 @@ public actor IrohPeerConnection: PeerConnection {
     var rawDeliveryHead = 0
     var rawDeliveryTask: Task<Void, Never>?
     var closedFlag = false
+    var localCloseRequested = false
     var localTermination: ConnectionTermination?
 
     static let maxConcurrentInboundStreams = 64
@@ -288,6 +289,12 @@ public actor IrohPeerConnection: PeerConnection {
     /// protocol delivers and retransmits during shutdown; stream frames that
     /// lose the race are irrelevant because termination() carries the cause.
     public func closeAll(reason: ConnectionTermination?) async {
+        await finishClosure(reason: reason, locallyInitiated: true)
+    }
+
+    /// Retires the same owned work on local shutdown and remote stream-source EOF.
+    /// A remote close must retain the native peer cause, not write a local one.
+    func finishClosure(reason: ConnectionTermination?, locallyInitiated: Bool) async {
         guard !closedFlag else {
             if TransportDebugLog.enabled {
                 TransportDebugLog.core.notice(
@@ -299,11 +306,15 @@ public actor IrohPeerConnection: PeerConnection {
             return
         }
         closedFlag = true
-        localTermination = reason
+        if locallyInitiated {
+            localCloseRequested = true
+            localTermination = reason
+        }
         if TransportDebugLog.enabled {
             TransportDebugLog.core.notice(
                 """
-                conn \(TransportDebugLog.id(self), privacy: .public) closeAll initiator=local \
+                conn \(TransportDebugLog.id(self), privacy: .public) closeAll \
+                initiator=\(locallyInitiated ? "local" : "remote", privacy: .public) \
                 reason=\(reason?.code ?? "nil", privacy: .public) \
                 role=\(String(describing: self.role), privacy: .public) \
                 remote=\(TransportDebugLog.hex8(self.remoteKey), privacy: .public) \
@@ -328,9 +339,11 @@ public actor IrohPeerConnection: PeerConnection {
         for lane in openLanes {
             await lane.finishSend()
         }
-        try? connection.close(
-            errorCode: reason == nil ? 0 : 1,
-            reason: Data((reason?.code ?? "closed").utf8))
+        if locallyInitiated {
+            try? connection.close(
+                errorCode: reason == nil ? 0 : 1,
+                reason: Data((reason?.code ?? "closed").utf8))
+        }
         // Close QUIC before joining: native stream opens and writes need that
         // close to unblock; cancelling a Swift task alone cannot interrupt FFI.
         for task in openingLanes { _ = await task.value }

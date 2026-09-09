@@ -22,7 +22,7 @@ extension IrohPeerConnection {
         let rendered: String
         if let reason = connection.closeReason() {
             rendered = reason
-        } else if closedFlag {
+        } else if localCloseRequested {
             if TransportDebugLog.enabled {
                 TransportDebugLog.core.notice(
                     """
