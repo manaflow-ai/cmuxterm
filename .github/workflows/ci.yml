@@ -1101,6 +1101,24 @@ jobs:
             -only-testing:cmuxTests/NotificationScrollRestoreRecoveryTests \
             test
 
+      - name: Run terminal creation interactive-shell CLI regression
+        if: ${{ matrix.shard == fromJSON(env.CMUX_APP_HOST_FOCUSED_REGRESSION_SHARD) }}
+        run: |
+          set -euo pipefail
+
+          CLI_BIN="$(
+            find "$CMUX_DERIVED_DATA_PATH" -path "*/Build/Products/Debug/cmux" -exec stat -f '%m %N' {} \; \
+              | sort -nr \
+              | head -1 \
+              | cut -d' ' -f2-
+          )"
+          if [ -z "${CLI_BIN:-}" ] || [ ! -x "$CLI_BIN" ]; then
+            echo "cmux CLI binary not found in DerivedData" >&2
+            exit 1
+          fi
+
+          CMUX_CLI_BIN="$CLI_BIN" python3 tests/test_cli_creation_initial_command.py
+
       - name: Run settings file-store no-op persistence regression
         if: ${{ matrix.shard == fromJSON(env.CMUX_APP_HOST_FOCUSED_REGRESSION_SHARD) }}
         run: |
@@ -1201,6 +1219,10 @@ jobs:
 
             echo "Running app-host unit-test batch ${logical_shard}/${LOGICAL_SHARD_TOTAL} serially"
             local batch_status
+            # A single test parked on an await that never resumes must not take
+            # the whole batch to CMUX_UNIT_TEST_TIMEOUT_SECONDS: XCTest's
+            # per-test execution allowance fails that one test (with a
+            # spindump) and keeps the batch moving.
             # Reset this batch's capture before every invocation. The outer
             # SwiftPM-resolution retry reuses the path, and a failed retry
             # must not inherit an earlier attempt's expected-failure summary.
@@ -1222,6 +1244,9 @@ jobs:
                 -disableAutomaticPackageResolution \
                 -destination "platform=macOS" \
                 "${only_testing_args[@]}" \
+                -test-timeouts-enabled YES \
+                -default-test-execution-time-allowance "${CMUX_UNIT_TEST_CASE_TIMEOUT_SECONDS:-300}" \
+                -maximum-test-execution-time-allowance "${CMUX_UNIT_TEST_CASE_TIMEOUT_SECONDS:-300}" \
                 CMUX_SKIP_ZIG_BUILD=1 \
                 test 2>&1 &
               local xcodebuild_pid=$!
@@ -1230,6 +1255,18 @@ jobs:
               while kill -0 "$xcodebuild_pid" 2>/dev/null; do
                 if [ "$SECONDS" -ge "$deadline" ]; then
                   echo "xcodebuild unit-test batch ${logical_shard}/${LOGICAL_SHARD_TOTAL} timeout after ${timeout_seconds}s; terminating"
+                  # A batch that reaches this deadline is almost always a wedged
+                  # app host (main actor blocked, a WebKit load that never
+                  # finishes). Sample it before it dies so the log names the
+                  # stuck frames instead of only the tests that were in flight.
+                  for hang_pid in $(pgrep -f 'Contents/MacOS/cmux DEV( |$)' 2>/dev/null | head -2); do
+                    hang_sample="$RUNNER_TEMP/app-host-hang-sample-${logical_shard}-${hang_pid}.txt"
+                    if sample "$hang_pid" 3 -mayDie -file "$hang_sample" >/dev/null 2>&1; then
+                      echo "::group::app-host hang sample (pid ${hang_pid}, first threads)"
+                      awk '/^Call graph:/{p=1} p' "$hang_sample" | head -900
+                      echo "::endgroup::"
+                    fi
+                  done
                   kill -TERM "$xcodebuild_pid" 2>/dev/null || true
                   sleep 5
                   kill -KILL "$xcodebuild_pid" 2>/dev/null || true

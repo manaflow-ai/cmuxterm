@@ -2371,7 +2371,7 @@
       "currentWorkspaceDesc": "Get the currently active workspace.",
       "closeWorkspaceDesc": "Close a workspace.",
       "splitCommands": "Split commands",
-      "newSplitDesc": "Create a new split pane. Directions: left, right, up, down.",
+      "newSplitDesc": "Create a new split pane. Directions: left, right, up, down. Pass --command <text> to start a command in the new terminal shell; the shell stays open after it exits.",
       "listSurfacesDesc": "List all surfaces in the current workspace.",
       "focusSurfaceDesc": "Focus a specific surface.",
       "inputCommands": "Input commands",
