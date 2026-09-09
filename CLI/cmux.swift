@@ -34195,7 +34195,10 @@ export default CMUXSessionRestore;
                 declaredPhase: declaredPhase,
                 detail: detail,
                 attention: Self.semanticAttentionContext(input.rawObject),
-                occurredAtMs: Self.semanticOccurredAtMs(input.rawObject),
+                occurredAtMs: Self.semanticOccurredAtMs(
+                    input.rawObject,
+                    eventTimeOverride: eventTimeOverride
+                ),
                 responseTimeout: responseTimeout,
                 deadline: deadline ?? cursorShellDeadline,
                 store: store,

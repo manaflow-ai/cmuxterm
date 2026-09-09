@@ -505,23 +505,15 @@ struct CLICodexHookTimeoutRegressionTests {
             ],
         ], options: [.prettyPrinted, .sortedKeys]).write(to: stateURL, options: .atomic)
         let ledgerURL = root.appendingPathComponent("codex-turn-ledger.json")
+        let ledgerRecord: [String: Any] = [
+            "workspaceID": workspaceId, "surfaceID": surfaceId,
+            "owner": ["pid": Int(ProcessInfo.processInfo.processIdentifier)], "activeTurnID": turnId,
+            "activeChildrenByTurn": [:], "unknownChildrenByTurn": [:],
+            "terminalChildrenByTurn": [:], "pendingTurns": [:],
+            "settledTurnIDs": [], "notifiedTurnIDs": [], "updatedAt": now,
+        ]
         try JSONSerialization.data(withJSONObject: [
-            "records": [
-                sessionId: [
-                    "workspaceID": workspaceId,
-                    "surfaceID": surfaceId,
-                    "owner": ["pid": Int(ProcessInfo.processInfo.processIdentifier)],
-                    "activeTurnID": turnId,
-                    "activeChildrenByTurn": [:],
-                    "unknownChildrenByTurn": [:],
-                    "terminalChildrenByTurn": [:],
-                    "pendingTurns": [:],
-                    "settledTurnIDs": [],
-                    "notifiedTurnIDs": [],
-                    "updatedAt": now,
-                ],
-            ],
-            "surfaceOwners": [surfaceId: sessionId],
+            "records": [sessionId: ledgerRecord], "surfaceOwners": [surfaceId: sessionId],
         ], options: [.prettyPrinted, .sortedKeys]).write(to: ledgerURL, options: .atomic)
         startCodexHookMockSocketServerAccepting(
             listenerFD: listenerFD,
@@ -572,6 +564,14 @@ struct CLICodexHookTimeoutRegressionTests {
         #expect(
             replayEventTime > inheritedEventTime,
             "The monitor's completion replay must use its fresh sample, not the monitor's inherited start timestamp"
+        )
+        let journalCapture = try #require(AgentJournalAppendCapture.first(
+            in: commands.snapshot(), kind: "agent.turn.completed", agentKey: "codex", sessionId: sessionId
+        ))
+        #expect(
+            ((journalCapture.draft["occurred_at_ms"] as? NSNumber)?.int64Value ?? 0)
+                > Int64(inheritedEventTime * 1000),
+            "The monitor's journal replay must use its fresh sample, not the inherited start timestamp"
         )
         #expect(commands.snapshot().contains { $0.hasPrefix("set_status codex Idle ") })
     }

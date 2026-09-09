@@ -69,9 +69,15 @@ extension CMUXCLI {
             requestIdentity: identifier(["tool_use_id", "toolUseId", "toolUseID", "tool_call_id", "toolCallId", "request_id", "requestId"]))
     }
 
-    static func semanticOccurredAtMs(_ object: [String: Any]?) -> Int64? {
+    static func semanticOccurredAtMs(
+        _ object: [String: Any]?,
+        eventTimeOverride: TimeInterval? = nil
+    ) -> Int64? {
         // The wrapper captures time before detaching. Processing time would
         // make an older, delayed Running hook look newer than Stop again.
+        if let eventTimeOverride {
+            return Int64((eventTimeOverride * 1000).rounded())
+        }
         if let captured = ProcessInfo.processInfo.environment["CMUX_AGENT_HOOK_CAPTURED_AT"] {
             return parseAgentHookTimeValue(captured).map { Int64(($0 * 1000).rounded()) }
         }
