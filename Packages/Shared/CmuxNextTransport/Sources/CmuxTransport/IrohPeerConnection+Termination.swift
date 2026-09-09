@@ -2,6 +2,11 @@ import Foundation
 import IrohLib
 
 extension IrohPeerConnection {
+    /// Gives a remote CONNECTION_CLOSE a short publication window after a
+    /// lane FIN wins the race, without allowing a still-live session to hang
+    /// the reconnect owner forever.
+    private static let laneEOFReasonGrace: Duration = .milliseconds(400)
+
     /// The known code vocabulary, longest-first so "grant-expired" wins over
     /// its substring "expired" when parsing the rendered close cause.
     private static let knownTerminationCodes: [String] = {
@@ -44,14 +49,16 @@ extension IrohPeerConnection {
         } else if afterLaneEOF {
             // A lane EOF is not proof that the QUIC connection itself closed:
             // peers can finish the control stream while retaining the session
-            // for another lane. Waiting on `closed()` here would strand the
-            // reconnect owner forever, so let it classify this as the
-            // ordinary connection-lost case and schedule capped redial.
-            if TransportDebugLog.enabled {
-                TransportDebugLog.core.notice(
-                    "conn \(TransportDebugLog.id(self), privacy: .public) termination: lane EOF without close cause -> nil")
+            // for another lane. Give a raced remote CONNECTION_CLOSE a short
+            // window to publish its reason, but never await `closed()` here.
+            guard let reason = await closeReasonAfterLaneEOF() else {
+                if TransportDebugLog.enabled {
+                    TransportDebugLog.core.notice(
+                        "conn \(TransportDebugLog.id(self), privacy: .public) termination: lane EOF without close cause -> nil")
+                }
+                return nil
             }
-            return nil
+            rendered = reason
         } else {
             rendered = await connection.closed()
         }
@@ -85,6 +92,15 @@ extension IrohPeerConnection {
                 """)
         }
         return nil
+    }
+
+    private func closeReasonAfterLaneEOF() async -> String? {
+        let deadline = ContinuousClock.now + Self.laneEOFReasonGrace
+        while true {
+            if let reason = connection.closeReason() { return reason }
+            guard ContinuousClock.now < deadline else { return nil }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
     }
 
     /// Matches only reason-shaped renderings, never an arbitrary substring of
