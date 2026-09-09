@@ -366,6 +366,108 @@
         }
       }
     },
+    "socket.surfaceSyncCodexNativeTitle.invalidTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Missing or invalid title"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "タイトルが指定されていないか無効です"
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.asyncDispatchRequired": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "surface.sync_codex_native_title requires asynchronous socket dispatch"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "surface.sync_codex_native_title には非同期ソケットディスパッチが必要です"
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.tabManagerUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TabManager not available"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TabManager は利用できません"
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.workspaceIdInvalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Missing or invalid workspace_id"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "workspace_id が指定されていないか無効です"
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.panelIdInvalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Missing or invalid panel_id"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "panel_id が指定されていないか無効です"
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.panelNotFound": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panel not found"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "パネルが見つかりません"
+          }
+        }
+      }
+    },
     "socket.error.unknownMethod": {
       "extractionState": "manual",
       "localizations": {
@@ -127255,40 +127357,6 @@
         }
       }
     },
-    "featureFlags.cloudVM.description": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shows Cloud VM entrypoints in the new-workspace dropdown and command palette."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新規ワークスペースのドロップダウンとコマンドパレットにクラウドVMのエントリーポイントを表示します。"
-          }
-        }
-      }
-    },
-    "featureFlags.cloudVM.title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cloud VM UI"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "クラウドVM UI"
-          }
-        }
-      }
-    },
     "featureFlags.column.current": {
       "extractionState": "manual",
       "localizations": {
@@ -187524,13 +187592,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hides every Cloud Machines surface unless remote rollout enables it."
+            "value": "Hides every Cloud Machines surface, and keeps the Cloud tunnel and fleet polling off, until you enable it here."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "リモートロールアウトで有効化されない限り、クラウドマシンのすべての画面を非表示にします。"
+            "value": "ここで有効にするまで、クラウドマシンのすべての画面を非表示にし、クラウドトンネルとフリートのポーリングもオフのままにします。"
           }
         }
       }
@@ -298744,7 +298812,58 @@
         }
       }
     }
-  }
+  },
+    "cloudTunnel.error.cloudMachinesOff": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud Machines is turned off. Turn it on in Settings › Beta Features, then retry."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラウドマシンはオフになっています。設定 › ベータ機能でオンにしてから、もう一度お試しください。"
+          }
+        }
+      }
+    },
+    "cloudTunnel.error.noCloudMachine": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a Cloud machine first. The cmux Cloud Tunnel runs only for an account with at least one machine."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先にクラウドマシンを作成してください。cmux Cloud Tunnelは、マシンを1台以上持つアカウントでのみ動作します。"
+          }
+        }
+      }
+    },
+    "cli.vpn.status.unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tunnel: unavailable (%@)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "トンネル: 利用不可（%@）"
+          }
+        }
+      }
+    }
   },
   "version": "1.0"
 }
