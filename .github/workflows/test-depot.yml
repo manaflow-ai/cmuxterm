@@ -147,6 +147,7 @@ jobs:
           UNIT_TEST_SUITES: ${{ inputs.unit_test_suites }}
         run: |
           set -euo pipefail
+          export TEST_RUNNER_PATH="$PATH"
           SOURCE_PACKAGES_DIR="$PWD/.ci-source-packages"
           run_unit_suite() {
             scripts/ci/xcodebuild_noninteractive.py \
