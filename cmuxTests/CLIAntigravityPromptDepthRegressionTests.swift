@@ -35,12 +35,18 @@ extension CLINotifyProcessIntegrationRegressionTests {
         // Antigravity fires PreInvocation for every model invocation in one
         // execution loop. Those callbacks are one active turn, not nested
         // turns, so one Stop must close all of them.
+        var firstPromptRevision: Int64?
         for invocation in 0..<4 {
             let prompt = run(
                 "prompt-submit",
                 payload: #"{"conversationId":"\#(sessionId)","invocationNum":\#(invocation),"workspacePaths":["\#(context.root.path)"],"hook_event_name":"PreInvocation"}"#
             )
             XCTAssertEqual(prompt.status, 0, prompt.stderr)
+            if invocation == 0 {
+                firstPromptRevision = try XCTUnwrap(
+                    (readAntigravityHookSession(sessionId, context: context)["promptLifecycleRevision"] as? NSNumber)?.int64Value
+                )
+            }
         }
 
         let repeatedPromptRecord = try readAntigravityHookSession(sessionId, context: context)
@@ -49,6 +55,11 @@ extension CLINotifyProcessIntegrationRegressionTests {
             repeatedPromptRecord["activePromptDepth"] as? Int,
             1,
             "Repeated Antigravity PreInvocation callbacks must remain one active prompt"
+        )
+        XCTAssertEqual(
+            (repeatedPromptRecord["promptLifecycleRevision"] as? NSNumber)?.int64Value,
+            firstPromptRevision,
+            "Repeated Antigravity PreInvocation callbacks must remain one prompt generation"
         )
 
         let stop = run(
@@ -283,7 +294,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertEqual(sessionStart.status, 0, sessionStart.stderr)
         let prompt = run(
             "prompt-submit",
-            payload: #"{"conversationId":"\#(sessionId)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"PreInvocation"}"#
+            payload: #"{"conversationId":"\#(sessionId)","turn_id":"turn-1","workspacePaths":["\#(context.root.path)"],"hook_event_name":"PreInvocation"}"#
         )
         XCTAssertEqual(prompt.status, 0, prompt.stderr)
         let firstPromptRecord = try readAntigravityHookSession(sessionId, context: context)
@@ -315,7 +326,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
 
         let newerPrompt = run(
             "prompt-submit",
-            payload: #"{"conversationId":"\#(sessionId)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"PreInvocation"}"#
+            payload: #"{"conversationId":"\#(sessionId)","turn_id":"turn-2","workspacePaths":["\#(context.root.path)"],"hook_event_name":"PreInvocation"}"#
         )
         XCTAssertEqual(newerPrompt.status, 0, newerPrompt.stderr)
         let newerPromptRecord = try readAntigravityHookSession(sessionId, context: context)
@@ -393,7 +404,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
             XCTAssertEqual(sessionStart.status, 0, sessionStart.stderr)
             let prompt = run(
                 "prompt-submit",
-                payload: #"{"conversationId":"\#(sessionId)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"PreInvocation"}"#
+                payload: #"{"conversationId":"\#(sessionId)","turn_id":"turn-1","workspacePaths":["\#(context.root.path)"],"hook_event_name":"PreInvocation"}"#
             )
             XCTAssertEqual(prompt.status, 0, prompt.stderr)
             let firstPromptRecord = try readAntigravityHookSession(sessionId, context: context)
@@ -431,7 +442,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
 
             let newerPrompt = run(
                 "prompt-submit",
-                payload: #"{"conversationId":"\#(sessionId)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"PreInvocation"}"#
+                payload: #"{"conversationId":"\#(sessionId)","turn_id":"turn-2","workspacePaths":["\#(context.root.path)"],"hook_event_name":"PreInvocation"}"#
             )
             XCTAssertEqual(newerPrompt.status, 0, newerPrompt.stderr)
             let newerPromptRecord = try readAntigravityHookSession(sessionId, context: context)

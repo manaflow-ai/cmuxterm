@@ -25,10 +25,17 @@ extension ClaudeHookSessionRecord {
 
     /// Starts an authoritative prompt in the persisted session projection.
     mutating func beginAuthoritativePrompt(turnId: String?) {
+        let wasActive = (activePromptDepth ?? 0) > 0
+        let previousActiveTurnId = activePromptTurnId ?? activePromptTurnIds?.last
         var state = promptLifecycleState
         state.beginAuthoritativePrompt(turnID: turnId)
         promptLifecycleState = state
-        advancePromptLifecycleRevision()
+        // Antigravity emits PreInvocation once per model invocation within a
+        // single turn. Keep those repeated callbacks in one generation, while
+        // still fencing a new turn when it has an explicit, changed ID.
+        if !wasActive || (turnId != nil && turnId != previousActiveTurnId) {
+            advancePromptLifecycleRevision()
+        }
     }
 
     /// Closes all active prompt state while retaining the most recent turn id.
