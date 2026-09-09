@@ -71,6 +71,23 @@ struct TerminalSurfaceExplicitInputTests {
         )
     }
 
+    @Test func rejectedClipboardDeferralDoesNotDiscardSynchronousInput() {
+        let nativeView = FakeTerminalSurfaceNativeView(
+            frame: NSRect(x: 0, y: 0, width: 800, height: 600)
+        )
+        var discardCount = 0
+
+        #expect(
+            !nativeView.deferRuntimeInputDuringClipboardRead(
+                estimatedBytes: 4,
+                isHumanInput: false,
+                replay: {},
+                onDiscard: { discardCount += 1 }
+            )
+        )
+        #expect(discardCount == 0)
+    }
+
     @Test func parsedInputChecksDeferralBetweenLiveEvents() {
         let runtimeSurface = allocatedRuntimeSurface()
         let fixture = makeFixture(runtimeSurface: runtimeSurface)
