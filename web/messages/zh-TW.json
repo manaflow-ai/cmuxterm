@@ -1281,7 +1281,7 @@
       "metaDescription": "cmux 從 AGPL-3.0 重新授權為 GPL-3.0。"
     },
     "cmuxSsh": {
-      "metaTitle": "SSH",
+      "metaTitle": "cmux SSH",
       "metaDescription": "只要一個命令，就能取得持久的遠端工作階段、可連到遠端連接埠的瀏覽器窗格，以及傳回本機的代理通知。"
     },
     "cmdShiftU": {
@@ -1294,7 +1294,7 @@
     },
     "introducingCmux": {
       "metaTitle": "cmux 介紹",
-      "metaDescription": "我們為什麼要做 cmux，一個全新的 macOS 終端。"
+      "metaDescription": "以 Ghostty 為基礎打造的 macOS 原生終端機，專為同時執行多個 AI 程式設計代理程式而設計。"
     },
     "posts": {
       "tokenMultitasking": {
@@ -1404,7 +1404,7 @@
         "p1": "cmux 從 AGPL-3.0 重新授權為 GPL-3.0。 AGPL 的網路使用條款與桌面應用程式無關，但許多公司完全禁止 AGPL。 GPL 放棄了該條款，但仍要求分叉保持開源。雙重許可證（GPL + 商業）保持不變。"
       },
       "cmuxSsh": {
-        "title": "SSH",
+        "title": "cmux SSH",
         "summary": "只要一個命令，就能取得持久的遠端工作階段、可連到遠端連接埠的瀏覽器窗格，以及傳回本機的代理通知。",
         "date": "2026 年 3 月 30 日",
         "p1": "<code>cmux ssh user@remote</code> 為遠端電腦建立工作區。將影像拖曳到遠端 Claude Code 會話中，它會自動上傳。瀏覽器窗格透過遠端網路路由，因此本機主機可以正常運作。使用您的 <code>~/.ssh/config</code>，在斷線時重新連線。",
@@ -1453,7 +1453,7 @@
         "title": "Claude Code 是最好的工作樹管理器",
         "summary": "使用 Claude Code、Codex、腳本和 cmux 原語建立您的程式碼庫實際需要的工作樹工作流程。",
         "date": "2026 年 7 月 3 日",
-        "p1": "內建工作樹管理器肯定是有限的。他們通常假設一個儲存庫、Git、一個受祝福的分支流程以及產品團隊對設定的含義的想法。真正的程式碼庫不會停留在這些行內。",
+        "p1": "不同工作需要不同的平行處理方式。一般 Git 修改適合用工作樹；如果子模組或建置工具不支援工作樹，取出多份儲存庫副本會更方便。Freestyle 和 Modal 提供遠端沙箱，GitHub Actions 也能用來完成相同工作。Docker、UTM、Lima 與 OrbStack 則提供本機隔離環境。有些團隊使用 Mac mini 或 Linux 主機。機器學習實驗往往更適合在 Ray、Modal 或 Slurm 上執行。有時，最快的做法反而是冒點風險，直接在 main 上執行全部工作。",
         "p2": "<zen>cmux 之禪</zen>在於，開發者應該打造自己的工具，並探索與程式碼協作的各種方式。worktree 是一個有用的原語，但多個 checkout、放在不同資料夾裡的後端/前端 repo、遠端機器、非 Git 專案、本機腳本，甚至偶爾直接在 main 上寫程式，因為那對當前任務最快，也同樣是原語。",
         "superRepoTitle": "超級回購模式",
         "superRepoP1": "超級倉庫是一種控制檢查，它知道所有真實倉庫的位置、如何創建工作樹、如何配對相關倉庫、哪些腳本準備每個工作區以及如何審查和合併 PR。 cmuxterm-hq 是一個超級儲存庫：它包含主要 cmux 簽出、每個任務的 cmux 工作樹、Zed 簽出、hq 腳本、可重用技能以及代理遵循的規則以避免相互幹擾。",
@@ -1742,7 +1742,7 @@
       "moshContrast": "如需在網路之間漫遊，請使用 cmux mosh-tmux。它會開啟一個連接到具名 tmux 工作階段的完整 Mosh 終端；不會取代 SSH tmux 控制模式提供的原生工作區、分頁與分割鏡像。",
       "mappingTitle": "tmux 如何映射到 cmux",
       "mappingIntro": "cmux 和 tmux 以相反的方向嵌套它們的佈局。在 cmux 中，一個窗格包含一行選項卡（每個選項卡都是一個終端）。在 tmux 中，一個視窗包含多個窗格。遠端 tmux 透過將 tmux 的結構投影到 cmux 的結構來橋接兩者：",
-      "mapTmux": "多路復用器",
+      "mapTmux": "tmux",
       "mapCmux": "cmux",
       "rowSession": "側邊欄中的專用工作區。",
       "rowWindow": "該工作區中的一個選項卡。",
@@ -1807,7 +1807,7 @@
       "install": "安裝",
       "dmgRecommended": "DMG（推薦）",
       "dmgDesc": "開啟 .dmg 並將 cmux 拖曳到「應用程式」資料夾。cmux 透過 Sparkle 自動更新，所以你只需要下載一次。",
-      "homebrew": "自製",
+      "homebrew": "Homebrew",
       "updateLater": "之後更新：",
       "firstLaunchCallout": "首次啟動時，macOS 可能會要求你確認開啟來自已識別開發者的應用程式。點擊<strong>打開</strong>以繼續。",
       "verifyTitle": "驗證安裝",
@@ -2064,13 +2064,13 @@
           "sessionContentAlignment": "啟用 sessionContentMaxWidth 時，終端機與內建代理程式聊天內容的水平位置。",
           "showTextBoxOnNewTerminals": "預設在新建的工作區、終端機分頁和終端機分割中顯示測試版 TextBox 輸入。",
           "focusTextBoxOnNewTerminals": "預設在新建的工作區、終端機分頁和終端機分割中聚焦測試版 TextBox 輸入。聚焦也會顯示 TextBox。",
-          "textBoxDefaultSubmitAction": "預設文字方塊提交新終端會話的操作 ID。使用文字輸入進行純輸入或配置的操作 ID 之一。",
-          "textBoxSubmitActions": "可設定的文字方塊提交操作顯示在提交按鈕、Shift-Tab 循環和右鍵選單上。",
+          "textBoxDefaultSubmitAction": "新終端機工作階段預設使用的 TextBox 送出動作 ID。若只要輸入一般文字，請使用 text-entry；也可以指定已設定的動作 ID。",
+          "textBoxSubmitActions": "可自訂的 TextBox 送出動作，會顯示於送出按鈕和右鍵選單，也能按 Shift-Tab 依序切換。",
           "textBoxSubmitActionId": "Terminal.textBoxDefaultSubmitAction 引用的穩定操作 ID。",
           "textBoxSubmitActionTitle": "此提交操作的選單標籤。",
           "textBoxSubmitActionKind": "此操作是提交純文字輸入還是展開 shell 命令範本。",
           "textBoxSubmitActionCommandTemplate": "commandTemplate 操作的 Shell 指令範本。包含 {{prompt}} 可以將提示符號透過 shell 引用到命令中。",
-          "textBoxSubmitActionPreservePromptAfterLaunch": "如果為 true，則在沒有提示的情況下啟動 commandTemplate，並將提示保留在活動代理程式的文字方塊中。",
+          "textBoxSubmitActionPreservePromptAfterLaunch": "設為 true 時，啟動 commandTemplate 時不帶入提示詞，並將提示詞留在 TextBox 中，供目前的代理程式使用。",
           "textBoxSubmitActionSystemImage": "提交按鈕上顯示的備用 SF Symbol 名稱。",
           "textBoxSubmitActionAssetName": "提交按鈕上顯示的選用 App 資產目錄圖片名稱。",
           "textBoxSubmitActionImagePath": "提交按鈕上顯示的選用 PNG 或圖片檔案路徑。波浪號會展開。",
@@ -2619,7 +2619,7 @@
       "suggestionHeader": "技能理念",
       "suggestionUseHeader": "使用案例",
       "suggestionWhyHeader": "為什麼有幫助",
-      "suggestSshName": "SSH",
+      "suggestSshName": "cmux SSH",
       "suggestSshUse": "驅動遠端工作空間、SSH URL 啟動、透過遠端網路的瀏覽器路由以及重新連接行為。",
       "suggestSshWhy": "遠端會話是主要的 cmux 表面，其行為與本機終端工作流程不同。",
       "suggestCloudVmName": "cmux 雲端虛擬機",
@@ -2837,8 +2837,8 @@
       "envSocket": "shim 用來連線的 cmux 控制 socket 路徑"
     },
     "ohMyPi": {
-      "title": "喔我的圓周率",
-      "metaTitle": "喔我的 pi - cmux",
+      "title": "oh-my-pi",
+      "metaTitle": "oh-my-pi - cmux",
       "metaDescription": "透過 status、notifications、工作階段還原、自動命名與 Task Manager 歸屬 hook，將 oh-my-pi (omp) 連線至 cmux。",
       "intro": "oh-my-pi 是 Pi 的分支，重新改寫為編碼優先的代理。其二進位檔為 omp，cmux 透過 omp hooks 擴充功能與它整合。",
       "setupUsage": "設定和使用",
@@ -2917,7 +2917,7 @@
       "claudeCodeTeams": "克勞德代碼團隊",
       "ohMyOpenCode": "oh-my-opencode",
       "ohMyCodex": "oh-my-codex",
-      "ohMyPi": "喔我的圓周率",
+      "ohMyPi": "oh-my-pi",
       "ohMyClaudeCode": "哦我的克勞德代碼",
       "changelog": "更新日誌",
       "dock": "碼頭",
@@ -3270,7 +3270,7 @@
       "terminalAppBody": "macOS 內建終端。隨時可用，零設定。適合輕度使用；大多數進階使用者最終會想要更多。",
       "otherTitle": "Alacritty、kitty 和 WezTerm",
       "otherBody": "面向喜歡在檔案裡設定一切的人的快速 GPU 終端。Alacritty 刻意極簡，kitty 功能豐富且可指令稿化，WezTerm 自帶多工器。它們都跨平台，如果你想要一個高度調校的單一終端，它們很合適。",
-      "tmuxTitle": "多路復用器",
+      "tmuxTitle": "tmux",
       "tmuxBody": "它不是終端，而是你在終端內執行的多工器。在遠端伺服器上透過 SSH 維持持久工作階段方面無可匹敵。需要時，cmux 可以連接到遠端 tmux 工作階段。",
       "rGpuLib": "GPU（libghostty）",
       "rGpu": "GPU",
@@ -3498,7 +3498,7 @@
                 "代理注意仍需自訂接線"
               ],
               [
-                "多路復用器",
+                "tmux",
                 "透過 SSH 進行終端多路復用",
                 "任何 CLI 代理",
                 "前綴鍵工作流程，無本機應用程式 UI"
@@ -4341,7 +4341,7 @@
             "headers": [
               "維度",
               "多路復用器",
-              "多路復用器"
+              "tmux"
             ],
             "rows": [
               [
@@ -4816,7 +4816,7 @@
             "headers": [
               "維度",
               "多路復用器",
-              "幽靈般的"
+              "Ghostty"
             ],
             "rows": [
               [
