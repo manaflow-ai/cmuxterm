@@ -1089,10 +1089,10 @@ struct RestorableAgentSessionIndex: Sendable {
     private func hookStoreIsComplete(forKind kind: String?) -> Bool {
         if isComplete { return true }
         guard !incompleteHookStoreKinds.isEmpty,
-              let kindID = kind.flatMap({ RestorableAgentKind(rawValue: $0)?.rawValue }) else {
+              let kindID = kind?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !kindID.isEmpty else {
             return false
         }
-        return !incompleteHookStoreKinds.contains { $0.rawValue == kindID }
+        return !incompleteHookStoreKinds.contains { $0.rawValue.lowercased() == kindID }
     }
 
     /// Fingerprint used by the shared index cache to publish scoped completion
