@@ -114,6 +114,24 @@ private func agentHookDebugSocketName(_ socketPath: String?) -> String {
     guard let socketPath = agentHookDebugNonEmpty(socketPath) else { return "nil" }
     return URL(fileURLWithPath: socketPath).lastPathComponent
 }
+
+/// Test-only coordination for exercising hook callbacks that race between
+/// their unlocked routing snapshot and the locked state mutation. The barrier
+/// is compiled out of release builds and is inert unless explicitly enabled
+/// by a Debug test process.
+private func agentHookDebugWaitForTestBarrier(event: String, env: [String: String]) {
+    guard event == "session-end",
+          let barrierPath = agentHookDebugNonEmpty(env["CMUX_TEST_AGENT_HOOK_SESSION_END_BARRIER"]) else {
+        return
+    }
+    let readyPath = barrierPath + ".ready"
+    FileManager.default.createFile(atPath: readyPath, contents: Data())
+    let deadline = Date().addingTimeInterval(10)
+    while FileManager.default.fileExists(atPath: barrierPath), Date() < deadline {
+        usleep(1_000)
+    }
+    try? FileManager.default.removeItem(atPath: readyPath)
+}
 #endif
 
 struct ClaudeHookSessionRecord: Codable {
@@ -261,6 +279,10 @@ struct ClaudeHookSessionRecord: Codable {
     var activePromptTurnId: String?
     var activePromptTurnIds: [String]?
     var lastPromptTurnId: String?
+    /// Monotonic identity for the authoritative prompt projection. A delayed
+    /// SessionEnd must only settle the exact prompt revision it observed.
+    /// Optional for compatibility with state written before this fence existed.
+    var promptLifecycleRevision: Int64? = nil
     var terminalPromptTurnIds: [String]?
     var startedAt: TimeInterval
     var updatedAt: TimeInterval
@@ -1267,6 +1289,7 @@ final class ClaudeHookSessionStore {
         runtimeStatus: AgentHookRuntimeStatus? = nil,
         updateRuntimeStatus: Bool = false,
         settleOnlyIfPromptActive: Bool = false,
+        expectedPromptLifecycleRevision: Int64? = nil,
         autoNameMessages: [AutoNamingTranscriptMessage] = []
     ) throws -> Bool {
         let normalized = normalizeSessionId(sessionId)
@@ -1281,8 +1304,23 @@ final class ClaudeHookSessionStore {
                 now: now
             )
             let depthBeforeStop = max(0, record.activePromptDepth ?? 0)
+            let promptRevisionMatches: Bool = {
+                guard let expectedPromptLifecycleRevision else {
+                    // A nil revision is the legacy representation. It is a
+                    // valid match only while the record remains legacy; the
+                    // first new prompt assigns a revision and invalidates a
+                    // delayed legacy SessionEnd.
+                    return record.promptLifecycleRevision == nil
+                }
+                return record.promptLifecycleRevision == expectedPromptLifecycleRevision
+            }()
+            guard !settleOnlyIfPromptActive || (
+                depthBeforeStop > 0 && promptRevisionMatches
+            ) else {
+                return false
+            }
             let shouldSettleAuthoritativeBoundary = promptDepthPolicy.closesActivePrompt
-                && (!settleOnlyIfPromptActive || depthBeforeStop > 0)
+                && (!settleOnlyIfPromptActive || (depthBeforeStop > 0 && promptRevisionMatches))
             let depthAfterStop = promptDepthPolicy.closesActivePrompt
                 ? 0
                 : max(0, depthBeforeStop - 1)
@@ -36940,6 +36978,9 @@ export default CMUXSessionRestore;
                         surfaceId: mapped.surfaceId
                     )
                     sendAgentFeedTelemetry(workspaceId: mapped.workspaceId, surfaceId: mapped.surfaceId)
+#if DEBUG
+                    agentHookDebugWaitForTestBarrier(event: "session-end", env: env)
+#endif
                     // An authoritative SessionEnd closes abandoned prompt frames. Only
                     // force idle while a prompt is still active: a preceding Stop or
                     // Notification may have already settled the turn to a durable
@@ -36970,6 +37011,7 @@ export default CMUXSessionRestore;
                         // the newer durable running/needs-input/error state
                         // instead of replaying the stale idle decision.
                         settleOnlyIfPromptActive: true,
+                        expectedPromptLifecycleRevision: mapped.promptLifecycleRevision,
                         autoNameMessages: autoNamingMessages(
                             for: def,
                             parsedInput: input,

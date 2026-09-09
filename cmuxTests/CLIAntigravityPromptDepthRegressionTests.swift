@@ -192,6 +192,84 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertNil(record["activePromptDepth"])
     }
 
+    func testAntigravityDelayedSessionEndCannotCloseNewerPrompt() throws {
+        let context = try makeClaudeHookContext(name: "antigravity-session-end-generation")
+        defer { context.cleanup() }
+
+        startAgentHookMockServerAccepting(context: context)
+        let sessionId = "antigravity-session-end-generation-session"
+        func run(_ subcommand: String, payload: String) -> ProcessRunResult {
+            runAgentHook(
+                context: context,
+                agent: "antigravity",
+                subcommand: subcommand,
+                standardInput: payload
+            )
+        }
+
+        let sessionStart = run(
+            "session-start",
+            payload: #"{"conversationId":"\#(sessionId)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"SessionStart"}"#
+        )
+        XCTAssertEqual(sessionStart.status, 0, sessionStart.stderr)
+        let prompt = run(
+            "prompt-submit",
+            payload: #"{"conversationId":"\#(sessionId)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"PreInvocation"}"#
+        )
+        XCTAssertEqual(prompt.status, 0, prompt.stderr)
+        let firstPromptRecord = try readAntigravityHookSession(sessionId, context: context)
+        assertActivePromptState(firstPromptRecord)
+        let firstRevision = try XCTUnwrap(
+            (firstPromptRecord["promptLifecycleRevision"] as? NSNumber)?.int64Value
+        )
+
+        let barrier = context.root.appendingPathComponent("session-end.barrier").path
+        FileManager.default.createFile(atPath: barrier, contents: Data())
+        let sessionEndFinished = expectation(description: "delayed SessionEnd finishes")
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = self.runAgentHook(
+                context: context,
+                agent: "antigravity",
+                subcommand: "session-end",
+                standardInput: #"{"conversationId":"\#(sessionId)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"SessionEnd"}"#,
+                extraEnvironment: ["CMUX_TEST_AGENT_HOOK_SESSION_END_BARRIER": barrier]
+            )
+            sessionEndFinished.fulfill()
+        }
+
+        let readyPath = barrier + ".ready"
+        let readyDeadline = Date().addingTimeInterval(5)
+        while !FileManager.default.fileExists(atPath: readyPath), Date() < readyDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: readyPath), "SessionEnd must reach the post-lookup barrier")
+
+        let newerPrompt = run(
+            "prompt-submit",
+            payload: #"{"conversationId":"\#(sessionId)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"PreInvocation"}"#
+        )
+        XCTAssertEqual(newerPrompt.status, 0, newerPrompt.stderr)
+        let newerPromptRecord = try readAntigravityHookSession(sessionId, context: context)
+        assertActivePromptState(newerPromptRecord)
+        let newerRevision = try XCTUnwrap(
+            (newerPromptRecord["promptLifecycleRevision"] as? NSNumber)?.int64Value
+        )
+        XCTAssertGreaterThan(newerRevision, firstRevision)
+
+        try FileManager.default.removeItem(atPath: barrier)
+        wait(for: [sessionEndFinished], timeout: 5)
+
+        let finalRecord = try readAntigravityHookSession(sessionId, context: context)
+        assertActivePromptState(finalRecord)
+        XCTAssertEqual(finalRecord["activePromptDepth"] as? Int, 1)
+        XCTAssertEqual(finalRecord["agentLifecycle"] as? String, "running")
+        XCTAssertEqual(finalRecord["runtimeStatus"] as? String, "running")
+        XCTAssertEqual(
+            (finalRecord["promptLifecycleRevision"] as? NSNumber)?.int64Value,
+            newerRevision
+        )
+    }
+
     private func readAntigravityHookSession(
         _ sessionId: String,
         context: ClaudeHookContext

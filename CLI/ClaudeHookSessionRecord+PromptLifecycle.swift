@@ -1,6 +1,11 @@
 import CmuxAgentHooks
 
 extension ClaudeHookSessionRecord {
+    private mutating func advancePromptLifecycleRevision() {
+        let current = promptLifecycleRevision ?? 0
+        promptLifecycleRevision = current == Int64.max ? 0 : current + 1
+    }
+
     private var promptLifecycleState: AgentHookPromptLifecycleState {
         get {
             AgentHookPromptLifecycleState(
@@ -23,6 +28,7 @@ extension ClaudeHookSessionRecord {
         var state = promptLifecycleState
         state.beginAuthoritativePrompt(turnID: turnId)
         promptLifecycleState = state
+        advancePromptLifecycleRevision()
     }
 
     /// Closes all active prompt state while retaining the most recent turn id.
@@ -30,6 +36,7 @@ extension ClaudeHookSessionRecord {
         var state = promptLifecycleState
         state.endAuthoritativePrompt()
         promptLifecycleState = state
+        advancePromptLifecycleRevision()
     }
 
     /// Clears active prompt fields while retaining the most recently observed turn identifier.
@@ -37,6 +44,7 @@ extension ClaudeHookSessionRecord {
         var state = promptLifecycleState
         state.clearActivePromptState()
         promptLifecycleState = state
+        advancePromptLifecycleRevision()
     }
 
     /// Clears active and completed prompt markers at a fresh session boundary.
@@ -44,6 +52,7 @@ extension ClaudeHookSessionRecord {
         var state = promptLifecycleState
         state.clearPromptStartState()
         promptLifecycleState = state
+        advancePromptLifecycleRevision()
     }
 }
 
