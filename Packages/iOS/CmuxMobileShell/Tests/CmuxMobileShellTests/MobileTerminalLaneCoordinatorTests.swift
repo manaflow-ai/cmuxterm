@@ -146,7 +146,7 @@ struct MobileTerminalLaneCoordinatorTests {
             consume: { _ in .accepted(outputReady: true) },
             readinessChanged: { _ in }
         ))
-        try await Task.sleep(for: .milliseconds(10))
+        await inputProvider.waitUntilCalled()
 
         #expect(await inputProvider.requestCount() == 0)
         #expect(await coordinator.isOutputReady(surfaceID: Self.surfaceID) == false)
@@ -374,6 +374,7 @@ private actor TerminalLaneTestProvider {
     private var lanes: [TerminalLaneTestConnection]
     private var cursors: [UInt64?] = []
     private var exhaustionWaiters: [CheckedContinuation<Void, Never>] = []
+    private var callWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(lanes: [TerminalLaneTestConnection]) {
         self.lanes = lanes
@@ -385,6 +386,8 @@ private actor TerminalLaneTestProvider {
         cursor: UInt64?
     ) throws -> any MobileTerminalLaneConnection {
         cursors.append(cursor)
+        for waiter in callWaiters { waiter.resume() }
+        callWaiters.removeAll()
         guard !lanes.isEmpty else {
             for waiter in exhaustionWaiters { waiter.resume() }
             exhaustionWaiters.removeAll()
@@ -395,6 +398,13 @@ private actor TerminalLaneTestProvider {
 
     func requestedCursors() -> [UInt64?] { cursors }
     func requestCount() -> Int { cursors.count }
+
+    func waitUntilCalled() async {
+        if !cursors.isEmpty { return }
+        await withCheckedContinuation { continuation in
+            callWaiters.append(continuation)
+        }
+    }
 
     func waitUntilExhausted() async {
         if lanes.isEmpty, cursors.count >= 2 { return }
