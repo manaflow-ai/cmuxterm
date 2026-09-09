@@ -177,6 +177,34 @@ describe("support page localization", () => {
 });
 
 describe("website message catalog parity", () => {
+  test("rejects non-text replacements and changes to catalog flags", async () => {
+    for (const value of [42, true, null]) {
+      const issues = await validateCatalog(
+        "fr",
+        { message: "Read the guide" },
+        { message: value },
+      );
+      expect(issues.map(({ message }) => message)).toEqual(["invalid message value"]);
+    }
+    expect(
+      await validateCatalog("fr", { vault: true }, { vault: true }),
+    ).toEqual([]);
+    expect(
+      (await validateCatalog("fr", { vault: true }, { vault: false })).map(
+        ({ message }) => message,
+      ),
+    ).toEqual(["invalid message value"]);
+  });
+
+  test("does not allow English prose merely because it starts with a URL", async () => {
+    const source = { message: "https://cmux.com has installation instructions" };
+    expect(
+      (await validateCatalog("fr", source, source)).map(({ message }) => message),
+    ).toEqual(["English-identical value"]);
+    const token = { message: "https://cmux.com/docs/getting-started" };
+    expect(await validateCatalog("fr", token, token)).toEqual([]);
+  });
+
   test("rejects rich-text tags that lose translated link text", async () => {
     const issues = await validateCatalog(
       "es",
@@ -204,7 +232,7 @@ describe("website message catalog parity", () => {
   test("keeps the nine release locales complete and translated", async () => {
     const english = englishMessages as unknown as Json;
     const catalogs = messagesByLocale as unknown as Record<string, Json>;
-    for (const locale of parityLocales.slice(1)) {
+    for (const locale of parityLocales) {
       expect(await validateCatalog(locale, english, catalogs[locale])).toEqual([]);
     }
   });
