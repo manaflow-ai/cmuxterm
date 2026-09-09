@@ -10309,6 +10309,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             backing: .buffered,
             defer: false
         )
+        if tabManager.tabs.isEmpty {
+            mainWindowVisibilityController.deferInitialPresentation(of: window)
+        }
         let minimumWindowSize = CmuxMainWindow.minimumContentSize
         window.minSize = minimumWindowSize
         window.contentMinSize = minimumWindowSize
@@ -10422,18 +10425,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let presentWindow: @MainActor () -> Void = { [weak self, weak window, weak tabManager] in
             guard let self, let window, let tabManager,
                   self.mainWindowContexts[ObjectIdentifier(window)]?.tabManager === tabManager else { return }
-            if suppressActivation {
-                window.orderFront(nil)
-                if allowsFocusMutation {
-                    self.setActiveMainWindow(window)
+            self.mainWindowVisibilityController.completeInitialPresentation(of: window) {
+                if suppressActivation {
+                    window.orderFront(nil)
+                    if allowsFocusMutation {
+                        self.setActiveMainWindow(window)
+                    }
+                } else {
+                    self.mainWindowVisibilityController.focus(
+                        window,
+                        reason: .createMainWindow,
+                        activation: .runningApplication([.activateAllWindows]),
+                        respectActivationSuppression: false
+                    )
                 }
-            } else {
-                self.mainWindowVisibilityController.focus(
-                    window,
-                    reason: .createMainWindow,
-                    activation: .runningApplication([.activateAllWindows]),
-                    respectActivationSuppression: false
-                )
             }
             if shouldTemporarilyDisallowFullScreenTiling {
                 let clearFullScreenTilingOptOut: () -> Void = { [weak window] in

@@ -84,6 +84,71 @@ struct WorkspaceCreationWorkingDirectorySpawnPolicyTests {
         #expect(manager.tabs.count == 1)
     }
 
+    @Test("deferred focus retains request-time activation permission", arguments: [false, true])
+    func deferredFocusRetainsActivationPermission(initiallySuppressed: Bool) {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 400),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        var activationSuppressed = initiallySuppressed
+        var madeKeyCount = 0
+        var activationCount = 0
+        var fallbackCount = 0
+        var operations = MainWindowVisibilityController.WindowOperations.live
+        operations.makeKeyAndOrderFront = { _ in madeKeyCount += 1 }
+        let controller = MainWindowVisibilityController(dependencies: .init(
+            isActivationSuppressed: { activationSuppressed },
+            setActiveMainWindow: { _ in },
+            isApplicationHidden: { false },
+            activateRunningApplication: { _ in activationCount += 1 },
+            windowOperations: operations
+        ))
+        controller.deferInitialPresentation(of: window)
+        #expect(controller.focus(window, reason: .socketActivate))
+        #expect(madeKeyCount == 0)
+        #expect(activationCount == 0)
+        activationSuppressed.toggle()
+        controller.completeInitialPresentation(of: window) { fallbackCount += 1 }
+        #expect(madeKeyCount == (initiallySuppressed ? 0 : 1))
+        #expect(activationCount == (initiallySuppressed ? 0 : 1))
+        #expect(fallbackCount == (initiallySuppressed ? 1 : 0))
+    }
+
+    @Test("passive activation and close cannot reveal a pending initial window")
+    func pendingInitialPresentationRejectsPassiveRevealAndClose() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 400),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        var madeKeyCount = 0
+        var fallbackCount = 0
+        var operations = MainWindowVisibilityController.WindowOperations.live
+        operations.makeKeyAndOrderFront = { _ in madeKeyCount += 1 }
+        operations.orderFront = { _ in madeKeyCount += 1 }
+        let controller = MainWindowVisibilityController(dependencies: .init(
+            isActivationSuppressed: { false },
+            setActiveMainWindow: { _ in },
+            isApplicationHidden: { false },
+            windowOperations: operations
+        ))
+        controller.deferInitialPresentation(of: window)
+        #expect(controller.reveal([window], preferredWindow: window, reason: .applicationReopen) == nil)
+        controller.focusForInWindowCommand(window, reason: .findShortcut)
+        #expect(madeKeyCount == 0)
+        controller.commitClose(window)
+        controller.completeInitialPresentation(of: window) { fallbackCount += 1 }
+        #expect(madeKeyCount == 0)
+        #expect(fallbackCount == 0)
+    }
+
     @Test("declarative shell startup stays with the surface creation snapshot")
     func declarativeShellStartupDefaultsArePinnedAtSurfaceCreation() {
         @MainActor
