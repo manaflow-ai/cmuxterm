@@ -662,7 +662,7 @@
       ]
     },
     "pro": {
-      "name": "專業版",
+      "name": "Pro",
       "cta": "取得專業版",
       "featuresLead": "一切都是免費的，另外：",
       "features": [
@@ -707,24 +707,24 @@
       "rows": [
         {
           "label": "原生 macOS 終端，開源",
-          "free": "真實",
-          "pro": "真實",
-          "team": "真實",
-          "enterprise": "真實"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "使用您自己的金鑰的本機 CLI 代理",
-          "free": "真實",
-          "pro": "真實",
-          "team": "真實",
-          "enterprise": "真實"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "垂直選項卡、拆分、通知、套接字 API",
-          "free": "真實",
-          "pro": "真實",
-          "team": "真實",
-          "enterprise": "真實"
+          "free": "true",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "會話歷史記錄",
@@ -736,37 +736,37 @@
         },
         {
           "label": "cmux Vault：雲端會話備份",
-          "free": "假的",
-          "pro": "真實",
-          "team": "真實",
-          "enterprise": "真實",
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true",
           "vault": true
         },
         {
           "label": "搜尋您的所有會話",
-          "free": "假的",
-          "pro": "真實",
-          "team": "真實",
-          "enterprise": "真實",
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true",
           "vault": true
         },
         {
           "label": "雲端虛擬機器上的雲端代理",
-          "free": "假的",
-          "pro": "真實",
-          "team": "真實",
-          "enterprise": "真實"
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "並發雲虛擬機",
-          "free": "假的",
+          "free": "false",
           "pro": "50",
           "team": "每個用戶 50 個",
           "enterprise": "客製化"
         },
         {
           "label": "每個雲端虛擬機器的資源",
-          "free": "假的",
+          "free": "false",
           "pro": "預設 8 GB RAM 和 32 GB 磁碟； 4 至 64 GB RAM，磁碟高達 256 GB",
           "team": "預設 8 GB RAM 和 32 GB 磁碟； 4 至 64 GB RAM，磁碟高達 256 GB",
           "enterprise": "客製化"
@@ -780,10 +780,10 @@
         },
         {
           "label": "iOS應用程式",
-          "free": "假的",
-          "pro": "真實",
-          "team": "真實",
-          "enterprise": "真實"
+          "free": "false",
+          "pro": "true",
+          "team": "true",
+          "enterprise": "true"
         },
         {
           "label": "透過網路連接到您的 Mac",
@@ -795,38 +795,38 @@
         },
         {
           "label": "SSO 和 SAML 登入",
-          "free": "假的",
-          "pro": "假的",
-          "team": "假的",
-          "enterprise": "真實"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "自託管和氣隙執行",
-          "free": "假的",
-          "pro": "假的",
-          "team": "假的",
-          "enterprise": "真實"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "稽核記錄：工作階段、網路、瀏覽器",
-          "free": "假的",
-          "pro": "假的",
-          "team": "假的",
-          "enterprise": "真實"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "批量定價",
-          "free": "假的",
-          "pro": "假的",
-          "team": "假的",
-          "enterprise": "真實"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "SOC 2 與 SLA",
-          "free": "假的",
-          "pro": "假的",
-          "team": "假的",
-          "enterprise": "真實"
+          "free": "false",
+          "pro": "false",
+          "team": "false",
+          "enterprise": "true"
         },
         {
           "label": "支援",
