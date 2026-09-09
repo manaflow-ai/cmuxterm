@@ -412,6 +412,24 @@ struct CloudTreeOneMachineManyWorkspacesTests {
         #expect(!store.isExpanded(shownC), "collapse is keyed by the pane, not the shown tab")
     }
 
+    @Test("A pane row keeps its identity when a second tab appears")
+    func paneIdentitySurvivesTabAppearance() throws {
+        let main = workspace("ws_main", "main", index: 0, focused: true)
+        func paneRow(_ resources: [SurfaceResource]) throws -> CloudTreeNode {
+            let snapshot = SurfaceCatalogSnapshot(
+                machines: [info(workspaces: [main])], resources: resources, projections: []
+            )
+            let workspaceRow = try #require(rows(snapshot).first { $0.id == "machine:brave-otter/ws/ws_main" })
+            return try #require(workspaceRow.children.first)
+        }
+        let first = tabbedTerminal("term_a", in: main, pane: "pane_1", index: 0, focused: true)
+        let second = tabbedTerminal("term_b", in: main, pane: "pane_1", index: 1, focused: false)
+        let oneTab = try paneRow([first])
+        let twoTabs = try paneRow([first, second])
+        #expect(oneTab.id == twoTabs.id)
+        #expect(oneTab.id.contains("pane:pane_1"))
+    }
+
     @Test("Pane rows follow the layout: the screen, then the pane's position in its split tree")
     func paneRowsFollowTheLayoutOrder() throws {
         let main = workspace("ws_main", "main", index: 0, focused: true)
