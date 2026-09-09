@@ -1,3 +1,5 @@
+import CMUXAgentLaunch
+
 extension CmuxEventBus {
     /// Projects received lifecycle hooks onto the plugin event vocabulary.
     func publishPluginLifecycleProjection(

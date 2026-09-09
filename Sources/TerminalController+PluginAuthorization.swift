@@ -1,4 +1,5 @@
 import Foundation
+import CmuxControlSocket
 
 extension TerminalController {
     /// Startup-only dependency projection for synchronous socket workers.
