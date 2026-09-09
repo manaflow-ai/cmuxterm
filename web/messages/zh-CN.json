@@ -3881,7 +3881,7 @@
                 "基于 VS Code 的桌面编辑器；VS Code 使用 Electron"
               ],
               [
-                "代理商选择",
+                "代理选择",
                 "任何 CLI 代理",
                 "覆盖编辑器、CLI、云端和集成的 Cursor Agent"
               ],
@@ -3968,7 +3968,7 @@
                 "专有 Cognition 服务和桌面软件"
               ],
               [
-                "代理商选择",
+                "代理选择",
                 "任何 CLI 代理或 shell 工具",
                 "Devin Cloud、Devin Local、Devin CLI 和 ACP 兼容代理"
               ],
@@ -4283,7 +4283,7 @@
                 "终端 TUI 加 Electron 桌面 beta"
               ],
               [
-                "代理商选择",
+                "代理选择",
                 "任何 CLI 代理或 shell 命令",
                 "具有配置的模型提供程序的 OpenCode"
               ],
@@ -4523,7 +4523,7 @@
                 "带有 VS Code OSS 风格编辑器界面的专有 Devin Desktop 服务"
               ],
               [
-                "代理商选择",
+                "代理选择",
                 "任何 CLI 代理或 shell 命令",
                 "Devin Desktop 内的 Devin、Cascade 和 ACP 兼容代理"
               ],
@@ -4672,7 +4672,7 @@
                 "Rust + GPU 渲染终端客户端"
               ],
               [
-                "代理商选择",
+                "代理选择",
                 "任何基于 shell 的代理",
                 "Warp Agent，以及 Claude Code、Codex、Gemini CLI、OpenCode 等受支持的第三方 CLI 代理"
               ],
@@ -5051,7 +5051,7 @@
     "done": "完成"
   },
   "enterprise": {
-    "metaTitle": "Enterprise | cmux",
+    "metaTitle": "企业版 | cmux",
     "metaDescription": "与 cmux 讨论企业部署、SSO、自托管云虚拟机、审核日志和承诺使用情况。",
     "section": "企业",
     "title": "为您的团队带来 cmux Cloud VM、SSO 和审核控制。",
@@ -5204,7 +5204,7 @@
           "body": "为每个功能、调查或代理团队提供自己的工作空间。切换时不会丢失终端状态或布局。"
         },
         "agents": {
-          "number": "02 / 代理商",
+          "number": "02 / 代理",
           "title": "查看并行工作",
           "body": "将编码代理放在测试、日志和审查命令旁边。通知和代理状态保持附着在其表面上。"
         },
