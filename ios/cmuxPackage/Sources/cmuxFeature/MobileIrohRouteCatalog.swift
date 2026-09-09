@@ -36,13 +36,14 @@ public actor MobileIrohRouteCatalog {
     @discardableResult
     func replace(
         with discovery: CmxIrohDiscoveryResponse,
-        scope: UInt64
+        scope: UInt64,
+        strategy: MobileMacDiscoveryStrategy = .automatic
     ) -> Bool {
         guard activeScope == scope else { return false }
         routesByMacDeviceID = Self.makeRoutesByMacDeviceID(
             from: discovery.bindings
         )
-        liveMacs = Self.makeLiveMacs(from: discovery.bindings)
+        liveMacs = Self.makeLiveMacs(from: discovery.bindings, strategy: strategy)
         return true
     }
 
@@ -116,11 +117,12 @@ public actor MobileIrohRouteCatalog {
 
     private static func makeLiveMacs(
         from bindings: [CmxIrohBrokerBinding],
+        strategy: MobileMacDiscoveryStrategy = .automatic,
         now: Date = Date()
     ) -> [MobileDiscoveredIrohMac] {
         let timestampParser = TimestampParser()
         let pairableMacs = Array(bindings.filter {
-            $0.platform == .mac && $0.pairingEnabled
+            $0.platform == .mac && $0.pairingEnabled && strategy.allows($0, now: now)
         })
         let endpointCounts = Dictionary(
             grouping: pairableMacs,
@@ -312,6 +314,25 @@ public actor MobileIrohRouteCatalog {
             fractional.date(from: value)
                 ?? wholeSeconds.date(from: value)
                 ?? .distantPast
+        }
+    }
+}
+
+private extension MobileMacDiscoveryStrategy {
+    func allows(_ binding: CmxIrohBrokerBinding, now: Date) -> Bool {
+        switch self {
+        case .automatic:
+            true
+        case .qr:
+            false
+        case .tailscale:
+            binding.pathHints.contains { hint in
+                hint.kind == .directAddress && hint.source == .tailscale && hint.isUsable(at: now)
+            }
+        case .relay:
+            binding.pathHints.contains { hint in
+                hint.kind == .relayURL && hint.publicDisclosure(at: now) != nil
+            }
         }
     }
 }
