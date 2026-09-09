@@ -61,7 +61,8 @@ extension WorkspaceSidebarObservationTests {
                     source: "codex",
                     requestId: "first-dock-attention-request"
                 ),
-                resolved: (sourceWorkspace.id, firstPanelId)
+                resolved: (sourceWorkspace.id, firstPanelId),
+                tabManager: tabManager
             )
         )
         let secondTarget = try #require(
@@ -72,7 +73,8 @@ extension WorkspaceSidebarObservationTests {
                     source: "codex",
                     requestId: "second-dock-attention-request"
                 ),
-                resolved: (sourceWorkspace.id, secondPanelId)
+                resolved: (sourceWorkspace.id, secondPanelId),
+                tabManager: tabManager
             )
         )
         defer {

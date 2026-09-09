@@ -204,7 +204,8 @@ extension WorkspaceSidebarObservationTests {
         let target = try #require(
             FeedCoordinator.shared.surfaceBlockingDecisionAttention(
                 event: event,
-                resolved: (workspace.id, panelId)
+                resolved: (workspace.id, panelId),
+                tabManager: tabManager
             )
         )
         defer {
@@ -324,7 +325,8 @@ extension WorkspaceSidebarObservationTests {
                     source: "codex",
                     requestId: "workspace-attention-request"
                 ),
-                resolved: (workspace.id, workspacePanelId)
+                resolved: (workspace.id, workspacePanelId),
+                tabManager: tabManager
             )
         )
         let dockTarget = try #require(
@@ -335,7 +337,8 @@ extension WorkspaceSidebarObservationTests {
                     source: "codex",
                     requestId: "dock-bound-attention-request"
                 ),
-                resolved: (workspace.id, dockPanelId)
+                resolved: (workspace.id, dockPanelId),
+                tabManager: tabManager
             )
         )
         defer {

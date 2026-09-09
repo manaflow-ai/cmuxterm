@@ -473,10 +473,10 @@ struct PortScannerAgentPortRetirementTests {
         let runner = AgentPortChurnCommandRunner(state: state, port: 4321)
         let scanner = PortScanner(
             commandRunner: runner,
-            processIdentityProvider: { pid in
+            processIdentityProvider: { (pid: pid_t) -> AgentPIDProcessIdentity? in
                 state.withLock { $0.identity(for: Int(pid)) }
             },
-            processPresenceProvider: { pid in
+            processPresenceProvider: { (pid: pid_t) -> PIDPresence in
                 state.withLock { $0.presence(for: Int(pid)) }
             }
         )
