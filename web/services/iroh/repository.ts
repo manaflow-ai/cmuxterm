@@ -1693,7 +1693,7 @@ async function irohRetentionBacklogExists(
         where expires_at < ${challengeRetentionCutoff.toISOString()}::timestamptz
       ) or exists (
         select 1 from iroh_registration_challenges
-        where consumed_at < ${challengeRetentionCutoff.toISOString()}::timestamptz
+        where consumed_at is not null
       ) or exists (
         select 1 from iroh_relay_token_issuances
         where requested_at < ${auditRetentionCutoff.toISOString()}::timestamptz
