@@ -135,6 +135,7 @@ extension TerminalController {
         let waitResult = waitCoordinator.wait(
             until: until,
             timeoutMilliseconds: timeoutMilliseconds,
+            surfaceID: surfaceID,
             prepare: prepare,
             routingSnapshot: { lifecycleSurfaceID in
                 self.v2MainSync {
@@ -164,7 +165,8 @@ extension TerminalController {
 
     nonisolated func agentWaitErrorResponse(
         id: Any?,
-        error: AgentWaitError
+        error: AgentWaitError,
+        data: Any? = nil
     ) -> String {
         switch error {
         case .surfaceNotFound:
@@ -174,7 +176,8 @@ extension TerminalController {
                 message: String(
                     localized: "socket.agentWait.error.surfaceNotFound",
                     defaultValue: "Surface not found"
-                )
+                ),
+                data: data
             )
         case .noAgent:
             return v2Error(
@@ -183,7 +186,8 @@ extension TerminalController {
                 message: String(
                     localized: "socket.agentWait.error.noAgent",
                     defaultValue: "No agent lifecycle is recorded for this surface"
-                )
+                ),
+                data: data
             )
         case .liveLifecycleUnavailable:
             return v2Error(
@@ -192,7 +196,8 @@ extension TerminalController {
                 message: String(
                     localized: "socket.agentWait.error.liveLifecycleUnavailable",
                     defaultValue: "Live agent lifecycle is unavailable for this surface"
-                )
+                ),
+                data: data
             )
         case .subscriptionClosed:
             return v2Error(
@@ -201,7 +206,8 @@ extension TerminalController {
                 message: String(
                     localized: "socket.agentWait.error.cancelled",
                     defaultValue: "Agent wait was cancelled"
-                )
+                ),
+                data: data
             )
         }
     }

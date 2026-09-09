@@ -303,7 +303,11 @@ extension TerminalController {
                     result: agentSendAndWaitPayload(result, sendResult: sendResult)
                 )
             case .failure(let error):
-                response = agentWaitErrorResponse(id: id, error: error)
+                response = agentWaitErrorResponse(
+                    id: id,
+                    error: error,
+                    data: ["sent": true]
+                )
             }
         }
         revocationSource?.cancel()

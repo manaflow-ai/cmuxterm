@@ -76,6 +76,49 @@ struct AgentWaitCoordinator {
         )
     }
 
+    /// Admits a surface-scoped subscription before taking the lifecycle snapshot.
+    ///
+    /// The preparation sequence is used as the lower bound for events consumed
+    /// by the wait, so transitions admitted between subscription and snapshot are
+    /// ignored when they are already reflected by the prepared snapshot.
+    func wait(
+        until: AgentWaitUntil,
+        timeoutMilliseconds: Int64?,
+        surfaceID: UUID,
+        prepare: () -> Preparation,
+        routingSnapshot: ((UUID) -> AgentWaitSurfaceSnapshot?)? = nil
+    ) -> Result<AgentWaitResult, AgentWaitError> {
+        let subscriptionSnapshot = subscribe(surfaceID: surfaceID, afterSequence: nil)
+        guard !subscriptionSnapshot.subscription.isClosed else {
+            eventBus.unsubscribe(subscriptionSnapshot.subscription)
+            return .failure(.subscriptionClosed)
+        }
+        if let resume = subscriptionSnapshot.ack["resume"] as? [String: Any],
+           resume["gap"] as? Bool == true {
+            eventBus.unsubscribe(subscriptionSnapshot.subscription)
+            return .failure(.subscriptionClosed)
+        }
+
+        let preparation = prepare()
+        guard let surface = preparation.surface,
+              surface.surfaceID == surfaceID else {
+            eventBus.unsubscribe(subscriptionSnapshot.subscription)
+            return .failure(.surfaceNotFound)
+        }
+        guard surface.hasAuthoritativeLiveLifecycle else {
+            eventBus.unsubscribe(subscriptionSnapshot.subscription)
+            return .failure(.liveLifecycleUnavailable)
+        }
+        return wait(
+            until: until,
+            timeoutMilliseconds: timeoutMilliseconds,
+            surface: surface,
+            subscriptionSnapshot: subscriptionSnapshot,
+            minimumEventSequence: preparation.afterSequence,
+            routingSnapshot: routingSnapshot
+        )
+    }
+
     /// Waits on a subscription that was admitted before a related mutation.
     ///
     /// ``minimumEventSequence`` lets an atomic producer ignore replayed or

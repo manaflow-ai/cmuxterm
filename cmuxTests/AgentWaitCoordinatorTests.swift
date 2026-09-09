@@ -45,6 +45,41 @@ struct AgentWaitCoordinatorTests {
     }
 
     @Test
+    func subscriptionPrecedesSnapshotForLifecycleReplacement() throws {
+        let fixture = Fixture(state: .running)
+        let replacement = AgentLifecycleRecord(
+            agent: fixture.original.agent,
+            state: .idle,
+            sessionID: "session-new",
+            revision: fixture.original.revision + 1
+        )
+        var occupant = fixture.original
+        let coordinator = AgentWaitCoordinator(
+            eventBus: fixture.bus,
+            onSubscribe: { _ in
+                occupant = replacement
+                fixture.publish(
+                    record: replacement,
+                    state: .idle,
+                    previous: .running
+                )
+            }
+        )
+
+        let result = coordinator.wait(
+            until: .idle,
+            timeoutMilliseconds: 0,
+            surfaceID: fixture.surfaceID,
+            prepare: { fixture.preparation(occupant: occupant) }
+        )
+
+        let value = try result.get()
+        #expect(value.status == .satisfied)
+        #expect(value.state == .idle)
+        #expect(value.sessionID == replacement.sessionID)
+    }
+
+    @Test
     func dockSnapshotRejectsWaitWithoutLiveLifecycleAuthority() {
         let fixture = Fixture(state: .running)
         let dockSnapshot = AgentWaitSurfaceSnapshot(
