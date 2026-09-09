@@ -47,7 +47,9 @@ public struct AgentHookPromptLifecycleState: Sendable, Equatable {
     public mutating func beginAuthoritativePrompt(turnID: String?, invocationNumber: Int? = nil) {
         depth = 1
         activeTurnID = turnID
-        activeInvocationNumber = invocationNumber
+        if let invocationNumber {
+            activeInvocationNumber = invocationNumber
+        }
         activeTurnIDs = turnID.map { [$0] }
         // A provider may omit the turn id on a repeated invocation. That is
         // not a new completed-turn observation and must not erase the marker

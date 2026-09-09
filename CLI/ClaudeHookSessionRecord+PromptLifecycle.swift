@@ -46,7 +46,7 @@ extension ClaudeHookSessionRecord {
                   let previousInvocationNumber else {
                 return false
             }
-            return invocationNumber < previousInvocationNumber
+            return invocationNumber == 0 && previousInvocationNumber > 0
         }()
         if !wasActive || isExplicitlyNewTurn || isResetInvocation {
             advancePromptLifecycleRevision()
