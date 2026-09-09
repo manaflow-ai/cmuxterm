@@ -30,8 +30,8 @@ final class OpenCodeHookRegressionTests: XCTestCase {
         let environment = ProcessInfo.processInfo.environment
         // XCTest app hosts can intentionally receive a minimal PATH. CI records
         // the setup-node executable explicitly so this test does not depend on
-        // PATH surviving the test-manager handoff; local runs retain the env
-        // lookup fallback.
+        // PATH surviving the test-manager handoff; local runs retain the
+        // environment lookup fallback.
         let nodeInvocation: (executablePath: String, prefixArguments: [String])
         if let nodePath = environment["CMUX_TEST_NODE_PATH"], !nodePath.isEmpty {
             nodeInvocation = (nodePath, [])
