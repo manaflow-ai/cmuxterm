@@ -146,7 +146,10 @@ struct MobileTerminalLaneCoordinatorTests {
             consume: { _ in .accepted(outputReady: true) },
             readinessChanged: { _ in }
         ))
-        try await Task.sleep(for: .milliseconds(10))
+        // Yield once so the launched lane task can observe the missing output
+        // provider before the actor snapshot below; unlike a wall-clock sleep,
+        // this does not make the assertion depend on machine timing.
+        await Task.yield()
 
         #expect(await inputProvider.requestCount() == 0)
         #expect(await coordinator.isOutputReady(surfaceID: Self.surfaceID) == false)
